@@ -19,35 +19,39 @@ import (
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
-	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
 	"github.com/xaionaro-go/xsync"
 )
 
-type ConnectionRTMP struct {
-	Locker       xsync.Mutex
-	Port         *ListeningPortRTMP
+type ConnectionRTMPPublisher struct {
+	Locker xsync.Mutex
+
+	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
+	Port         *ListeningPortRTMPPublisher
 	Conn         net.Conn
 	CancelFunc   context.CancelFunc
 	AVInputURL   *url.URL
 	AVInputKey   secret.String
 	AVInputConn  *net.TCPConn
-	InputNode    *avpipeline.Node[*processor.FromKernel[*kernel.Input]]
+	Node         *NodeInput
 	InitError    error
 	InitFinished chan struct{}
 	AppName      *string
+	Route        *Route
 }
 
-func newConnectionRTMP(
+var _ Publisher = (*ConnectionRTMPPublisher)(nil)
+
+func newConnectionRTMPPublisher(
 	ctx context.Context,
-	p *ListeningPortRTMP,
+	p *ListeningPortRTMPPublisher,
 	conn net.Conn,
-) (_ret *ConnectionRTMP, _err error) {
+) (_ret *ConnectionRTMPPublisher, _err error) {
 	ctx, cancelFn := context.WithCancel(ctx)
 	ctx = belt.WithField(ctx, "remote_addr", conn.RemoteAddr())
-	c := &ConnectionRTMP{
+	c := &ConnectionRTMPPublisher{
 		Port:         p,
 		Conn:         conn,
 		CancelFunc:   cancelFn,
@@ -85,28 +89,52 @@ func newConnectionRTMP(
 	return c, nil
 }
 
-func (c *ConnectionRTMP) Close(ctx context.Context) (_err error) {
+func (c *ConnectionRTMPPublisher) String() string {
+	return fmt.Sprintf("RTMP-publisher(%s->%s->%s->%s)", c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.AVInputConn.LocalAddr(), c.AVInputConn.RemoteAddr())
+}
+
+func (c *ConnectionRTMPPublisher) GetNode(
+	context.Context,
+) *NodeInput {
+	return c.Node
+}
+func (c *ConnectionRTMPPublisher) GetRoute(
+	context.Context,
+) *Route {
+	return c.Route
+}
+
+func (c *ConnectionRTMPPublisher) Close(ctx context.Context) (_err error) {
 	logger.Debugf(ctx, "Close()")
 	defer logger.Debugf(ctx, "/Close(): %v", _err)
 	c.CancelFunc()
 	return xsync.DoR1(ctx, &c.Locker, func() error {
 		var errs []error
+		if c.Route != nil {
+			if _, err := c.Route.removePublisher(ctx, c); err != nil {
+				errs = append(errs, fmt.Errorf("unable to remove myself as a publisher at '%s': %w", c.Route.Path, err))
+			}
+			c.Route = nil
+		}
 		if c.AVInputConn != nil {
 			c.AVInputConn.SetDeadline(time.Unix(1, 0))
+			c.AVInputConn = nil
 		}
 		if c.Conn != nil {
 			c.Conn.SetDeadline(time.Unix(1, 0))
+			c.Conn = nil
 		}
-		if c.InputNode != nil {
-			if err := c.InputNode.Processor.Close(ctx); err != nil {
+		if c.Node != nil {
+			if err := c.Node.Processor.Close(ctx); err != nil {
 				errs = append(errs, fmt.Errorf("unable to close the input node processor: %w", err))
 			}
+			c.Node = nil
 		}
 		return errors.Join(errs...)
 	})
 }
 
-func (c *ConnectionRTMP) initRTMPHandler(
+func (c *ConnectionRTMPPublisher) initRTMPHandler(
 	ctx context.Context,
 ) (_err error) {
 	logger.Debugf(ctx, "initRTMPHandler")
@@ -172,7 +200,7 @@ func (c *ConnectionRTMP) initRTMPHandler(
 		})
 		return
 	}
-	c.InputNode = avpipeline.NewNodeFromKernel(ctx, input, processor.DefaultOptionsInput()...)
+	c.Node = newInputNode(ctx, c, input)
 
 	t := time.NewTicker(50 * time.Millisecond)
 	defer t.Stop()
@@ -202,7 +230,7 @@ func (c *ConnectionRTMP) initRTMPHandler(
 	}
 }
 
-func (c *ConnectionRTMP) negotiate(
+func (c *ConnectionRTMPPublisher) negotiate(
 	origCtx context.Context,
 ) (_err error) {
 	logger.Debugf(origCtx, "negotiate")
@@ -300,7 +328,18 @@ func (c *ConnectionRTMP) negotiate(
 			c.AppName = ptr(string(appName))
 			logger.Debugf(ctx, "appName == '%s'", *c.AppName)
 
-			c.InputNode.AddPushPacketsTo(c.Port.Server.GetRoute(ctx, *c.AppName))
+			routePath := *c.AppName
+			route, err := c.Port.Server.GetRoute(ctx, routePath, GetRouteModeCreateIfNotFound)
+			if err != nil {
+				errCh <- fmt.Errorf("unable to create a route '%s': %w", routePath, err)
+				return
+			}
+			if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
+				errCh <- fmt.Errorf("unable to add myself as a publisher to '%s': %w", routePath, err)
+				return
+			}
+			c.Route = route
+			c.Node.AddPushPacketsTo(route.Node)
 			observability.Go(ctx, func() {
 				errCh := make(chan avpipeline.ErrNode, 100)
 				defer close(errCh)
@@ -314,7 +353,7 @@ func (c *ConnectionRTMP) negotiate(
 					logger.Debugf(ctx, "not running Serve, because of InitError: %v", c.InitError)
 					return
 				}
-				c.InputNode.Serve(origCtx, avpipeline.ServeConfig{}, errCh)
+				c.Node.Serve(origCtx, avpipeline.ServeConfig{}, errCh)
 			})
 
 			logger.Tracef(ctx, "waiting for c.AVInputConn output...")
@@ -434,10 +473,10 @@ func parseAppName(
 	}
 }
 
-func (c *ConnectionRTMP) AVRTMPContext() *avcommon.RTMPContext {
+func (c *ConnectionRTMPPublisher) AVRTMPContext() *avcommon.RTMPContext {
 	fmtCtx := avcommon.WrapAVFormatContext(
 		xastiav.CFromAVFormatContext(
-			c.InputNode.Processor.Kernel.FormatContext,
+			c.Node.Processor.Kernel.FormatContext,
 		),
 	)
 	avioCtx := fmtCtx.Pb()
@@ -445,11 +484,11 @@ func (c *ConnectionRTMP) AVRTMPContext() *avcommon.RTMPContext {
 	return avcommon.WrapRTMPContext(urlCtx.PrivData())
 }
 
-func (c *ConnectionRTMP) GetAppName() string {
+func (c *ConnectionRTMPPublisher) GetAppName() string {
 	return *c.AppName
 }
 
-func (c *ConnectionRTMP) forward(
+func (c *ConnectionRTMPPublisher) forward(
 	ctx context.Context,
 ) (_err error) {
 	logger.Debugf(ctx, "forward")

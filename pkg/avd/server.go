@@ -24,14 +24,14 @@ func (s *Server) Close(
 	return s.Router.Close(ctx)
 }
 
-func (s *Server) ListenRTMP(
+func (s *Server) ListenRTMPPublisher(
 	ctx context.Context,
 	listener net.Listener,
-) (*ListeningPortRTMP, error) {
-	result := &ListeningPortRTMP{
+) (*ListeningPortRTMPPublisher, error) {
+	result := &ListeningPortRTMPPublisher{
 		Server:      s,
 		Listener:    listener,
-		Connections: make(map[net.Addr]*ConnectionRTMP),
+		Connections: make(map[net.Addr]*ConnectionRTMPPublisher),
 	}
 
 	err := result.StartListening(ctx)

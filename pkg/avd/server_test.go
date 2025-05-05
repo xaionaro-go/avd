@@ -35,7 +35,7 @@ func TestServerRTMP(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	s := NewServer(ctx)
-	_, err = s.ListenRTMP(ctx, listener)
+	_, err = s.ListenRTMPPublisher(ctx, listener)
 	require.NoError(t, err)
 
 	pushTestFLVTo(ctx, t, fmt.Sprintf("rtmp://%s/testApp/testKey", listener.Addr()))

@@ -10,14 +10,14 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
-type ListeningPortRTMP struct {
+type ListeningPortRTMPPublisher struct {
 	Server            *Server
 	Listener          net.Listener
 	ConnectionsLocker xsync.Mutex
-	Connections       map[net.Addr]*ConnectionRTMP
+	Connections       map[net.Addr]*ConnectionRTMPPublisher
 }
 
-func (p *ListeningPortRTMP) StartListening(ctx context.Context) error {
+func (p *ListeningPortRTMPPublisher) StartListening(ctx context.Context) error {
 	observability.Go(ctx, func() {
 		err := p.Listen(ctx)
 		if err != nil {
@@ -28,12 +28,12 @@ func (p *ListeningPortRTMP) StartListening(ctx context.Context) error {
 	return nil
 }
 
-func (p *ListeningPortRTMP) Close(ctx context.Context) error {
+func (p *ListeningPortRTMPPublisher) Close(ctx context.Context) error {
 	p.Listener.Close()
 	return nil
 }
 
-func (p *ListeningPortRTMP) Listen(ctx context.Context) error {
+func (p *ListeningPortRTMPPublisher) Listen(ctx context.Context) error {
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 	observability.Go(ctx, func() {
@@ -46,7 +46,7 @@ func (p *ListeningPortRTMP) Listen(ctx context.Context) error {
 			return fmt.Errorf("unable to accept a connection: %w", err)
 		}
 
-		rtmpConn, err := newConnectionRTMP(ctx, p, conn)
+		rtmpConn, err := newConnectionRTMPPublisher(ctx, p, conn)
 		if err != nil {
 			return fmt.Errorf("unable to initialize a connection for '%s': %w", conn.RemoteAddr(), err)
 		}
