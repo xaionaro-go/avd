@@ -28,7 +28,7 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
-type ConnectionRTMP[N NodeIO] struct {
+type ConnectionRTMP[N AbstractNodeIO] struct {
 	Locker xsync.Mutex
 
 	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
@@ -47,7 +47,7 @@ type ConnectionRTMP[N NodeIO] struct {
 
 var _ = (*ConnectionRTMP[*NodeInput])(nil)
 
-func newConnectionRTMP[N NodeIO](
+func newConnectionRTMP[N AbstractNodeIO](
 	ctx context.Context,
 	p *ListeningPortRTMP,
 	conn net.Conn,
@@ -236,12 +236,10 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 		}
 		c.Node = any(newInputNode(ctx, c, input)).(N)
 	case RTMPModeConsumers:
-		c.Node = any(newOutputNode(
+		node, err := newOutputNode(
 			ctx,
 			c,
-			func(ctx context.Context) error {
-				return nil
-			},
+			nil,
 			url.String(),
 			secretKey,
 			kernel.OutputConfig{
@@ -255,7 +253,18 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 					return nil
 				},
 			},
-		)).(N)
+		)
+		if err != nil {
+			err = fmt.Errorf("unable to start listening '%s' using libav: %w", listenURL, err)
+			logger.Errorf(ctx, "%v", err)
+			c.InitError = err
+			close(c.InitFinished)
+			observability.Go(ctx, func() {
+				c.Close(ctx)
+			})
+			return
+		}
+		c.Node = any(node).(N)
 	}
 
 	t := time.NewTicker(50 * time.Millisecond)
@@ -460,7 +469,7 @@ func (c *ConnectionRTMP[N]) getKernel() kernel.Abstract {
 	switch p := c.Node.GetProcessor().(type) {
 	case *processor.FromKernel[*kernel.Input]:
 		return p.Kernel
-	case *processor.FromKernel[*kernel.Retry[*kernel.Output]]:
+	case *processor.FromKernel[*kernel.Output]:
 		return p.Kernel
 	default:
 		panic(fmt.Errorf("unexpected type: %T", p))
@@ -471,8 +480,8 @@ func (c *ConnectionRTMP[N]) getFormatContext() *astiav.FormatContext {
 	switch k := c.getKernel().(type) {
 	case *kernel.Input:
 		return k.FormatContext
-	case *kernel.Retry[*kernel.Output]:
-		return k.Kernel.FormatContext
+	case *kernel.Output:
+		return k.FormatContext
 	default:
 		panic(fmt.Errorf("unexpected type: %T", k))
 	}

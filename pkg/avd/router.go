@@ -255,3 +255,27 @@ func (r *Router) WaitForRoute(
 		}
 	}
 }
+
+func (r *Router) Wait(ctx context.Context) error {
+	logger.Debugf(ctx, "Wait")
+	defer func() { logger.Debugf(ctx, "/Wait") }()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-r.CloseChan:
+	}
+
+	endCh := make(chan struct{})
+	observability.Go(ctx, func() { // TODO: fix this leak
+		r.WaitGroup.Wait()
+		close(endCh)
+	})
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-endCh:
+		return nil
+	}
+}

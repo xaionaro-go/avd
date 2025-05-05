@@ -16,13 +16,9 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
-const (
-	forwardingToRemoteWaitForInput = true
-)
-
 type ForwardingToRemote struct {
 	Source *Route
-	*NodeOutput
+	*NodeRetryOutput
 	ErrChan    chan avpipeline.ErrNode
 	CancelFunc context.CancelFunc
 	CloseOnce  sync.Once
@@ -70,7 +66,7 @@ func (s *Server) AddForwardingToRemote(
 		ErrChan:    make(chan avpipeline.ErrNode, 100),
 		CancelFunc: cancelFn,
 	}
-	fwd.NodeOutput = newOutputNode(ctx, fwd, func(ctx context.Context) error {
+	fwd.NodeRetryOutput = newRetryOutputNode(ctx, fwd, func(ctx context.Context) error {
 		_, err := fwd.Source.WaitForPublisher(ctx)
 		return err
 	}, dstURL, streamKey, kernel.OutputConfig{})
@@ -89,8 +85,8 @@ func (s *Server) AddForwardingToRemote(
 
 func (fwd *ForwardingToRemote) GetNode(
 	context.Context,
-) *NodeOutput {
-	return fwd.NodeOutput
+) *NodeRetryOutput {
+	return fwd.NodeRetryOutput
 }
 
 func (fwd *ForwardingToRemote) init(
@@ -103,7 +99,7 @@ func (fwd *ForwardingToRemote) init(
 	}
 	observability.Go(ctx, func() {
 		defer close(fwd.ErrChan)
-		fwd.NodeOutput.Serve(ctx, avpipeline.ServeConfig{}, fwd.ErrChan)
+		fwd.NodeRetryOutput.Serve(ctx, avpipeline.ServeConfig{}, fwd.ErrChan)
 	})
 	observability.Go(ctx, func() {
 		for err := range fwd.ErrChan {
@@ -122,11 +118,11 @@ func (fwd *ForwardingToRemote) Close(
 		logger.Debugf(ctx, "Close")
 		defer func() { logger.Debugf(ctx, "/Close: %v", _err) }()
 		fwd.CancelFunc()
-		if fwd.NodeOutput != nil {
+		if fwd.NodeRetryOutput != nil {
 			if err := fwd.removePacketsPushing(ctx); err != nil {
 				errs = append(errs, fmt.Errorf("unable to remove myself from the source's 'PushPacketsTo': %w", err))
 			}
-			fwd.NodeOutput = nil
+			fwd.NodeRetryOutput = nil
 		}
 	})
 	return errors.Join(errs...)

@@ -27,8 +27,9 @@ func newInputNode(
 	return node
 }
 
-type NodeOutput = avpipeline.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Retry[*kernel.Output]]]
 type Sender any
+
+type NodeOutput = avpipeline.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Output]]
 
 func newOutputNode(
 	ctx context.Context,
@@ -37,13 +38,45 @@ func newOutputNode(
 	dstURL string,
 	streamKey secret.String,
 	cfg kernel.OutputConfig,
-) *NodeOutput {
+) (*NodeOutput, error) {
+	logger.Tracef(ctx, "newOutputNode")
+	defer func() { logger.Tracef(ctx, "/newOutputNode") }()
+
+	if waitForInputFunc != nil {
+		err := waitForInputFunc(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("unable to wait for input: %w", err)
+		}
+	}
+
+	outputKernel, err := kernel.NewOutputFromURL(ctx, dstURL, streamKey, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("unable to open the output: %w", err)
+	}
+
+	node := avpipeline.NewNodeWithCustomDataFromKernel[Sender](
+		ctx, outputKernel, processor.DefaultOptionsOutput()...,
+	)
+	node.CustomData = sender
+	return node, nil
+}
+
+type NodeRetryOutput = avpipeline.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Retry[*kernel.Output]]]
+
+func newRetryOutputNode(
+	ctx context.Context,
+	sender Sender,
+	waitForInputFunc func(context.Context) error,
+	dstURL string,
+	streamKey secret.String,
+	cfg kernel.OutputConfig,
+) *NodeRetryOutput {
 	logger.Tracef(ctx, "newOutputNode")
 	defer func() { logger.Tracef(ctx, "/newOutputNode") }()
 
 	outputKernel := kernel.NewRetry(xlogger.CtxWithMaxLoggingLevel(ctx, logger.LevelWarning),
 		func(ctx context.Context) (*kernel.Output, error) {
-			if forwardingToRemoteWaitForInput {
+			if waitForInputFunc != nil {
 				err := waitForInputFunc(ctx)
 				if err != nil {
 					return nil, fmt.Errorf("unable to wait for input: %w", err)
@@ -67,8 +100,12 @@ func newOutputNode(
 	return node
 }
 
-type NodeIO interface {
-	*NodeInput | *NodeOutput
+type AbstractNodeOutput interface {
+	*NodeOutput | *NodeRetryOutput
+}
+
+type AbstractNodeIO interface {
+	*NodeInput | AbstractNodeOutput
 	avpipeline.AbstractNode
 	DotString(bool) string
 }
