@@ -25,6 +25,10 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
+const (
+	connectionRTMPPublisherEnableAppNameUpdaterHack = true
+)
+
 type ConnectionRTMPPublisher struct {
 	Locker xsync.Mutex
 
@@ -76,9 +80,11 @@ func newConnectionRTMPPublisher(
 			logger.Debugf(ctx, "the end")
 			c.Close(ctx)
 		}()
-		if err := c.negotiate(ctx); err != nil {
-			logger.Errorf(ctx, "unable to negotiate the connection with %s: %v", conn.RemoteAddr(), err)
-			return
+		if connectionRTMPPublisherEnableAppNameUpdaterHack {
+			if err := c.negotiate(ctx); err != nil {
+				logger.Errorf(ctx, "unable to negotiate the connection with %s: %v", conn.RemoteAddr(), err)
+				return
+			}
 		}
 		if err := c.forward(ctx); err != nil {
 			logger.Errorf(ctx, "unable to forward the connection with %s: %v", conn.RemoteAddr(), err)
@@ -329,6 +335,7 @@ func (c *ConnectionRTMPPublisher) negotiate(
 			logger.Debugf(ctx, "appName == '%s'", *c.AppName)
 
 			routePath := *c.AppName
+			ctx = belt.WithField(ctx, "path", routePath)
 			route, err := c.Port.Server.GetRoute(ctx, routePath, GetRouteModeCreateIfNotFound)
 			if err != nil {
 				errCh <- fmt.Errorf("unable to create a route '%s': %w", routePath, err)
@@ -353,7 +360,9 @@ func (c *ConnectionRTMPPublisher) negotiate(
 					logger.Debugf(ctx, "not running Serve, because of InitError: %v", c.InitError)
 					return
 				}
-				c.Node.Serve(origCtx, avpipeline.ServeConfig{}, errCh)
+				logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
+				serveCtx := belt.WithField(origCtx, "path", routePath)
+				c.Node.Serve(serveCtx, avpipeline.ServeConfig{}, errCh)
 			})
 
 			logger.Tracef(ctx, "waiting for c.AVInputConn output...")
@@ -485,7 +494,11 @@ func (c *ConnectionRTMPPublisher) AVRTMPContext() *avcommon.RTMPContext {
 }
 
 func (c *ConnectionRTMPPublisher) GetAppName() string {
-	return *c.AppName
+	if connectionRTMPPublisherEnableAppNameUpdaterHack {
+		return *c.AppName
+	} else {
+		return c.AVRTMPContext().App()
+	}
 }
 
 func (c *ConnectionRTMPPublisher) forward(

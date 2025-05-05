@@ -77,12 +77,22 @@ endpoints:
 
 Run:
 ```sh
-$ ffplay -f flv -listen 1 rtmp://127.0.0.1:1399/test
+$ ffplay -f flv -listen 1 rtmp://127.0.0.1:1399/test-stream
 ```
 
 Run the `avd` again:
 ```sh
 $ avd
+```
+
+Now send some stream to `avd`, e.g.:
+```sh
+$ ffmpeg -re -i /tmp/1.flv -c copy -f flv rtmp://127.0.0.1:1936/mystream
+```
+
+In result, you'll see that `ffplay` is playing your stream:
+```
+ffmpeg -> avd -> ffplay
 ```
 
 # Quick start (package)

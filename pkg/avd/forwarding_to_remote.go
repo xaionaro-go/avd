@@ -2,24 +2,34 @@ package avd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"sync"
+	"time"
 
+	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/observability"
+	"github.com/xaionaro-go/observability/xlogger"
 	"github.com/xaionaro-go/recoder"
 	"github.com/xaionaro-go/secret"
+	"github.com/xaionaro-go/xsync"
+)
+
+const (
+	forwardingToRemoteWaitForInput = true
 )
 
 type ForwardingToRemote struct {
-	Source      *Route
-	Destination *NodeOutput
-	ErrChan     chan avpipeline.ErrNode
-	CancelFunc  context.CancelFunc
-	CloseOnce   sync.Once
+	Source *Route
+	*NodeOutput
+	ErrChan    chan avpipeline.ErrNode
+	CancelFunc context.CancelFunc
+	CloseOnce  sync.Once
 }
 
 func (s *Server) AddForwardingToRemote(
@@ -41,12 +51,16 @@ func (s *Server) AddForwardingToRemote(
 			cancelFn()
 		}
 	}()
+	ctx = belt.WithField(ctx, "source_path", sourcePath)
+	ctx = belt.WithField(ctx, "dst_url", dstURL)
 
 	if encodersConfig != nil {
 		return nil, fmt.Errorf("recoding/transcoding is not implemented, yet")
 	}
 
+	logger.Tracef(ctx, "s.Router.GetRoute")
 	source, err := s.Router.GetRoute(ctx, sourcePath, getRouteMode)
+	logger.Tracef(ctx, "/s.Router.GetRoute: %v %v", source, err)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get a route by path '%s' with mode '%s': %w", sourcePath, getRouteMode, err)
 	}
@@ -54,17 +68,17 @@ func (s *Server) AddForwardingToRemote(
 		return nil, fmt.Errorf("there is no active route by path '%s'", sourcePath)
 	}
 
-	output, err := kernel.NewOutputFromURL(ctx, dstURL, streamKey, kernel.OutputConfig{})
-	if err != nil {
-		return nil, fmt.Errorf("unable to open the output: %w", err)
-	}
-
+	logger.Tracef(ctx, "building ForwardingToRemote")
 	fwd := &ForwardingToRemote{
 		Source:     source,
 		ErrChan:    make(chan avpipeline.ErrNode, 100),
 		CancelFunc: cancelFn,
 	}
-	fwd.Destination = newOutputNode(ctx, fwd, output)
+	fwd.NodeOutput = newOutputNode(ctx, fwd, func(ctx context.Context) error {
+		_, err := fwd.Source.WaitForPublisher(ctx)
+		return err
+	}, dstURL, streamKey)
+	logger.Tracef(ctx, "built ForwardingToRemote")
 	defer func() {
 		if _err != nil {
 			fwd.Close(ctx)
@@ -80,7 +94,7 @@ func (s *Server) AddForwardingToRemote(
 func (fwd *ForwardingToRemote) GetNode(
 	context.Context,
 ) *NodeOutput {
-	return fwd.Destination
+	return fwd.NodeOutput
 }
 
 func (fwd *ForwardingToRemote) init(
@@ -88,9 +102,12 @@ func (fwd *ForwardingToRemote) init(
 ) (_err error) {
 	logger.Debugf(ctx, "init")
 	defer func() { logger.Debugf(ctx, "/init: %v", _err) }()
+	if err := fwd.addPacketsPushing(ctx); err != nil {
+		return fmt.Errorf("unable to add myself into the source's 'PushPacketsTo': %w", err)
+	}
 	observability.Go(ctx, func() {
 		defer close(fwd.ErrChan)
-		fwd.Destination.Serve(ctx, avpipeline.ServeConfig{}, fwd.ErrChan)
+		fwd.NodeOutput.Serve(ctx, avpipeline.ServeConfig{}, fwd.ErrChan)
 	})
 	observability.Go(ctx, func() {
 		for err := range fwd.ErrChan {
@@ -104,25 +121,102 @@ func (fwd *ForwardingToRemote) init(
 func (fwd *ForwardingToRemote) Close(
 	ctx context.Context,
 ) (_err error) {
+	var errs []error
 	fwd.CloseOnce.Do(func() {
 		logger.Debugf(ctx, "Close")
 		defer func() { logger.Debugf(ctx, "/Close: %v", _err) }()
 		fwd.CancelFunc()
+		if fwd.NodeOutput != nil {
+			if err := fwd.removePacketsPushing(ctx); err != nil {
+				errs = append(errs, fmt.Errorf("unable to remove myself from the source's 'PushPacketsTo': %w", err))
+			}
+			fwd.NodeOutput = nil
+		}
 	})
-	return nil
+	return errors.Join(errs...)
 }
 
-type NodeOutput = avpipeline.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Output]]
+func (fwd *ForwardingToRemote) addPacketsPushing(
+	ctx context.Context,
+) (_err error) {
+	logger.Debugf(ctx, "addPacketsPushing")
+	defer func() { logger.Debugf(ctx, "/addPacketsPushing: %v", _err) }()
+	return xsync.DoR1(ctx, &fwd.Source.Locker, func() error {
+		pushTos := fwd.Source.Node.GetPushPacketsTos()
+		for _, pushTo := range pushTos {
+			if pushTo.Node == fwd {
+				return fmt.Errorf("packets pushing is already added")
+			}
+		}
+
+		fwd.Source.Node.AddPushPacketsTo(fwd) // it will push to fwd.NodeOutput
+		logger.Debugf(
+			ctx,
+			"fwd.Source.Node: %T; fwd.Source.Node.PushPacketsTos: %#+v",
+			fwd.Source.Node, fwd.Source.Node.GetPushPacketsTos(),
+		)
+		return nil
+	})
+}
+
+func (fwd *ForwardingToRemote) removePacketsPushing(
+	ctx context.Context,
+) (_err error) {
+	logger.Debugf(ctx, "removePacketsPushing")
+	defer func() { defer logger.Debugf(ctx, "/removePacketsPushing: %v", _err) }()
+	return xsync.DoR1(ctx, &fwd.Source.Locker, func() error {
+		pushTos := fwd.Source.Node.GetPushPacketsTos()
+		for idx, pushTo := range pushTos {
+			if pushTo.Node == fwd {
+				pushTos = slices.Delete(pushTos, idx, idx+1)
+				fwd.Source.Node.SetPushPacketsTos(pushTos)
+				logger.Debugf(
+					ctx,
+					"fwd.Source.Node: %T; fwd.Source.Node.PushPacketsTos: %#+v",
+					fwd.Source.Node, fwd.Source.Node.GetPushPacketsTos(),
+				)
+				return nil
+			}
+		}
+		return fmt.Errorf("have not found myself as a consumer of '%s'", fwd.Source.Path)
+	})
+}
+
+type NodeOutput = avpipeline.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Retry[*kernel.Output]]]
 
 type Sender any
 
 func newOutputNode(
 	ctx context.Context,
 	sender Sender,
-	output *kernel.Output,
+	waitForInputFunc func(context.Context) error,
+	dstURL string,
+	streamKey secret.String,
 ) *NodeOutput {
+	logger.Tracef(ctx, "newOutputNode")
+	defer func() { logger.Tracef(ctx, "/newOutputNode") }()
+
+	outputKernel := kernel.NewRetry(xlogger.CtxWithMaxLoggingLevel(ctx, logger.LevelWarning),
+		func(ctx context.Context) (*kernel.Output, error) {
+			if forwardingToRemoteWaitForInput {
+				err := waitForInputFunc(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("unable to wait for input: %w", err)
+				}
+			}
+			return kernel.NewOutputFromURL(ctx, dstURL, streamKey, kernel.OutputConfig{})
+		},
+		func(ctx context.Context, k *kernel.Output) error {
+			return nil
+		},
+		func(ctx context.Context, k *kernel.Output, err error) error {
+			logger.Debugf(ctx, "connection ended: %v", err)
+			time.Sleep(time.Second)
+			return kernel.ErrRetry{Err: err}
+		},
+	)
 	node := avpipeline.NewNodeWithCustomDataFromKernel[Sender](
-		ctx, output, processor.DefaultOptionsOutput()...,
+		ctx, outputKernel, processor.DefaultOptionsOutput()...,
 	)
 	node.CustomData = sender
 	return node

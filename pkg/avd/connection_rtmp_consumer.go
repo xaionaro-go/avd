@@ -21,6 +21,6 @@ func newConnectionRTMPConsumer(
 
 func (c *ConnectionRTMPConsumer) Close(ctx context.Context) (_err error) {
 	logger.Debugf(ctx, "Close()")
-	defer logger.Debugf(ctx, "/Close(): %v", _err)
+	defer func() { logger.Debugf(ctx, "/Close(): %v", _err) }()
 	return fmt.Errorf("not implemented, yet")
 }

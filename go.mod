@@ -11,7 +11,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250505020050-1c12a8387656
-	github.com/xaionaro-go/avpipeline v0.0.0-20250505153451-ed68307ee28e
+	github.com/xaionaro-go/avpipeline v0.0.0-20250505210551-8947bc97719f
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250420133500-5c4d2e045932
 	github.com/xaionaro-go/recoder v0.0.0-20250503155018-6f353978d332

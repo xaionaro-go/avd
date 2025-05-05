@@ -6,6 +6,8 @@ import (
 
 	"slices"
 
+	"github.com/facebookincubator/go-belt"
+	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/processor"
@@ -13,6 +15,10 @@ import (
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/typing"
 	"github.com/xaionaro-go/xsync"
+)
+
+const (
+	routeFrameDrop = true
 )
 
 type NodeRouting = avpipeline.NodeWithCustomData[*Route, *processor.FromKernel[*kernel.MapStreamIndices]]
@@ -36,6 +42,7 @@ func newRoute(
 	onOpen func(context.Context, *Route),
 	onClosed func(context.Context, *Route),
 ) *Route {
+	ctx = belt.WithField(ctx, "path", path)
 	r := &Route{
 		Path:                 path,
 		PublishersChangeChan: make(chan struct{}),
@@ -53,7 +60,11 @@ func newRoute(
 		if onClosed != nil {
 			defer onClosed(ctx, r)
 		}
-		r.Node.Serve(ctx, avpipeline.ServeConfig{}, errCh)
+		defer logger.Debugf(ctx, "ended")
+		logger.Debugf(ctx, "started")
+		r.Node.Serve(ctx, avpipeline.ServeConfig{
+			FrameDrop: routeFrameDrop, // we don't want the whole pipeline to hang just because of one bad consumer
+		}, errCh)
 	})
 	return r
 }

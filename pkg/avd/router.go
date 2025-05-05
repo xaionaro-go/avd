@@ -110,8 +110,8 @@ func (r *Router) GetRoute(
 	path string,
 	mode GetRouteMode,
 ) (_ret *Route, _err error) {
-	logger.Debugf(ctx, "GetRoute")
-	defer func() { logger.Debugf(ctx, "/GetRoute: %v %v", _ret, _err) }()
+	logger.Debugf(ctx, "GetRoute(ctx, '%s', '%s')", path, mode)
+	defer func() { logger.Debugf(ctx, "/GetRoute(ctx, '%s', '%s'): %v %v", path, mode, _ret, _err) }()
 
 	curRoute := xsync.DoR1(ctx, &r.Locker, func() *Route {
 		return r.RoutesByPath[path]
@@ -133,7 +133,7 @@ func (r *Router) switchGetRoute(
 			return curRoute, nil
 		case GetRouteModeWaitForPublisher:
 			_, err := curRoute.WaitForPublisher(ctx)
-			if !errors.As(err, io.ErrClosedPipe) {
+			if !errors.Is(err, io.ErrClosedPipe) {
 				if err != nil {
 					return nil, fmt.Errorf("unable to wait for a publisher: %w", err)
 				}
@@ -168,7 +168,7 @@ func (r *Router) switchGetRoute(
 			if err != nil {
 				return nil, fmt.Errorf("unable to wait for a publisher: %w", err)
 			}
-			if errors.As(err, io.ErrClosedPipe) {
+			if errors.Is(err, io.ErrClosedPipe) {
 				continue
 			}
 			break
@@ -185,7 +185,10 @@ func (r *Router) switchGetRoute(
 func (r *Router) createRoute(
 	ctx context.Context,
 	path string,
-) *Route {
+) (_ret *Route) {
+	logger.Debugf(ctx, "createRoute(ctx, '%s')", path)
+	defer func() { logger.Debugf(ctx, "/createRoute(ctx, '%s'): %v", path, _ret) }()
+
 	route := r.RoutesByPath[path]
 	if route != nil {
 		return route

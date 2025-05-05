@@ -70,7 +70,10 @@ func (s *Server) AddForwardingLocal(
 	return fwd, nil
 }
 
-func (fwd *ForwardingLocal) init(ctx context.Context) error {
+func (fwd *ForwardingLocal) init(ctx context.Context) (_err error) {
+	logger.Debugf(ctx, "init")
+	defer func() { logger.Debugf(ctx, "/init: %v", _err) }()
+
 	if err := fwd.Destination.addPublisherIfNoPublishers(ctx, fwd); err != nil {
 		return fmt.Errorf("unable to add the forwarder as a publisher to '%s': %w", fwd.Destination.Path, err)
 	}
@@ -84,7 +87,9 @@ func (fwd *ForwardingLocal) init(ctx context.Context) error {
 
 func (fwd *ForwardingLocal) Close(
 	ctx context.Context,
-) error {
+) (_err error) {
+	logger.Debugf(ctx, "Close")
+	defer func() { logger.Debugf(ctx, "/Close: %v", _err) }()
 	var errs []error
 	if err := fwd.removePacketsPushing(ctx); err != nil {
 		errs = append(errs, fmt.Errorf("removePacketsPushing: %w", err))
@@ -97,7 +102,9 @@ func (fwd *ForwardingLocal) Close(
 
 func (fwd *ForwardingLocal) addPacketsPushing(
 	ctx context.Context,
-) error {
+) (_err error) {
+	logger.Debugf(ctx, "addPacketsPushing")
+	defer func() { logger.Debugf(ctx, "/addPacketsPushing: %v", _err) }()
 	return xsync.DoR1(ctx, &fwd.Source.Locker, func() error {
 		pushTos := fwd.Source.Node.GetPushPacketsTos()
 		for _, pushTo := range pushTos {
@@ -112,7 +119,9 @@ func (fwd *ForwardingLocal) addPacketsPushing(
 
 func (fwd *ForwardingLocal) removePacketsPushing(
 	ctx context.Context,
-) error {
+) (_err error) {
+	logger.Debugf(ctx, "removePacketsPushing")
+	defer func() { logger.Debugf(ctx, "/removePacketsPushing: %v", _err) }()
 	return xsync.DoR1(ctx, &fwd.Source.Locker, func() error {
 		pushTos := fwd.Source.Node.GetPushPacketsTos()
 		for idx, pushTo := range pushTos {

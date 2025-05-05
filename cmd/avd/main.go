@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
-	"github.com/facebookincubator/go-belt/tool/logger/implementation/logrus"
 	"github.com/spf13/pflag"
 	"github.com/xaionaro-go/avd/pkg/avd"
 	"github.com/xaionaro-go/avd/pkg/config"
@@ -43,14 +42,12 @@ func main() {
 		os.Exit(0)
 	}
 
-	l := logrus.Default().WithLevel(logger.LevelTrace)
-	ctx := context.Background()
-	ctx = logger.CtxWithLogger(ctx, l)
+	ctx := withLogger(context.Background(), loggerLevel)
 
 	if *netPprofAddr != "" {
 		observability.Go(ctx, func() {
-			l.Infof("starting to listen for net/pprof requests at '%s'", *netPprofAddr)
-			l.Error(http.ListenAndServe(*netPprofAddr, nil))
+			logger.Infof(ctx, "starting to listen for net/pprof requests at '%s'", *netPprofAddr)
+			logger.Error(ctx, http.ListenAndServe(*netPprofAddr, nil))
 		})
 	}
 
