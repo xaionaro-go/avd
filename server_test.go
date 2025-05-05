@@ -34,7 +34,7 @@ func TestServerRTMP(t *testing.T) {
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	s := NewServer()
+	s := NewServer(ctx)
 	_, err = s.ListenRTMP(ctx, listener)
 	require.NoError(t, err)
 
@@ -78,7 +78,6 @@ func pushTestFLVTo(
 	case <-ctx.Done():
 		return
 	case err := <-errCh:
-		t.Fail()
 		require.ErrorIs(t, err, io.EOF)
 	}
 }

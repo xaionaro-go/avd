@@ -203,15 +203,15 @@ func (c *ConnectionRTMP) initRTMPHandler(
 }
 
 func (c *ConnectionRTMP) negotiate(
-	ctx context.Context,
+	origCtx context.Context,
 ) (_err error) {
-	logger.Debugf(ctx, "negotiate")
-	defer func() { logger.Debugf(ctx, "/negotiate: %v", _err) }()
+	logger.Debugf(origCtx, "negotiate")
+	defer func() { logger.Debugf(origCtx, "/negotiate: %v", _err) }()
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ctx, cancelFn := context.WithCancel(ctx)
+	ctx, cancelFn := context.WithCancel(origCtx)
 	defer cancelFn()
 
 	errCh := make(chan error, 2)
@@ -300,7 +300,7 @@ func (c *ConnectionRTMP) negotiate(
 			c.AppName = ptr(string(appName))
 			logger.Debugf(ctx, "appName == '%s'", *c.AppName)
 
-			//c.InputNode.AddPushPacketsTo(c.Port.Server.Router[string(appName)])
+			c.InputNode.AddPushPacketsTo(c.Port.Server.GetRoute(ctx, *c.AppName))
 			observability.Go(ctx, func() {
 				errCh := make(chan avpipeline.ErrNode, 100)
 				defer close(errCh)
@@ -314,7 +314,7 @@ func (c *ConnectionRTMP) negotiate(
 					logger.Debugf(ctx, "not running Serve, because of InitError: %v", c.InitError)
 					return
 				}
-				c.InputNode.Serve(ctx, avpipeline.ServeConfig{}, errCh)
+				c.InputNode.Serve(origCtx, avpipeline.ServeConfig{}, errCh)
 			})
 
 			logger.Tracef(ctx, "waiting for c.AVInputConn output...")

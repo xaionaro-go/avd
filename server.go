@@ -6,10 +6,22 @@ import (
 	"net"
 )
 
-type Server struct{}
+type Server struct {
+	*Router
+}
 
-func NewServer() *Server {
-	return &Server{}
+func NewServer(
+	ctx context.Context,
+) *Server {
+	return &Server{
+		Router: newRouter(ctx),
+	}
+}
+
+func (s *Server) Close(
+	ctx context.Context,
+) error {
+	return s.Router.Close(ctx)
 }
 
 func (s *Server) ListenRTMP(
@@ -19,11 +31,13 @@ func (s *Server) ListenRTMP(
 	result := &ListeningPortRTMP{
 		Server:      s,
 		Listener:    listener,
-		Connections: map[net.Addr]*ConnectionRTMP{},
+		Connections: make(map[net.Addr]*ConnectionRTMP),
 	}
+
 	err := result.StartListening(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start listening: %w", err)
 	}
+
 	return result, nil
 }
