@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+
+	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/xaionaro-go/observability"
 )
 
 type Server struct {
@@ -27,7 +30,9 @@ func (s *Server) Close(
 func (s *Server) ListenRTMPPublisher(
 	ctx context.Context,
 	listener net.Listener,
-) (*ListeningPortRTMPPublisher, error) {
+) (_ret *ListeningPortRTMPPublisher, _err error) {
+	logger.Debugf(ctx, "ListenRTMPPublisher(ctx, '%s')", listener.Addr())
+	defer func() { logger.Debugf(ctx, "/ListenRTMPPublisher(ctx, '%s'): %v %v", listener.Addr(), _ret, _err) }()
 	result := &ListeningPortRTMPPublisher{
 		Server:      s,
 		Listener:    listener,
@@ -40,4 +45,21 @@ func (s *Server) ListenRTMPPublisher(
 	}
 
 	return result, nil
+}
+
+func (s *Server) Wait(ctx context.Context) {
+	logger.Debugf(ctx, "Wait")
+	defer func() { logger.Debugf(ctx, "/Wait") }()
+	endCh := make(chan struct{})
+	observability.Go(ctx, func() { // TODO: fix this leak
+		s.WaitGroup.Wait()
+		close(endCh)
+	})
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-endCh:
+		return
+	}
 }

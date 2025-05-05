@@ -4,18 +4,21 @@ go 1.24.1
 
 replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20250419202405-6baea371bdeb
 
-replace github.com/xaionaro-go/avpipeline v0.0.0-20250503212551-ab30e81e6598 => ../avpipeline
-
 require (
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f
+	github.com/goccy/go-yaml v1.17.1
+	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250505020050-1c12a8387656
-	github.com/xaionaro-go/avpipeline v0.0.0-20250503212551-ab30e81e6598
+	github.com/xaionaro-go/avpipeline v0.0.0-20250505153451-ed68307ee28e
+	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250420133500-5c4d2e045932
 	github.com/xaionaro-go/recoder v0.0.0-20250503155018-6f353978d332
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
 	github.com/xaionaro-go/typing v0.0.0-20221123235249-2229101d38ba
 	github.com/xaionaro-go/xcontext v0.0.0-20250111150717-e70e1f5b299c
+	github.com/xaionaro-go/xpath v0.0.0-20250111145115-55f5728f643f
 	github.com/xaionaro-go/xsync v0.0.0-20250420144932-1e27f4332d4d
 )
 
@@ -23,13 +26,14 @@ require (
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/asticode/go-astiav v0.36.0 // indirect
 	github.com/asticode/go-astikit v0.54.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-ng/container v0.0.0-20220615121757-4740bf4bbc52 // indirect
 	github.com/go-ng/slices v0.0.0-20230703171042-6195d35636a2 // indirect
 	github.com/go-ng/sort v0.0.0-20220617173827-2cc7cd04f7c7 // indirect
 	github.com/go-ng/xatomic v0.0.0-20230519181013-85c0ec87e55f // indirect
 	github.com/go-ng/xsort v0.0.0-20250330112557-d2ee7f01661c // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/huandu/go-tls v1.0.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/phuslu/goid v1.0.2 // indirect

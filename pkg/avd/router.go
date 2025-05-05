@@ -105,7 +105,10 @@ func (r *Router) GetRoute(
 	ctx context.Context,
 	path string,
 	mode GetRouteMode,
-) (*Route, error) {
+) (_ret *Route, _err error) {
+	logger.Debugf(ctx, "GetRoute")
+	defer func() { logger.Debugf(ctx, "/GetRoute: %v %v", _ret, _err) }()
+
 	curRoute := xsync.DoR1(ctx, &r.Locker, func() *Route {
 		return r.RoutesByPath[path]
 	})

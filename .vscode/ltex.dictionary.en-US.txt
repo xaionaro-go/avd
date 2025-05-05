@@ -6,3 +6,11 @@ mediamtx
 integratable
 multihour
 IIRC
+avd
+rtmp
+tcp
+conf
+forwardings
+mystream
+url
+recoding
