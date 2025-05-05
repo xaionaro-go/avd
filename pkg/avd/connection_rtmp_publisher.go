@@ -146,7 +146,19 @@ func (c *ConnectionRTMPPublisher) initRTMPHandler(
 	logger.Debugf(ctx, "initRTMPHandler")
 	defer func() { logger.Debugf(ctx, "/initRTMPHandler: %v", _err) }()
 
-	listenURL := "rtmp://127.0.0.1:53423/avd-input/"
+	randomPortTaker, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("unable to take a random port")
+	}
+	randomPort := randomPortTaker.Addr().String()
+	randomPortTaker.Close()
+
+	defaultAppName := "avd-input"
+	if c.Port.Config.DefaultAppName != "" {
+		defaultAppName = c.Port.Config.DefaultAppName
+	}
+
+	listenURL := fmt.Sprintf("rtmp://%s/%s/", randomPort, defaultAppName)
 	url, err := url.Parse(listenURL)
 	if err != nil {
 		return fmt.Errorf("unable to parse URL '%s' (it is an internal URL for communication between AVD and LibAV): %w", listenURL, err)

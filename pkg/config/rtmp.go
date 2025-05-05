@@ -15,7 +15,8 @@ const (
 )
 
 type RTMPConfig struct {
-	Mode RTMPMode `yaml:"mode"`
+	Mode           RTMPMode `yaml:"mode"`
+	DefaultAppName string   `yaml:"default_app_name"`
 }
 
 func (c RTMPMode) String() string {

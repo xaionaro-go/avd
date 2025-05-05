@@ -15,9 +15,25 @@ type ListeningPortRTMPPublisher struct {
 	Listener          net.Listener
 	ConnectionsLocker xsync.Mutex
 	Connections       map[net.Addr]*ConnectionRTMPPublisher
+	Config            ListeningPortRTMPPublisherConfig
+}
+type ListeningPortRTMPPublisherConfig struct {
+	DefaultAppName string
 }
 
-func (p *ListeningPortRTMPPublisher) StartListening(ctx context.Context) error {
+type ListeningPortRTMPPublisherOption interface {
+	apply(*ListeningPortRTMPPublisherConfig)
+}
+
+type ListeningPortRTMPPublisherOptionDefaultAppName string
+
+func (opt ListeningPortRTMPPublisherOptionDefaultAppName) apply(cfg *ListeningPortRTMPPublisherConfig) {
+	cfg.DefaultAppName = string(opt)
+}
+
+func (p *ListeningPortRTMPPublisher) StartListening(
+	ctx context.Context,
+) error {
 	observability.Go(ctx, func() {
 		err := p.Listen(ctx)
 		if err != nil {
