@@ -18,6 +18,8 @@ github.com/go-ng/xatomic v0.0.0-20230519181013-85c0ec87e55f h1:lifmuIc/S/hzVoStb
 github.com/go-ng/xatomic v0.0.0-20230519181013-85c0ec87e55f/go.mod h1:+3P6aQ4zDVR6jGPnXq3g/7kHnKLB73EsnGBhM0adWhA=
 github.com/go-ng/xsort v0.0.0-20250330112557-d2ee7f01661c h1:HJxoDBw4gpvxB+hR8qe44GPrDbOw8q2jR5W9yr3toxo=
 github.com/go-ng/xsort v0.0.0-20250330112557-d2ee7f01661c/go.mod h1:FJRei/3HqH6XVzwo61JwfpKT0rDulBRh1YOq3yWS0Cs=
+github.com/goccy/go-yaml v1.17.1 h1:LI34wktB2xEE3ONG/2Ar54+/HJVBriAGJ55PHls4YuY=
+github.com/goccy/go-yaml v1.17.1/go.mod h1:XBurs7gK8ATbW4ZPGKgcbrY1Br56PdM69F7LkFRi1kA=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/huandu/go-tls v0.0.0-20200109070953-6f75fb441850/go.mod h1:WeItecBdaIdUBRb7cSMMk+rq41iFKhf6Q9mDRDpbdec=
@@ -58,6 +60,8 @@ github.com/xaionaro-go/observability v0.0.0-20250420133500-5c4d2e045932 h1:uDPBc
 github.com/xaionaro-go/observability v0.0.0-20250420133500-5c4d2e045932/go.mod h1:j5y9LVYd0v8sJa9Ks7ZyuwFxAUpaNFHBNKBkiYipxPM=
 github.com/xaionaro-go/proxy v0.0.0-20250111150848-1f0e7b262638 h1:w7Dt6Mpj36S2cWm0PkT2+D4kxrQbfCwjXZs1HqiILpE=
 github.com/xaionaro-go/proxy v0.0.0-20250111150848-1f0e7b262638/go.mod h1:hOkJBFoMsnCDoZgpSPTHYbnevPgtpD16d9Xga91U+Eo=
+github.com/xaionaro-go/recoder v0.0.0-20250503155018-6f353978d332 h1:jB5I8UE9UL6g7qQKaZ/g9wt3lIXxgkDDJX1cV37D5go=
+github.com/xaionaro-go/recoder v0.0.0-20250503155018-6f353978d332/go.mod h1:Twc+NcQQ+afg4RHxwqqo9pRGIaY7+QwpuAiYa7ClSLw=
 github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2 h1:QHpTWfyfmz65cE0MtFXe9fScdi+X0VIYR2wgolSYEUk=
 github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2/go.mod h1:XKoHGZ4VKMbVBl8VotLIoWQdrB6Q7jnR++RbkiegZFU=
 github.com/xaionaro-go/spinlock v0.0.0-20190309154744-55278e21e817/go.mod h1:Nb/15eS0BMty6TMuWgRQM8WCDIUlyPZagcpchHT6c9Y=

@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/xaionaro-go/recoder"
 	"github.com/xaionaro-go/xsync"
 )
 
@@ -25,11 +26,16 @@ func (s *Server) AddForwardingLocal(
 	getSrcRouteMode GetRouteMode,
 	dstPath string,
 	getDstRouteMode GetRouteMode,
+	encodersConfig *recoder.EncodersConfig,
 ) (_ret *ForwardingLocal, _err error) {
 	logger.Debugf(ctx, "AddForwardingLocal(ctx, '%s', '%s', '%s', '%s')", srcPath, getSrcRouteMode, dstPath, getDstRouteMode)
 	defer func() {
 		logger.Debugf(ctx, "/AddForwardingLocal(ctx, '%s', '%s', '%s', '%s'): %v %v", srcPath, getSrcRouteMode, dstPath, getDstRouteMode, _ret, _err)
 	}()
+
+	if encodersConfig != nil {
+		return nil, fmt.Errorf("recoding/transcoding is not implemented, yet")
+	}
 
 	src, err := s.Router.GetRoute(ctx, srcPath, getSrcRouteMode)
 	if err != nil {
@@ -52,6 +58,11 @@ func (s *Server) AddForwardingLocal(
 		Destination: dst,
 		NodeRouting: dst.Node,
 	}
+	defer func() {
+		if _err != nil {
+			fwd.Close(ctx)
+		}
+	}()
 	if err := fwd.init(ctx); err != nil {
 		return nil, fmt.Errorf("unable to initialize: %w", err)
 	}
@@ -77,6 +88,9 @@ func (fwd *ForwardingLocal) Close(
 	var errs []error
 	if err := fwd.removePacketsPushing(ctx); err != nil {
 		errs = append(errs, fmt.Errorf("removePacketsPushing: %w", err))
+	}
+	if _, err := fwd.Destination.removePublisher(ctx, fwd); err != nil {
+		errs = append(errs, fmt.Errorf("removePublisher: %w", err))
 	}
 	return errors.Join(errs...)
 }

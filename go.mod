@@ -12,6 +12,7 @@ require (
 	github.com/xaionaro-go/avcommon v0.0.0-20250505020050-1c12a8387656
 	github.com/xaionaro-go/avpipeline v0.0.0-20250503212551-ab30e81e6598
 	github.com/xaionaro-go/observability v0.0.0-20250420133500-5c4d2e045932
+	github.com/xaionaro-go/recoder v0.0.0-20250503155018-6f353978d332
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
 	github.com/xaionaro-go/typing v0.0.0-20221123235249-2229101d38ba
 	github.com/xaionaro-go/xcontext v0.0.0-20250111150717-e70e1f5b299c

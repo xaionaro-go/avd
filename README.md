@@ -1,6 +1,6 @@
 # `avd` -- (Lib)AV daemon
 
-`avd` -- is the best attempt (you can find on GitHub) on using [`libav`](https://github.com/FFmpeg/FFmpeg) as a streaming server (as an alternative to [`nginx-module-rtmp`](https://docs.nginx.com/nginx/admin-guide/dynamic-modules/rtmp/), [`mediamtx`](https://github.com/bluenviron/mediamtx), [`MonaServer`](https://github.com/MonaSolutions/MonaServer) or whatnot).
+`avd` -- is a streaming server that uses [`libav`](https://github.com/FFmpeg/FFmpeg) under the hood (as an alternative to [`nginx-module-rtmp`](https://docs.nginx.com/nginx/admin-guide/dynamic-modules/rtmp/), [`mediamtx`](https://github.com/bluenviron/mediamtx), [`MonaServer`](https://github.com/MonaSolutions/MonaServer) or whatnot).
 
 On one hand, `libav` is a powerful, fine-polished and fine-tuned video/audio processing library, that supports RTMP, RTSP, SRT and other protocols out of the box.
 On the other hand, `libav` lacks capabilities to serve these protocols beyond just accepting a pre-defined stream or/and using the protocols as a client.
@@ -23,5 +23,14 @@ So I decided to just reuse all the fine-polishing of `libav` a make a server out
 * [`go2rtc`](https://github.com/AlexxIT/go2rtc): it appeared to be just a forwarding/routing server, rather than a normal server (e.g.: [ITS#1238](https://github.com/AlexxIT/go2rtc/issues/1238#issuecomment-2237036661)); not integratable into another Go project; and even those were not problems by now I'm convinced it would not have handled my edge cases better than mediamtx.
 * So on.
 
-I also tried to solve my problems with just small libraries/packages, e.g. [github.com/yutopp/go-rtmp](https://github.com/yutopp/go-rtmp) (see also [github.com/xaionaro-go/go-rtmp](https://github.com/xaionaro-go/go-rtmp)), but all of them were even further from supporting my edge cases. For example, IIRC, `go-rtmp` did not even support multihours streams (the timestamp field in RTMP was overflowing). 
+I also tried to solve my problems with just small libraries/packages, e.g. [github.com/yutopp/go-rtmp](https://github.com/yutopp/go-rtmp) (see also [github.com/xaionaro-go/go-rtmp](https://github.com/xaionaro-go/go-rtmp)), but all of them were even further from supporting my edge cases. For example, IIRC, `go-rtmp` did not even support multihour streams (the timestamp field in RTMP was overflowing). 
+
+The general pattern is that a project:
+* Does not support protocols I need.
+* Works badly in edge cases.
+* Is too difficult to build for Android/iOS/Linux/whatever.
+* Is not integratable into an existing Go project.
+* Has major bugs/limitations even in normal cases.
+
+So the hope is that if I'll just use `libav` I'll avoid these problems better than the other projects, but with focus on solving my personal edge cases.
 
