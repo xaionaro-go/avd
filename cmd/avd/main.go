@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/facebookincubator/go-belt/tool/logger/implementation/logrus"
@@ -68,5 +70,10 @@ func main() {
 	err := configapplier.ApplyConfig(ctx, cfg, srv)
 	assertNoError(ctx, err)
 
+	// just to keep some concurrent logs before message "started": which is not necessary, but just makes a bit easier to read the logs:
+	time.Sleep(time.Millisecond)
+
+	logger.Infof(ctx, "started...")
 	srv.Wait(ctx)
+	logger.Errorf(ctx, "the server exited")
 }

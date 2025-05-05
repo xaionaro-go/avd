@@ -34,12 +34,12 @@ The general pattern is that a project:
 
 So the hope is that if I'll just use `libav` I'll avoid these problems better than the other projects, but with focus on solving my personal edge cases.
 
-# Quick start
+# Quick start (daemon)
 
 ```sh
 $ avd --generate-config | tee ~/.avd.conf
 ```
-```
+```yaml
 ports:
 - address: tcp:127.0.0.1:1936
   rtmp:
@@ -59,3 +59,71 @@ endpoints:
 ```sh
 $ avd
 ```
+
+It should work. Now let's do something useful:
+
+Modify the config to:
+```yaml
+ports:
+- address: tcp:127.0.0.1:1936
+  rtmp:
+    mode: "publishers"
+endpoints:
+  mystream:
+    forwardings:
+    - destination:
+        url: "rtmp://127.0.0.1:1399/test-stream"
+```
+
+Run:
+```sh
+$ ffplay -f flv -listen 1 rtmp://127.0.0.1:1399/test
+```
+
+Run the `avd` again:
+```sh
+$ avd
+```
+
+# Quick start (package)
+
+An example of an RTMP server:
+```go
+import (
+	"fmt"
+	"net"
+
+	"github.com/xaionaro-go/avd/pkg/avd"
+)
+
+func serveRTMP(ctx context.Context) error {
+	srv := avd.NewServer()
+
+	publishersURL := "127.0.0.1:1936"
+	publishersListener, err := net.Listen("tcp", publishersURL)
+	if err != nil {
+		return fmt.Errorf("unable to start listening at %s: %w", publishersURL, err)
+	}
+
+	consumersURL := "0.0.0.0:1935"
+	consumersListener, err := net.Listen("tcp", consumersURL)
+	if err != nil {
+		return fmt.Errorf("unable to start listening at %s: %w", consumersURL, err)
+	}
+
+	_, err = srv.ListenRTMPPublisher(ctx, publishersListener)
+	if err != nil {
+		return fmt.Errorf("unable to listen %s with the RTMP-publishers handler: %w", publishersListener.Addr(), err)
+	}
+
+	_, err = srv.ListenRTMPConsumers(ctx, consumersListener)
+	if err != nil {
+		return fmt.Errorf("unable to listen %s with the RTMP-consumers handler: %w", consumersListener.Addr(), err)
+	}
+
+	srv.Wait(ctx)
+	return nil
+}
+```
+
+Unfortunately we have to split publishers and consumers to two ports due to internal limitations of `libav`.

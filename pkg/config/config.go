@@ -19,7 +19,7 @@ type EndpointConfig struct {
 }
 
 type PortConfig struct {
-	Address string      `yaml:"address"`
+	Address PortAddress `yaml:"address"`
 	RTMP    *RTMPConfig `yaml:"rtmp"`
 }
 

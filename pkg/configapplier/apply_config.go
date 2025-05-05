@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/url"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/avd"
@@ -18,13 +17,14 @@ func ApplyConfig(
 	srv *avd.Server,
 ) error {
 	for idx, port := range cfg.Ports {
-		urlParsed, err := url.Parse(port.Address)
+		proto, host, err := port.Address.Parse(ctx)
 		if err != nil {
-			return fmt.Errorf("unable to parse the port URL '%s' of port #%d: %w", port.Address, idx, err)
+			return fmt.Errorf("unable to parse the port string '%s': %w", port.Address, err)
 		}
-		listener, err := net.Listen(urlParsed.Scheme, urlParsed.Host)
+		logger.Debugf(ctx, "parsed: transport='%s', host='%s' (orig='%s')", proto, host, port.Address)
+		listener, err := net.Listen(proto, host)
 		if err != nil {
-			return fmt.Errorf("unable to start listening on %s: %w", urlParsed, err)
+			return fmt.Errorf("unable to start listening on '%s': %w", port.Address, err)
 		}
 		switch {
 		case port.RTMP != nil:
@@ -32,13 +32,13 @@ func ApplyConfig(
 			case config.RTMPModePublishers:
 				_, err := srv.ListenRTMPPublisher(ctx, listener)
 				if err != nil {
-					return fmt.Errorf("unable to listen %s with the RTMP-publishers handler: %w", listener.Addr(), err)
+					return fmt.Errorf("unable to listen '%s' with the RTMP-publishers handler: %w", listener.Addr(), err)
 				}
 			default:
 				return fmt.Errorf("the support of RTMP port mode '%s' is not implemented", port.RTMP.Mode)
 			}
 		default:
-			return fmt.Errorf("unknown/missing port type in port #%d (%s)", idx, port.Address)
+			return fmt.Errorf("unknown/missing port type in port #%d ('%s')", idx, port.Address)
 		}
 	}
 
@@ -57,7 +57,7 @@ func ApplyConfig(
 					ctx,
 					path,
 					fwd.Destination.URL, secret.New(""),
-					avd.GetRouteModeWaitForPublisher,
+					avd.GetRouteModeFailIfNotFound,
 					fwd.Recoding,
 				)
 				if err != nil {
@@ -66,7 +66,7 @@ func ApplyConfig(
 			case fwd.Destination.Route != "":
 				_, err := srv.AddForwardingLocal(
 					ctx,
-					path, avd.GetRouteModeWaitForPublisher,
+					path, avd.GetRouteModeFailIfNotFound,
 					fwd.Destination.Route, avd.GetRouteModeFailIfNotFound,
 					fwd.Recoding,
 				)

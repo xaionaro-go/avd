@@ -24,8 +24,9 @@ type Route struct {
 	Path string
 
 	// access only when Locker is locked:
-	Node       *NodeRouting
-	Publishers Publishers
+	Node                 *NodeRouting
+	Publishers           Publishers
+	PublishersChangeChan chan struct{}
 }
 
 func newRoute(
@@ -36,7 +37,8 @@ func newRoute(
 	onClosed func(context.Context, *Route),
 ) *Route {
 	r := &Route{
-		Path: path,
+		Path:                 path,
+		PublishersChangeChan: make(chan struct{}),
 	}
 	r.Node = avpipeline.NewNodeWithCustomDataFromKernel[*Route](
 		ctx,
@@ -54,6 +56,14 @@ func newRoute(
 		r.Node.Serve(ctx, avpipeline.ServeConfig{}, errCh)
 	})
 	return r
+}
+
+func (r *Route) getPublishersChangeChan(
+	ctx context.Context,
+) <-chan struct{} {
+	return xsync.DoR1(ctx, &r.Locker, func() <-chan struct{} {
+		return r.PublishersChangeChan
+	})
 }
 
 func (r *Route) StreamIndexAssign(
@@ -85,16 +95,17 @@ func (r *Route) addPublisherIfNoPublishers(
 }
 
 func (r *Route) addPublisherNoLock(
-	ctx context.Context,
+	_ context.Context,
 	publisher Publisher,
 ) Publishers {
-	for _, cmp := range r.Publishers {
-		if publisher == cmp {
-			// already added
-			return r.Publishers
-		}
+	if slices.Contains(r.Publishers, publisher) {
+		// already added
+		return r.Publishers
 	}
 	r.Publishers = append(r.Publishers, publisher)
+	var ch chan<- struct{}
+	ch, r.PublishersChangeChan = r.PublishersChangeChan, make(chan struct{})
+	close(ch)
 	return r.Publishers
 }
 
@@ -112,9 +123,29 @@ func (r *Route) removePublisherNoLock(
 	for idx, candidate := range r.Publishers {
 		if publisher == candidate {
 			r.Publishers = slices.Delete(r.Publishers, idx, idx+1)
+			var ch chan<- struct{}
+			ch, r.PublishersChangeChan = r.PublishersChangeChan, make(chan struct{})
+			close(ch)
 			return r.Publishers, nil
 		}
 	}
 
 	return nil, fmt.Errorf("the publisher is not found in the list of route's publishers")
+}
+
+func (r *Route) WaitForPublisher(
+	ctx context.Context,
+) (Publishers, error) {
+	for {
+		ch := r.getPublishersChangeChan(ctx)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ch:
+			publishers := r.GetPublishers(ctx)
+			if len(publishers) > 0 {
+				return publishers, nil
+			}
+		}
+	}
 }

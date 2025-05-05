@@ -74,7 +74,7 @@ func (s *Server) AddForwardingToRemote(
 	if err := fwd.init(ctx); err != nil {
 		return nil, fmt.Errorf("unable to initialize: %w", err)
 	}
-	return nil, fmt.Errorf("NOT IMPLEMENTED")
+	return fwd, nil
 }
 
 func (fwd *ForwardingToRemote) GetNode(

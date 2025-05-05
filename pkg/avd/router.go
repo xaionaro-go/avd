@@ -2,7 +2,9 @@ package avd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"sync"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
@@ -92,6 +94,8 @@ func (m GetRouteMode) String() string {
 		return "fail-if-no-found"
 	case GetRouteModeWaitUntilCreated:
 		return "wait-until-created"
+	case GetRouteModeWaitForPublisher:
+		return "wait-for-publisher"
 	case GetRouteModeCreateIfNotFound:
 		return "create-if-not-found"
 	case GetRouteModeCreate:
@@ -127,6 +131,14 @@ func (r *Router) switchGetRoute(
 			return curRoute, nil
 		case GetRouteModeWaitUntilCreated:
 			return curRoute, nil
+		case GetRouteModeWaitForPublisher:
+			_, err := curRoute.WaitForPublisher(ctx)
+			if !errors.As(err, io.ErrClosedPipe) {
+				if err != nil {
+					return nil, fmt.Errorf("unable to wait for a publisher: %w", err)
+				}
+				return curRoute, nil
+			}
 		case GetRouteModeCreateIfNotFound:
 			return curRoute, nil
 		case GetRouteModeCreate:
@@ -142,6 +154,24 @@ func (r *Router) switchGetRoute(
 		route, err := r.WaitForRoute(ctx, path)
 		if err != nil {
 			return nil, fmt.Errorf("unable to wait for route '%s': %w", path, err)
+		}
+		return route, nil
+	case GetRouteModeWaitForPublisher:
+		var route *Route
+		for {
+			var err error
+			route, err = r.WaitForRoute(ctx, path)
+			if err != nil {
+				return nil, fmt.Errorf("unable to wait for route '%s': %w", path, err)
+			}
+			_, err = route.WaitForPublisher(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("unable to wait for a publisher: %w", err)
+			}
+			if errors.As(err, io.ErrClosedPipe) {
+				continue
+			}
+			break
 		}
 		return route, nil
 	case GetRouteModeCreateIfNotFound:
