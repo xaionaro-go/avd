@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/observability"
 )
 
@@ -27,26 +28,28 @@ func (s *Server) Close(
 	return s.Router.Close(ctx)
 }
 
-func (s *Server) ListenRTMPPublisher(
+func (s *Server) ListenRTMP(
 	ctx context.Context,
 	listener net.Listener,
-	opts ...ListeningPortRTMPPublisherOption,
-) (_ret *ListeningPortRTMPPublisher, _err error) {
-	logger.Debugf(ctx, "ListenRTMPPublisher(ctx, '%s')", listener.Addr())
-	defer func() { logger.Debugf(ctx, "/ListenRTMPPublisher(ctx, '%s'): %v %v", listener.Addr(), _ret, _err) }()
+	mode types.RTMPMode,
+	opts ...ListeningPortRTMPOption,
+) (_ret *ListeningPortRTMP, _err error) {
+	logger.Debugf(ctx, "ListenRTMP(ctx, '%s')", listener.Addr())
+	defer func() { logger.Debugf(ctx, "/ListenRTMP(ctx, '%s'): %v %v", listener.Addr(), _ret, _err) }()
 
-	var cfg ListeningPortRTMPPublisherConfig
+	var cfg ListeningPortRTMPConfig
 	for _, opt := range opts {
 		opt.apply(&cfg)
 	}
-	result := &ListeningPortRTMPPublisher{
-		Server:      s,
-		Listener:    listener,
-		Connections: make(map[net.Addr]*ConnectionRTMPPublisher),
-		Config:      cfg,
+	result := &ListeningPortRTMP{
+		Server:                s,
+		Listener:              listener,
+		Config:                cfg,
+		ConnectionsPublishers: make(map[net.Addr]*ConnectionRTMP[*NodeInput]),
+		ConnectionsConsumers:  make(map[net.Addr]*ConnectionRTMP[*NodeOutput]),
 	}
 
-	err := result.StartListening(ctx)
+	err := result.StartListening(ctx, mode)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start listening: %w", err)
 	}

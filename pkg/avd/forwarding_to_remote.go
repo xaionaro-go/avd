@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
-	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/observability"
-	"github.com/xaionaro-go/observability/xlogger"
 	"github.com/xaionaro-go/recoder"
 	"github.com/xaionaro-go/secret"
 	"github.com/xaionaro-go/xsync"
@@ -77,7 +74,7 @@ func (s *Server) AddForwardingToRemote(
 	fwd.NodeOutput = newOutputNode(ctx, fwd, func(ctx context.Context) error {
 		_, err := fwd.Source.WaitForPublisher(ctx)
 		return err
-	}, dstURL, streamKey)
+	}, dstURL, streamKey, kernel.OutputConfig{})
 	logger.Tracef(ctx, "built ForwardingToRemote")
 	defer func() {
 		if _err != nil {
@@ -180,44 +177,4 @@ func (fwd *ForwardingToRemote) removePacketsPushing(
 		}
 		return fmt.Errorf("have not found myself as a consumer of '%s'", fwd.Source.Path)
 	})
-}
-
-type NodeOutput = avpipeline.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Retry[*kernel.Output]]]
-
-type Sender any
-
-func newOutputNode(
-	ctx context.Context,
-	sender Sender,
-	waitForInputFunc func(context.Context) error,
-	dstURL string,
-	streamKey secret.String,
-) *NodeOutput {
-	logger.Tracef(ctx, "newOutputNode")
-	defer func() { logger.Tracef(ctx, "/newOutputNode") }()
-
-	outputKernel := kernel.NewRetry(xlogger.CtxWithMaxLoggingLevel(ctx, logger.LevelWarning),
-		func(ctx context.Context) (*kernel.Output, error) {
-			if forwardingToRemoteWaitForInput {
-				err := waitForInputFunc(ctx)
-				if err != nil {
-					return nil, fmt.Errorf("unable to wait for input: %w", err)
-				}
-			}
-			return kernel.NewOutputFromURL(ctx, dstURL, streamKey, kernel.OutputConfig{})
-		},
-		func(ctx context.Context, k *kernel.Output) error {
-			return nil
-		},
-		func(ctx context.Context, k *kernel.Output, err error) error {
-			logger.Debugf(ctx, "connection ended: %v", err)
-			time.Sleep(time.Second)
-			return kernel.ErrRetry{Err: err}
-		},
-	)
-	node := avpipeline.NewNodeWithCustomDataFromKernel[Sender](
-		ctx, outputKernel, processor.DefaultOptionsOutput()...,
-	)
-	node.CustomData = sender
-	return node
 }

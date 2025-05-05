@@ -28,14 +28,9 @@ func ApplyConfig(
 		}
 		switch {
 		case port.RTMP != nil:
-			switch port.RTMP.Mode {
-			case config.RTMPModePublishers:
-				_, err := srv.ListenRTMPPublisher(ctx, listener)
-				if err != nil {
-					return fmt.Errorf("unable to listen '%s' with the RTMP-publishers handler: %w", listener.Addr(), err)
-				}
-			default:
-				return fmt.Errorf("the support of RTMP port mode '%s' is not implemented", port.RTMP.Mode)
+			_, err := srv.ListenRTMP(ctx, listener, port.RTMP.Mode)
+			if err != nil {
+				return fmt.Errorf("unable to listen '%s' with the RTMP-%s handler: %w", listener.Addr(), port.RTMP.Mode, err)
 			}
 		default:
 			return fmt.Errorf("unknown/missing port type in port #%d ('%s')", idx, port.Address)

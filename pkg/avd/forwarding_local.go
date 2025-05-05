@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/recoder"
 	"github.com/xaionaro-go/xsync"
 )
@@ -139,9 +140,9 @@ func (fwd *ForwardingLocal) String() string {
 	return fmt.Sprintf("fwd('%s'->'%s')", fwd.Source.Path, fwd.Destination.Path)
 }
 
-func (fwd *ForwardingLocal) GetNode(
+func (fwd *ForwardingLocal) GetInputNode(
 	ctx context.Context,
-) *NodeInput {
+) avpipeline.AbstractNode {
 	if len(fwd.Source.Publishers) == 0 {
 		return nil
 	}
@@ -149,10 +150,10 @@ func (fwd *ForwardingLocal) GetNode(
 		logger.Errorf(ctx, "source '%s' has more than one publisher; which is not well supported by a local forwarder, yet", fwd.Source.Path)
 	}
 	publisher := fwd.Source.Publishers[0]
-	return publisher.GetNode(ctx)
+	return publisher.GetInputNode(ctx)
 }
 
-func (fwd *ForwardingLocal) GetRoute(
+func (fwd *ForwardingLocal) GetOutputRoute(
 	ctx context.Context,
 ) *Route {
 	return fwd.Destination

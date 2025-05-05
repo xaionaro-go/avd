@@ -121,12 +121,12 @@ func serveRTMP(ctx context.Context) error {
 		return fmt.Errorf("unable to start listening at %s: %w", consumersURL, err)
 	}
 
-	_, err = srv.ListenRTMPPublisher(ctx, publishersListener)
+	_, err = srv.ListenRTMP(ctx, listener, avd.RTMPModePublishers)
 	if err != nil {
 		return fmt.Errorf("unable to listen %s with the RTMP-publishers handler: %w", publishersListener.Addr(), err)
 	}
 
-	_, err = srv.ListenRTMPConsumers(ctx, consumersListener)
+	_, err = srv.ListenRTMP(ctx, listener, avd.RTMPModeConsumers)
 	if err != nil {
 		return fmt.Errorf("unable to listen %s with the RTMP-consumers handler: %w", consumersListener.Addr(), err)
 	}

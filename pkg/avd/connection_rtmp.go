@@ -13,56 +13,55 @@ import (
 	"sync"
 	"time"
 
+	"github.com/asticode/go-astiav"
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
-	"github.com/xaionaro-go/avpipeline/types"
+	"github.com/xaionaro-go/avpipeline/processor"
+	avpipelinetypes "github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
 	"github.com/xaionaro-go/xsync"
 )
 
-const (
-	connectionRTMPPublisherEnableAppNameUpdaterHack = true
-)
-
-type ConnectionRTMPPublisher struct {
+type ConnectionRTMP[N NodeIO] struct {
 	Locker xsync.Mutex
 
 	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
-	Port         *ListeningPortRTMPPublisher
+	Port         *ListeningPortRTMP
 	Conn         net.Conn
 	CancelFunc   context.CancelFunc
 	AVInputURL   *url.URL
 	AVInputKey   secret.String
-	AVInputConn  *net.TCPConn
-	Node         *NodeInput
+	AVConn       *net.TCPConn
+	Node         N
 	InitError    error
 	InitFinished chan struct{}
 	AppName      *string
 	Route        *Route
 }
 
-var _ Publisher = (*ConnectionRTMPPublisher)(nil)
+var _ = (*ConnectionRTMP[*NodeInput])(nil)
 
-func newConnectionRTMPPublisher(
+func newConnectionRTMP[N NodeIO](
 	ctx context.Context,
-	p *ListeningPortRTMPPublisher,
+	p *ListeningPortRTMP,
 	conn net.Conn,
-) (_ret *ConnectionRTMPPublisher, _err error) {
+) (_ret *ConnectionRTMP[N], _err error) {
 	ctx, cancelFn := context.WithCancel(ctx)
 	ctx = belt.WithField(ctx, "remote_addr", conn.RemoteAddr())
-	c := &ConnectionRTMPPublisher{
+	c := &ConnectionRTMP[N]{
 		Port:         p,
 		Conn:         conn,
 		CancelFunc:   cancelFn,
 		InitFinished: make(chan struct{}),
 	}
-	logger.Debugf(ctx, "newConnectionRTMP")
-	defer func() { logger.Debugf(ctx, "/newConnectionRTMP: %v %v", _ret, _err) }()
+	logger.Debugf(ctx, "newConnectionRTMP[N]")
+	defer func() { logger.Debugf(ctx, "/newConnectionRTMP[N]: %v %v", _ret, _err) }()
 	defer func() {
 		if _ret == nil {
 			logger.Debugf(ctx, "not initialized")
@@ -80,7 +79,7 @@ func newConnectionRTMPPublisher(
 			logger.Debugf(ctx, "the end")
 			c.Close(ctx)
 		}()
-		if connectionRTMPPublisherEnableAppNameUpdaterHack {
+		if ConnectionRTMPEnableAppNameUpdaterHack {
 			if err := c.negotiate(ctx); err != nil {
 				logger.Errorf(ctx, "unable to negotiate the connection with %s: %v", conn.RemoteAddr(), err)
 				return
@@ -95,43 +94,58 @@ func newConnectionRTMPPublisher(
 	return c, nil
 }
 
-func (c *ConnectionRTMPPublisher) String() string {
-	return fmt.Sprintf("RTMP-publisher(%s->%s->%s->%s)", c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.AVInputConn.LocalAddr(), c.AVInputConn.RemoteAddr())
+func (c *ConnectionRTMP[N]) String() string {
+	return fmt.Sprintf("RTMP-(%s->%s->%s->%s)", c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.AVConn.LocalAddr(), c.AVConn.RemoteAddr())
 }
 
-func (c *ConnectionRTMPPublisher) GetNode(
+func (c *ConnectionRTMP[N]) GetInputNode(
 	context.Context,
-) *NodeInput {
+) avpipeline.AbstractNode {
 	return c.Node
 }
-func (c *ConnectionRTMPPublisher) GetRoute(
+
+func (c *ConnectionRTMP[N]) GetOutputRoute(
 	context.Context,
 ) *Route {
 	return c.Route
 }
 
-func (c *ConnectionRTMPPublisher) Close(ctx context.Context) (_err error) {
+func (c *ConnectionRTMP[N]) Mode() RTMPMode {
+	var nodeZeroValue N
+	switch any(nodeZeroValue).(type) {
+	case *NodeInput:
+		return RTMPModePublishers
+	case *NodeOutput:
+		return RTMPModeConsumers
+	default:
+		panic(fmt.Errorf("unexpected type: '%T'", nodeZeroValue))
+	}
+}
+
+func (c *ConnectionRTMP[N]) Close(ctx context.Context) (_err error) {
 	logger.Debugf(ctx, "Close()")
 	defer logger.Debugf(ctx, "/Close(): %v", _err)
 	c.CancelFunc()
 	return xsync.DoR1(ctx, &c.Locker, func() error {
 		var errs []error
 		if c.Route != nil {
-			if _, err := c.Route.removePublisher(ctx, c); err != nil {
-				errs = append(errs, fmt.Errorf("unable to remove myself as a publisher at '%s': %w", c.Route.Path, err))
+			if c.Mode() == RTMPModePublishers {
+				if _, err := c.Route.removePublisher(ctx, c); err != nil {
+					errs = append(errs, fmt.Errorf("unable to remove myself as a  at '%s': %w", c.Route.Path, err))
+				}
 			}
 			c.Route = nil
 		}
-		if c.AVInputConn != nil {
-			c.AVInputConn.SetDeadline(time.Unix(1, 0))
-			c.AVInputConn = nil
+		if c.AVConn != nil {
+			c.AVConn.SetDeadline(time.Unix(1, 0))
+			c.AVConn = nil
 		}
 		if c.Conn != nil {
 			c.Conn.SetDeadline(time.Unix(1, 0))
 			c.Conn = nil
 		}
 		if c.Node != nil {
-			if err := c.Node.Processor.Close(ctx); err != nil {
+			if err := c.Node.GetProcessor().Close(ctx); err != nil {
 				errs = append(errs, fmt.Errorf("unable to close the input node processor: %w", err))
 			}
 			c.Node = nil
@@ -140,7 +154,7 @@ func (c *ConnectionRTMPPublisher) Close(ctx context.Context) (_err error) {
 	})
 }
 
-func (c *ConnectionRTMPPublisher) initRTMPHandler(
+func (c *ConnectionRTMP[N]) initRTMPHandler(
 	ctx context.Context,
 ) (_err error) {
 	logger.Debugf(ctx, "initRTMPHandler")
@@ -154,8 +168,8 @@ func (c *ConnectionRTMPPublisher) initRTMPHandler(
 	randomPortTaker.Close()
 
 	defaultAppName := "avd-input"
-	if c.Port.Config.DefaultAppName != "" {
-		defaultAppName = c.Port.Config.DefaultAppName
+	if c.Port.GetConfig().DefaultAppName != "" {
+		defaultAppName = c.Port.GetConfig().DefaultAppName
 	}
 
 	listenURL := fmt.Sprintf("rtmp://%s/%s/", randomPort, defaultAppName)
@@ -188,37 +202,56 @@ func (c *ConnectionRTMPPublisher) initRTMPHandler(
 	logger.Debugf(ctx, "avInputAddr: %#+v", avInputAddr)
 
 	logger.Debugf(ctx, "attempting to listen by libav at %s...", url)
-	input, err := kernel.NewInputFromURL(
-		ctx,
-		url.String(),
-		secretKey,
-		kernel.InputConfig{
-			CustomOptions: types.DictionaryItems{
-				//{Key: "f", Value: "flv"},
-				{Key: "listen", Value: "1"},
+	switch c.Mode() {
+	case RTMPModePublishers:
+		input, err := kernel.NewInputFromURL(
+			ctx,
+			url.String(),
+			secretKey,
+			kernel.InputConfig{
+				CustomOptions: avpipelinetypes.DictionaryItems{
+					{Key: "listen", Value: "1"},
+				},
+				AsyncOpen: true,
+				OnOpened: func(ctx context.Context, i *kernel.Input) error {
+					c.onInitFinished(ctx)
+					return nil
+				},
 			},
-			AsyncOpen: true,
-			OnOpened: func(ctx context.Context, i *kernel.Input) error {
-				appName := c.GetAppName()
-				rtmpCtx := c.AVRTMPContext()
-				logger.Debugf(ctx, "updating the app name: '%s' -> '%s'", rtmpCtx.App(), appName)
-				rtmpCtx.SetApp(appName)
-				close(c.InitFinished)
-				return nil
+		)
+		if err != nil {
+			err = fmt.Errorf("unable to start listening '%s' using libav: %w", listenURL, err)
+			logger.Errorf(ctx, "%v", err)
+			c.InitError = err
+			close(c.InitFinished)
+			observability.Go(ctx, func() {
+				c.Close(ctx)
+			})
+			return
+		}
+		c.Node = any(newInputNode(ctx, c, input)).(N)
+	case RTMPModeConsumers:
+		c.Node = any(newOutputNode(
+			ctx,
+			c,
+			func(ctx context.Context) error {
+				panic("not implemented")
 			},
-		},
-	)
-	if err != nil {
-		err = fmt.Errorf("unable to start listening '%s' using libav: %w", listenURL, err)
-		logger.Errorf(ctx, "%v", err)
-		c.InitError = err
-		close(c.InitFinished)
-		observability.Go(ctx, func() {
-			c.Close(ctx)
-		})
-		return
+			url.String(),
+			secretKey,
+			kernel.OutputConfig{
+				CustomOptions: avpipelinetypes.DictionaryItems{
+					{Key: "f", Value: "flv"},
+					{Key: "listen", Value: "1"},
+				},
+				AsyncOpen: true,
+				OnOpened: func(ctx context.Context, i *kernel.Output) error {
+					c.onInitFinished(ctx)
+					return nil
+				},
+			},
+		)).(N)
 	}
-	c.Node = newInputNode(ctx, c, input)
 
 	t := time.NewTicker(50 * time.Millisecond)
 	defer t.Stop()
@@ -242,13 +275,23 @@ func (c *ConnectionRTMPPublisher) initRTMPHandler(
 				continue
 			}
 
-			c.AVInputConn = avInputConn
+			c.AVConn = avInputConn
 			return nil
 		}
 	}
 }
 
-func (c *ConnectionRTMPPublisher) negotiate(
+func (c *ConnectionRTMP[N]) onInitFinished(
+	ctx context.Context,
+) {
+	appName := c.GetAppName()
+	rtmpCtx := c.AVRTMPContext()
+	logger.Debugf(ctx, "updating the app name: '%s' -> '%s'", rtmpCtx.App(), appName)
+	rtmpCtx.SetApp(appName)
+	close(c.InitFinished)
+}
+
+func (c *ConnectionRTMP[N]) negotiate(
 	origCtx context.Context,
 ) (_err error) {
 	logger.Debugf(origCtx, "negotiate")
@@ -284,12 +327,12 @@ func (c *ConnectionRTMPPublisher) negotiate(
 		var buf [SizeBuffer]byte
 		for {
 			logger.Tracef(ctx, "waiting for c.AVInputConn input...")
-			r, err := c.AVInputConn.Read(buf[:])
+			r, err := c.AVConn.Read(buf[:])
 			logger.Tracef(ctx, "/waiting for c.AVInputConn input: %v %v", r, err)
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					// revert back:
-					c.AVInputConn.SetDeadline(time.Time{})
+					c.AVConn.SetDeadline(time.Time{})
 				}
 				errCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
 				return
@@ -329,7 +372,7 @@ func (c *ConnectionRTMPPublisher) negotiate(
 			logger.Tracef(ctx, "msg: %X (suspect 'connect': %t)", msg, bytes.Contains(msg, []byte("connect")))
 			if !bytes.Contains(msg, connectMagic) {
 				logger.Tracef(ctx, "waiting for c.AVInputConn output...")
-				err := forward(c.AVInputConn, msg)
+				err := forward(c.AVConn, msg)
 				logger.Tracef(ctx, "/waiting for c.AVInputConn output")
 				if err != nil {
 					errCh <- err
@@ -348,17 +391,22 @@ func (c *ConnectionRTMPPublisher) negotiate(
 
 			routePath := *c.AppName
 			ctx = belt.WithField(ctx, "path", routePath)
-			route, err := c.Port.Server.GetRoute(ctx, routePath, GetRouteModeCreateIfNotFound)
+			route, err := c.Port.GetServer().GetRoute(ctx, routePath, GetRouteModeCreateIfNotFound)
 			if err != nil {
 				errCh <- fmt.Errorf("unable to create a route '%s': %w", routePath, err)
 				return
 			}
-			if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
-				errCh <- fmt.Errorf("unable to add myself as a publisher to '%s': %w", routePath, err)
-				return
+			switch c.Mode() {
+			case RTMPModePublishers:
+				if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
+					errCh <- fmt.Errorf("unable to add myself as a  to '%s': %w", routePath, err)
+					return
+				}
+				c.Route = route
+				c.Node.AddPushPacketsTo(route.Node)
+			case types.RTMPModeConsumers:
+				panic("not implemented")
 			}
-			c.Route = route
-			c.Node.AddPushPacketsTo(route.Node)
 			observability.Go(ctx, func() {
 				errCh := make(chan avpipeline.ErrNode, 100)
 				defer close(errCh)
@@ -378,7 +426,7 @@ func (c *ConnectionRTMPPublisher) negotiate(
 			})
 
 			logger.Tracef(ctx, "waiting for c.AVInputConn output...")
-			err = forward(c.AVInputConn, msg)
+			err = forward(c.AVConn, msg)
 			logger.Tracef(ctx, "/waiting for c.AVInputConn output")
 			if err != nil {
 				errCh <- err
@@ -396,12 +444,156 @@ func (c *ConnectionRTMPPublisher) negotiate(
 		cancelFn()
 		// to interrupt reading from the socket:
 		logger.Debugf(ctx, "setting a deadline in the past for c.AVInputConn")
-		if err := c.AVInputConn.SetReadDeadline(time.Unix(1, 0)); err != nil {
+		if err := c.AVConn.SetReadDeadline(time.Unix(1, 0)); err != nil {
 			logger.Errorf(ctx, "unable to set the read deadline for AVInputConn: %v", err)
 		}
 		return err
 	}
 }
+
+func (c *ConnectionRTMP[N]) getKernel() kernel.Abstract {
+	switch p := c.Node.GetProcessor().(type) {
+	case *processor.FromKernel[*kernel.Input]:
+		return p.Kernel
+	case *processor.FromKernel[*kernel.Output]:
+		return p.Kernel
+	default:
+		panic(fmt.Errorf("unexpected type: %T", p))
+	}
+}
+
+func (c *ConnectionRTMP[N]) getFormatContext() *astiav.FormatContext {
+	switch k := c.getKernel().(type) {
+	case *kernel.Input:
+		return k.FormatContext
+	case *kernel.Output:
+		return k.FormatContext
+	default:
+		panic(fmt.Errorf("unexpected type: %T", k))
+	}
+}
+
+func (c *ConnectionRTMP[N]) AVRTMPContext() *avcommon.RTMPContext {
+	fmtCtx := avcommon.WrapAVFormatContext(
+		xastiav.CFromAVFormatContext(
+			c.getFormatContext(),
+		),
+	)
+	avioCtx := fmtCtx.Pb()
+	urlCtx := avcommon.WrapURLContext(avioCtx.Opaque())
+	return avcommon.WrapRTMPContext(urlCtx.PrivData())
+}
+
+func (c *ConnectionRTMP[N]) GetAppName() string {
+	if ConnectionRTMPEnableAppNameUpdaterHack {
+		return *c.AppName
+	} else {
+		return c.AVRTMPContext().App()
+	}
+}
+
+func (c *ConnectionRTMP[N]) forward(
+	ctx context.Context,
+) (_err error) {
+	logger.Debugf(ctx, "forward")
+	defer func() { logger.Debugf(ctx, "/forward: %v", _err) }()
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	ctx, cancelFn := context.WithCancel(ctx)
+	defer cancelFn()
+
+	errCh := make(chan error, 2)
+
+	forward := func(
+		dst net.Conn,
+		msg []byte,
+	) error {
+		w, err := dst.Write(msg)
+		if err != nil {
+			return fmt.Errorf("unable to write to the client: %w", err)
+		}
+
+		if w != len(msg) {
+			return fmt.Errorf("expected to write to the client %d bytes, but wrote %d", len(msg), w)
+		}
+
+		return nil
+	}
+
+	wg.Add(1)
+	observability.Go(ctx, func() {
+		defer wg.Done()
+		var buf [SizeBuffer]byte
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			logger.Tracef(ctx, "waiting for AVInputConn input...")
+			r, err := c.AVConn.Read(buf[:])
+			logger.Tracef(ctx, "/waiting for AVInputConn input")
+			if err != nil {
+				errCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
+				return
+			}
+
+			msg := buf[:r]
+			logger.Tracef(ctx, "waiting for c.Conn output...")
+			err = forward(c.Conn, msg)
+			logger.Tracef(ctx, "/waiting for c.Conn output")
+			if err != nil {
+				errCh <- err
+				return
+			}
+		}
+	})
+
+	wg.Add(1)
+	observability.Go(ctx, func() {
+		defer wg.Done()
+		var buf [SizeBuffer]byte
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			logger.Tracef(ctx, "waiting for c.Conn input...")
+			r, err := c.Conn.Read(buf[:])
+			logger.Tracef(ctx, "/waiting for c.Conn input")
+			if err != nil {
+				errCh <- fmt.Errorf("unable to read from the client: %w", err)
+				return
+			}
+
+			msg := buf[:r]
+			logger.Tracef(ctx, "waiting for c.AVInputConn output...")
+			err = forward(c.AVConn, msg)
+			logger.Tracef(ctx, "/waiting for c.AVInputConn output")
+			if err != nil {
+				errCh <- err
+				return
+			}
+		}
+	})
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		cancelFn()
+		return err
+	}
+}
+
+const (
+	ConnectionRTMPEnableAppNameUpdaterHack = true
+)
 
 var connectMagic []byte
 
@@ -491,123 +683,5 @@ func parseAppName(
 		case "app":
 			return value, nil
 		}
-	}
-}
-
-func (c *ConnectionRTMPPublisher) AVRTMPContext() *avcommon.RTMPContext {
-	fmtCtx := avcommon.WrapAVFormatContext(
-		xastiav.CFromAVFormatContext(
-			c.Node.Processor.Kernel.FormatContext,
-		),
-	)
-	avioCtx := fmtCtx.Pb()
-	urlCtx := avcommon.WrapURLContext(avioCtx.Opaque())
-	return avcommon.WrapRTMPContext(urlCtx.PrivData())
-}
-
-func (c *ConnectionRTMPPublisher) GetAppName() string {
-	if connectionRTMPPublisherEnableAppNameUpdaterHack {
-		return *c.AppName
-	} else {
-		return c.AVRTMPContext().App()
-	}
-}
-
-func (c *ConnectionRTMPPublisher) forward(
-	ctx context.Context,
-) (_err error) {
-	logger.Debugf(ctx, "forward")
-	defer func() { logger.Debugf(ctx, "/forward: %v", _err) }()
-
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	ctx, cancelFn := context.WithCancel(ctx)
-	defer cancelFn()
-
-	errCh := make(chan error, 2)
-
-	forward := func(
-		dst net.Conn,
-		msg []byte,
-	) error {
-		w, err := dst.Write(msg)
-		if err != nil {
-			return fmt.Errorf("unable to write to the client: %w", err)
-		}
-
-		if w != len(msg) {
-			return fmt.Errorf("expected to write to the client %d bytes, but wrote %d", len(msg), w)
-		}
-
-		return nil
-	}
-
-	wg.Add(1)
-	observability.Go(ctx, func() {
-		defer wg.Done()
-		var buf [SizeBuffer]byte
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			logger.Tracef(ctx, "waiting for AVInputConn input...")
-			r, err := c.AVInputConn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for AVInputConn input")
-			if err != nil {
-				errCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
-				return
-			}
-
-			msg := buf[:r]
-			logger.Tracef(ctx, "waiting for c.Conn output...")
-			err = forward(c.Conn, msg)
-			logger.Tracef(ctx, "/waiting for c.Conn output")
-			if err != nil {
-				errCh <- err
-				return
-			}
-		}
-	})
-
-	wg.Add(1)
-	observability.Go(ctx, func() {
-		defer wg.Done()
-		var buf [SizeBuffer]byte
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			logger.Tracef(ctx, "waiting for c.Conn input...")
-			r, err := c.Conn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for c.Conn input")
-			if err != nil {
-				errCh <- fmt.Errorf("unable to read from the client: %w", err)
-				return
-			}
-
-			msg := buf[:r]
-			logger.Tracef(ctx, "waiting for c.AVInputConn output...")
-			err = forward(c.AVInputConn, msg)
-			logger.Tracef(ctx, "/waiting for c.AVInputConn output")
-			if err != nil {
-				errCh <- err
-				return
-			}
-		}
-	})
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		cancelFn()
-		return err
 	}
 }

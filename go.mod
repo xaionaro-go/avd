@@ -5,13 +5,14 @@ go 1.24.1
 replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20250419202405-6baea371bdeb
 
 require (
+	github.com/asticode/go-astiav v0.36.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f
 	github.com/goccy/go-yaml v1.17.1
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250505020050-1c12a8387656
-	github.com/xaionaro-go/avpipeline v0.0.0-20250505210551-8947bc97719f
+	github.com/xaionaro-go/avpipeline v0.0.0-20250505225143-f00316df6807
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250420133500-5c4d2e045932
 	github.com/xaionaro-go/recoder v0.0.0-20250503155018-6f353978d332
@@ -24,7 +25,6 @@ require (
 
 require (
 	github.com/DataDog/gostackparse v0.7.0 // indirect
-	github.com/asticode/go-astiav v0.36.0 // indirect
 	github.com/asticode/go-astikit v0.54.0 // indirect
 	github.com/go-ng/container v0.0.0-20220615121757-4740bf4bbc52 // indirect
 	github.com/go-ng/slices v0.0.0-20230703171042-6195d35636a2 // indirect
