@@ -1,11 +1,11 @@
-# `avd` -- (Lib)AV daemon
+# `avd` -- (Lib)AV Daemon
 
 `avd` -- is a streaming server that uses [`libav`](https://github.com/FFmpeg/FFmpeg) under the hood (as an alternative to [`nginx-module-rtmp`](https://docs.nginx.com/nginx/admin-guide/dynamic-modules/rtmp/), [`mediamtx`](https://github.com/bluenviron/mediamtx), [`MonaServer`](https://github.com/MonaSolutions/MonaServer) or whatnot).
 
-On one hand, `libav` is a powerful, fine-polished and fine-tuned video/audio processing library, that supports RTMP, RTSP, SRT and other protocols out of the box.
+On one hand, `libav` is a legendary, powerful, fine-polished and fine-tuned video/audio processing library, that supports RTMP, RTSP, SRT and other protocols out of the box.
 On the other hand, `libav` lacks capabilities to serve these protocols beyond just accepting a pre-defined stream or/and using the protocols as a client.
 
-`avd` fixes that problem, by wrapping around the `libav`'s capability to accept a single pre-defined stream in a way to provide a generic server that may accept multiple streams and that could be processed pretty similar to how you would do it with a normal streaming server.
+`avd` fixes that problem, by wrapping around `libav` to manage multiple streams, that could be processed pretty similar to how you would do it with a normal streaming server.
 
 # Motivation
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 
 	"github.com/facebookincubator/go-belt"
@@ -161,20 +160,5 @@ func (fwd *ForwardingToRemote) removePacketsPushing(
 ) (_err error) {
 	logger.Debugf(ctx, "removePacketsPushing")
 	defer func() { defer logger.Debugf(ctx, "/removePacketsPushing: %v", _err) }()
-	return xsync.DoR1(ctx, &fwd.Source.Locker, func() error {
-		pushTos := fwd.Source.Node.GetPushPacketsTos()
-		for idx, pushTo := range pushTos {
-			if pushTo.Node == fwd {
-				pushTos = slices.Delete(pushTos, idx, idx+1)
-				fwd.Source.Node.SetPushPacketsTos(pushTos)
-				logger.Debugf(
-					ctx,
-					"fwd.Source.Node: %T; fwd.Source.Node.PushPacketsTos: %#+v",
-					fwd.Source.Node, fwd.Source.Node.GetPushPacketsTos(),
-				)
-				return nil
-			}
-		}
-		return fmt.Errorf("have not found myself as a consumer of '%s'", fwd.Source.Path)
-	})
+	return avpipeline.RemovePushPacketsTo(ctx, fwd.Source.Node, fwd)
 }

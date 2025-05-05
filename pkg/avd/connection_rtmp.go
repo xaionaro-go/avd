@@ -60,8 +60,8 @@ func newConnectionRTMP[N NodeIO](
 		CancelFunc:   cancelFn,
 		InitFinished: make(chan struct{}),
 	}
-	logger.Debugf(ctx, "newConnectionRTMP[N]")
-	defer func() { logger.Debugf(ctx, "/newConnectionRTMP[N]: %v %v", _ret, _err) }()
+	logger.Debugf(ctx, "newConnectionRTMP[%s]", c.Mode())
+	defer func() { logger.Debugf(ctx, "/newConnectionRTMP[%s]: %v %v", c.Mode(), _ret, _err) }()
 	defer func() {
 		if _ret == nil {
 			logger.Debugf(ctx, "not initialized")
@@ -95,7 +95,7 @@ func newConnectionRTMP[N NodeIO](
 }
 
 func (c *ConnectionRTMP[N]) String() string {
-	return fmt.Sprintf("RTMP-(%s->%s->%s->%s)", c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.AVConn.LocalAddr(), c.AVConn.RemoteAddr())
+	return fmt.Sprintf("RTMP[%s](%s->%s->%s->%s)", c.Mode(), c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.AVConn.LocalAddr(), c.AVConn.RemoteAddr())
 }
 
 func (c *ConnectionRTMP[N]) GetInputNode(
@@ -129,9 +129,14 @@ func (c *ConnectionRTMP[N]) Close(ctx context.Context) (_err error) {
 	return xsync.DoR1(ctx, &c.Locker, func() error {
 		var errs []error
 		if c.Route != nil {
-			if c.Mode() == RTMPModePublishers {
+			switch c.Mode() {
+			case RTMPModePublishers:
 				if _, err := c.Route.removePublisher(ctx, c); err != nil {
 					errs = append(errs, fmt.Errorf("unable to remove myself as a  at '%s': %w", c.Route.Path, err))
+				}
+			case RTMPModeConsumers:
+				if err := avpipeline.RemovePushPacketsTo(ctx, c.Route.Node, c.Node); err != nil {
+					errs = append(errs, fmt.Errorf("unable to unsubscribe from packets from '%s': %w", c.Route.Path, err))
 				}
 			}
 			c.Route = nil
@@ -201,7 +206,7 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 	}
 	logger.Debugf(ctx, "avInputAddr: %#+v", avInputAddr)
 
-	logger.Debugf(ctx, "attempting to listen by libav at %s...", url)
+	logger.Debugf(ctx, "attempting to listen by libav at '%s'...", url)
 	switch c.Mode() {
 	case RTMPModePublishers:
 		input, err := kernel.NewInputFromURL(
@@ -235,7 +240,7 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 			ctx,
 			c,
 			func(ctx context.Context) error {
-				panic("not implemented")
+				return nil
 			},
 			url.String(),
 			secretKey,
@@ -245,7 +250,7 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 					{Key: "listen", Value: "1"},
 				},
 				AsyncOpen: true,
-				OnOpened: func(ctx context.Context, i *kernel.Output) error {
+				OnOpened: func(ctx context.Context, o *kernel.Output) error {
 					c.onInitFinished(ctx)
 					return nil
 				},
@@ -396,16 +401,16 @@ func (c *ConnectionRTMP[N]) negotiate(
 				errCh <- fmt.Errorf("unable to create a route '%s': %w", routePath, err)
 				return
 			}
+			c.Route = route
 			switch c.Mode() {
 			case RTMPModePublishers:
 				if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
 					errCh <- fmt.Errorf("unable to add myself as a  to '%s': %w", routePath, err)
 					return
 				}
-				c.Route = route
 				c.Node.AddPushPacketsTo(route.Node)
 			case types.RTMPModeConsumers:
-				panic("not implemented")
+				c.Route.Node.AddPushPacketsTo(c.Node)
 			}
 			observability.Go(ctx, func() {
 				errCh := make(chan avpipeline.ErrNode, 100)
@@ -455,7 +460,7 @@ func (c *ConnectionRTMP[N]) getKernel() kernel.Abstract {
 	switch p := c.Node.GetProcessor().(type) {
 	case *processor.FromKernel[*kernel.Input]:
 		return p.Kernel
-	case *processor.FromKernel[*kernel.Output]:
+	case *processor.FromKernel[*kernel.Retry[*kernel.Output]]:
 		return p.Kernel
 	default:
 		panic(fmt.Errorf("unexpected type: %T", p))
@@ -466,8 +471,8 @@ func (c *ConnectionRTMP[N]) getFormatContext() *astiav.FormatContext {
 	switch k := c.getKernel().(type) {
 	case *kernel.Input:
 		return k.FormatContext
-	case *kernel.Output:
-		return k.FormatContext
+	case *kernel.Retry[*kernel.Output]:
+		return k.Kernel.FormatContext
 	default:
 		panic(fmt.Errorf("unexpected type: %T", k))
 	}

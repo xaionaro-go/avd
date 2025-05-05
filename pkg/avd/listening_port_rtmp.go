@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/observability"
@@ -67,6 +68,7 @@ func (p *ListeningPortRTMP) listenPublishers(
 	// TODO: deduplicate with listenConsumers
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
+	ctx = belt.WithField(ctx, "rtmp_mode", RTMPModePublishers.String())
 	observability.Go(ctx, func() {
 		<-ctx.Done()
 		p.Listener.Close()
@@ -106,6 +108,7 @@ func (p *ListeningPortRTMP) listenConsumers(
 	// TODO: deduplicate with listenPublishers
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
+	ctx = belt.WithField(ctx, "rtmp_mode", RTMPModeConsumers.String())
 	observability.Go(ctx, func() {
 		<-ctx.Done()
 		p.Listener.Close()

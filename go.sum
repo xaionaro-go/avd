@@ -55,6 +55,8 @@ github.com/xaionaro-go/avmediacodec v0.0.0-20250421150856-ddd390422c21 h1:afsJFv
 github.com/xaionaro-go/avmediacodec v0.0.0-20250421150856-ddd390422c21/go.mod h1:obX+/HoeX6lzM/Zuzgtm0JdG8CQ58I1isp5xSQEm+kQ=
 github.com/xaionaro-go/avpipeline v0.0.0-20250505225143-f00316df6807 h1:PUueBatr7uhzbnasDpm5du28PmpcSakv6jvWwdp+Hqk=
 github.com/xaionaro-go/avpipeline v0.0.0-20250505225143-f00316df6807/go.mod h1:Czl84biYuPZeILYiRiziR0yeuXKvrqQfzJ1ItjSq/o0=
+github.com/xaionaro-go/avpipeline v0.0.0-20250505231633-86edd17c356d h1:kG5RDJN8Ly7Bpnp4tdv3jlZ3er817Llxllu3WwDtc5I=
+github.com/xaionaro-go/avpipeline v0.0.0-20250505231633-86edd17c356d/go.mod h1:Czl84biYuPZeILYiRiziR0yeuXKvrqQfzJ1ItjSq/o0=
 github.com/xaionaro-go/datacounter v1.0.4 h1:+QMZLmu73R5WGkQfUPwlXF/JFN+Weo4iuDZkiL2wVm8=
 github.com/xaionaro-go/datacounter v1.0.4/go.mod h1:Sf9vBevuV6w5iE6K3qJ9pWVKcyS60clWBUSQLjt5++c=
 github.com/xaionaro-go/gorex v0.0.0-20241010205749-bcd59d639c4d h1:9DyH0lboWWzKUwiqGmp9sTZ3bSPhgJHiiWgV+hqY9Uo=
