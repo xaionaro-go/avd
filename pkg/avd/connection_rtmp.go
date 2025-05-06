@@ -282,14 +282,14 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 			}
 			return connErr
 		case <-t.C:
-			var avInputConn *net.TCPConn
-			avInputConn, connErr = net.DialTCP("tcp4", nil, avInputAddr)
+			var AVConn *net.TCPConn
+			AVConn, connErr = net.DialTCP("tcp4", nil, avInputAddr)
 			if connErr != nil {
 				logger.Tracef(ctx, "unable to connect to the libav input '%s': %w", avInputAddr, err)
 				continue
 			}
 
-			c.AVConn = avInputConn
+			c.AVConn = AVConn
 			return nil
 		}
 	}
@@ -340,9 +340,9 @@ func (c *ConnectionRTMP[N]) negotiate(
 		defer wg.Done()
 		var buf [SizeBuffer]byte
 		for {
-			logger.Tracef(ctx, "waiting for c.AVInputConn input...")
+			logger.Tracef(ctx, "waiting for c.AVConn input...")
 			r, err := c.AVConn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for c.AVInputConn input: %v %v", r, err)
+			logger.Tracef(ctx, "/waiting for c.AVConn input: %v %v", r, err)
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					// revert back:
@@ -385,9 +385,9 @@ func (c *ConnectionRTMP[N]) negotiate(
 			msg := buf[:r]
 			logger.Tracef(ctx, "msg: %X (suspect 'connect': %t)", msg, bytes.Contains(msg, []byte("connect")))
 			if !bytes.Contains(msg, connectMagic) {
-				logger.Tracef(ctx, "waiting for c.AVInputConn output...")
+				logger.Tracef(ctx, "waiting for c.AVConn output...")
 				err := forward(c.AVConn, msg)
-				logger.Tracef(ctx, "/waiting for c.AVInputConn output")
+				logger.Tracef(ctx, "/waiting for c.AVConn output")
 				if err != nil {
 					errCh <- err
 					return
@@ -418,8 +418,7 @@ func (c *ConnectionRTMP[N]) negotiate(
 					return
 				}
 				c.Node.AddPushPacketsTo(route.Node)
-			case types.RTMPModeConsumers:
-				c.Route.Node.AddPushPacketsTo(c.Node)
+
 			}
 			observability.Go(ctx, func() {
 				errCh := make(chan avpipeline.ErrNode, 100)
@@ -436,12 +435,16 @@ func (c *ConnectionRTMP[N]) negotiate(
 				}
 				logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
 				serveCtx := belt.WithField(origCtx, "path", routePath)
+				switch c.Mode() {
+				case types.RTMPModeConsumers:
+					c.Route.Node.AddPushPacketsTo(c.Node)
+				}
 				c.Node.Serve(serveCtx, avpipeline.ServeConfig{}, errCh)
 			})
 
-			logger.Tracef(ctx, "waiting for c.AVInputConn output...")
+			logger.Tracef(ctx, "waiting for c.AVConn output...")
 			err = forward(c.AVConn, msg)
-			logger.Tracef(ctx, "/waiting for c.AVInputConn output")
+			logger.Tracef(ctx, "/waiting for c.AVConn output")
 			if err != nil {
 				errCh <- err
 			}
@@ -457,9 +460,9 @@ func (c *ConnectionRTMP[N]) negotiate(
 	case err := <-errCh:
 		cancelFn()
 		// to interrupt reading from the socket:
-		logger.Debugf(ctx, "setting a deadline in the past for c.AVInputConn")
+		logger.Debugf(ctx, "setting a deadline in the past for c.AVConn")
 		if err := c.AVConn.SetReadDeadline(time.Unix(1, 0)); err != nil {
-			logger.Errorf(ctx, "unable to set the read deadline for AVInputConn: %v", err)
+			logger.Errorf(ctx, "unable to set the read deadline for AVConn: %v", err)
 		}
 		return err
 	}
@@ -547,9 +550,9 @@ func (c *ConnectionRTMP[N]) forward(
 			default:
 			}
 
-			logger.Tracef(ctx, "waiting for AVInputConn input...")
+			logger.Tracef(ctx, "waiting for AVConn input...")
 			r, err := c.AVConn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for AVInputConn input")
+			logger.Tracef(ctx, "/waiting for AVConn input")
 			if err != nil {
 				errCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
 				return
@@ -586,9 +589,9 @@ func (c *ConnectionRTMP[N]) forward(
 			}
 
 			msg := buf[:r]
-			logger.Tracef(ctx, "waiting for c.AVInputConn output...")
+			logger.Tracef(ctx, "waiting for c.AVConn output...")
 			err = forward(c.AVConn, msg)
-			logger.Tracef(ctx, "/waiting for c.AVInputConn output")
+			logger.Tracef(ctx, "/waiting for c.AVConn output")
 			if err != nil {
 				errCh <- err
 				return
