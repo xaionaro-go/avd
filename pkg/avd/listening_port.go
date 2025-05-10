@@ -2,8 +2,10 @@ package avd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"net/url"
 
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
@@ -20,27 +22,51 @@ type ListeningPort struct {
 	ConnectionsPublishers map[net.Addr]*Connection[*NodeInput]
 	ConnectionsConsumers  map[net.Addr]*Connection[*NodeOutput]
 	Config                ListenConfig
+	CancelFn              context.CancelFunc
 }
 
-func (p *ListeningPort) StartListening(
+func (p *ListeningPort) startListening(
 	ctx context.Context,
 	mode types.PortMode,
-) error {
+) (_err error) {
+	if p.CancelFn != nil {
+		return fmt.Errorf("the port was already started")
+	}
+	ctx, cancelFn := context.WithCancel(ctx)
+	p.CancelFn = cancelFn
+	logger.Debugf(ctx, "StartListening")
+	defer func() { logger.Debugf(ctx, "/StartListening: %v", _err) }()
 	switch mode {
 	case PortModePublishers:
 		observability.Go(ctx, func() {
 			err := p.listenPublishers(ctx)
-			if err != nil {
+			if err == nil {
+				return
+			}
+			if errors.Is(err, net.ErrClosed) {
+				logger.Debugf(ctx, "listener %s closed: %v", p.Listener.Addr(), err)
+			} else {
 				logger.Errorf(ctx, "unable to listen %s: %v", p.Listener.Addr(), err)
-				p.Close(ctx)
+			}
+			err = p.Close(ctx)
+			if err != nil {
+				logger.Debugf(ctx, "p.Close() result: %v", err)
 			}
 		})
 	case PortModeConsumers:
 		observability.Go(ctx, func() {
 			err := p.listenConsumers(ctx)
-			if err != nil {
+			if err == nil {
+				return
+			}
+			if errors.Is(err, net.ErrClosed) {
+				logger.Debugf(ctx, "listener %s closed: %v", p.Listener.Addr(), err)
+			} else {
 				logger.Errorf(ctx, "unable to listen %s: %v", p.Listener.Addr(), err)
-				p.Close(ctx)
+			}
+			err = p.Close(ctx)
+			if err != nil {
+				logger.Debugf(ctx, "p.Close() result: %v", err)
 			}
 		})
 	default:
@@ -58,21 +84,56 @@ func (p *ListeningPort) GetConfig() ListenConfig {
 	return p.Config
 }
 
-func (p *ListeningPort) Close(ctx context.Context) error {
-	p.Listener.Close()
+func (p *ListeningPort) Close(ctx context.Context) (_err error) {
+	logger.Debugf(ctx, "Close")
+	defer func() { logger.Debugf(ctx, "/Close: %v", _err) }()
+	p.CancelFn()
+	err := p.Listener.Close()
+	logger.Debugf(ctx, "p.Listener.Close() result: %v", err)
+	p.ConnectionsLocker.Do(ctx, func() {
+		for addr, conn := range p.ConnectionsPublishers {
+			err := conn.Close(ctx)
+			logger.Debugf(ctx, "conn[%s].Close(ctx) result: %v", addr, err)
+			delete(p.ConnectionsPublishers, addr)
+		}
+		for addr, conn := range p.ConnectionsConsumers {
+			err := conn.Close(ctx)
+			logger.Debugf(ctx, "conn[%s].Close(ctx) result: %v", addr, err)
+			delete(p.ConnectionsConsumers, addr)
+		}
+	})
 	return nil
+}
+
+func (p *ListeningPort) GetURLForRoute(
+	ctx context.Context,
+	route string,
+) (_ret *url.URL, _err error) {
+	logger.Debugf(ctx, "GetURLForRoute")
+	defer func() { logger.Debugf(ctx, "/GetURLForRoute: %v %v", _ret, _err) }()
+	return &url.URL{
+		Scheme: p.Protocol.String(),
+		Host:   p.Listener.Addr().String(),
+		Path:   route,
+	}, nil
 }
 
 func (p *ListeningPort) listenPublishers(
 	ctx context.Context,
-) error {
+) (_err error) {
+	logger.Debugf(ctx, "listenPublishers")
+	defer func() { logger.Debugf(ctx, "/listenPublishers: %v", _err) }()
+
 	// TODO: deduplicate with listenConsumers
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 	ctx = belt.WithField(ctx, "port_mode", PortModePublishers.String())
 	observability.Go(ctx, func() {
 		<-ctx.Done()
-		p.Listener.Close()
+		err := p.Listener.Close()
+		if err != nil {
+			logger.Debugf(ctx, "p.Listener.Close() result: %v", err)
+		}
 	})
 	for {
 		netConn, err := p.Listener.Accept()
@@ -86,9 +147,9 @@ func (p *ListeningPort) listenPublishers(
 		}
 
 		if err := xsync.DoR1(ctx, &p.ConnectionsLocker, func() error {
-			if oldRTMPConn, ok := p.ConnectionsPublishers[netConn.RemoteAddr()]; ok {
+			if oldConn, ok := p.ConnectionsPublishers[netConn.RemoteAddr()]; ok {
 				logger.Errorf(ctx, "there is already a connection from '%s', closing the old one", netConn.RemoteAddr())
-				if err := oldRTMPConn.Close(ctx); err != nil {
+				if err := oldConn.Close(ctx); err != nil {
 					logger.Errorf(ctx, "unable to close the old connection from '%s': %v", netConn.RemoteAddr(), err)
 				}
 			}
@@ -105,7 +166,10 @@ func (p *ListeningPort) listenPublishers(
 
 func (p *ListeningPort) listenConsumers(
 	ctx context.Context,
-) error {
+) (_err error) {
+	logger.Debugf(ctx, "listenConsumers")
+	defer func() { logger.Debugf(ctx, "/listenConsumers: %v", _err) }()
+
 	// TODO: deduplicate with listenPublishers
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
@@ -115,28 +179,28 @@ func (p *ListeningPort) listenConsumers(
 		p.Listener.Close()
 	})
 	for {
-		conn, err := p.Listener.Accept()
+		netConn, err := p.Listener.Accept()
 		if err != nil {
 			return fmt.Errorf("unable to accept a connection: %w", err)
 		}
 
-		rtmpConn, err := newConnection[*NodeOutput](ctx, p, conn)
+		conn, err := newConnection[*NodeOutput](ctx, p, netConn)
 		if err != nil {
-			return fmt.Errorf("unable to initialize a connection for '%s': %w", conn.RemoteAddr(), err)
+			return fmt.Errorf("unable to initialize a connection for '%s': %w", netConn.RemoteAddr(), err)
 		}
 
 		if err := xsync.DoR1(ctx, &p.ConnectionsLocker, func() error {
-			if oldRTMPConn, ok := p.ConnectionsConsumers[conn.RemoteAddr()]; ok {
-				logger.Errorf(ctx, "there is already a connection from '%s', closing the old one", conn.RemoteAddr())
-				if err := oldRTMPConn.Close(ctx); err != nil {
-					logger.Errorf(ctx, "unable to close the old connection from '%s': %v", conn.RemoteAddr(), err)
+			if oldConn, ok := p.ConnectionsConsumers[netConn.RemoteAddr()]; ok {
+				logger.Errorf(ctx, "there is already a connection from '%s', closing the old one", netConn.RemoteAddr())
+				if err := oldConn.Close(ctx); err != nil {
+					logger.Errorf(ctx, "unable to close the old connection from '%s': %v", netConn.RemoteAddr(), err)
 				}
 			}
-			p.ConnectionsConsumers[conn.RemoteAddr()] = rtmpConn
+			p.ConnectionsConsumers[netConn.RemoteAddr()] = conn
 			return nil
 		}); err != nil {
-			if err := rtmpConn.Close(ctx); err != nil {
-				logger.Errorf(ctx, "unable to close the connection from '%s': %v", conn.RemoteAddr(), err)
+			if err := conn.Close(ctx); err != nil {
+				logger.Errorf(ctx, "unable to close the connection from '%s': %v", netConn.RemoteAddr(), err)
 			}
 			return fmt.Errorf("unable to store the new connection: %w", err)
 		}

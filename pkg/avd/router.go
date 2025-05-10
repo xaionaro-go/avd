@@ -10,7 +10,6 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/observability"
-	"github.com/xaionaro-go/xcontext"
 	"github.com/xaionaro-go/xsync"
 )
 
@@ -200,7 +199,7 @@ func (r *Router) createRoute(
 	default:
 	}
 	route = newRoute(
-		xcontext.DetachDone(ctx),
+		ctx,
 		path,
 		r.ErrorChan,
 		r.onRouteOpen,

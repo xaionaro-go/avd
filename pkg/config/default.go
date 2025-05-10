@@ -14,6 +14,7 @@ func Default() Config {
 				ProtocolHandler: ProtocolHandlerConfig{
 					RTMP: &RTMPConfig{},
 				},
+				CustomOptions: DictionaryItems{},
 			},
 			{
 				Address: "tcp:0.0.0.0:1935",
@@ -21,6 +22,7 @@ func Default() Config {
 				ProtocolHandler: ProtocolHandlerConfig{
 					RTMP: &RTMPConfig{},
 				},
+				CustomOptions: DictionaryItems{},
 			},
 			{
 				Address: "tcp:127.0.0.1:8555",
@@ -28,6 +30,7 @@ func Default() Config {
 				ProtocolHandler: ProtocolHandlerConfig{
 					RTSP: &RTSPConfig{},
 				},
+				CustomOptions: DictionaryItems{},
 			},
 			{
 				Address: "tcp:0.0.0.0:8554",
@@ -35,6 +38,7 @@ func Default() Config {
 				ProtocolHandler: ProtocolHandlerConfig{
 					RTSP: &RTSPConfig{},
 				},
+				CustomOptions: DictionaryItems{},
 			},
 		},
 		Endpoints: map[string]EndpointConfig{

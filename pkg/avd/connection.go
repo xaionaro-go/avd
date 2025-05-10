@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"strconv"
@@ -520,7 +521,14 @@ func (c *Connection[N]) negotiate(
 				defer close(errCh)
 				observability.Go(ctx, func() {
 					for err := range errCh {
-						logger.Errorf(ctx, "got an error: %v", err)
+						switch {
+						case errors.Is(err, context.Canceled):
+							logger.Debugf(ctx, "cancelled: %v", err)
+						case errors.Is(err, io.EOF):
+							logger.Debugf(ctx, "EOF: %v", err)
+						default:
+							logger.Errorf(ctx, "got an error: %v", err)
+						}
 					}
 				})
 				<-c.InitFinished

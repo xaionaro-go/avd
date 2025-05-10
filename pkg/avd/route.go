@@ -33,6 +33,9 @@ type Route struct {
 	Node                 *NodeRouting
 	Publishers           Publishers
 	PublishersChangeChan chan struct{}
+
+	// internal:
+	CancelFunc context.CancelFunc
 }
 
 func newRoute(
@@ -43,9 +46,11 @@ func newRoute(
 	onClosed func(context.Context, *Route),
 ) *Route {
 	ctx = belt.WithField(ctx, "path", path)
+	ctx, cancelFn := context.WithCancel(ctx)
 	r := &Route{
 		Path:                 path,
 		PublishersChangeChan: make(chan struct{}),
+		CancelFunc:           cancelFn,
 	}
 	r.Node = avpipeline.NewNodeWithCustomDataFromKernel[*Route](
 		ctx,
@@ -57,16 +62,25 @@ func newRoute(
 		onOpen(ctx, r)
 	}
 	observability.Go(ctx, func() {
+		defer r.Close(ctx)
 		if onClosed != nil {
 			defer onClosed(ctx, r)
 		}
 		defer logger.Debugf(ctx, "ended")
 		logger.Debugf(ctx, "started")
 		r.Node.Serve(ctx, avpipeline.ServeConfig{
-			FrameDrop: routeFrameDrop, // we don't want the whole pipeline to hang just because of one bad consumer
+			// we don't want the whole pipeline to hang just because of one bad consumer:
+			FrameDrop: routeFrameDrop,
 		}, errCh)
 	})
 	return r
+}
+
+func (r *Route) Close(ctx context.Context) (_err error) {
+	logger.Debugf(ctx, "Close")
+	defer func() { logger.Debugf(ctx, "/Close: %v", _err) }()
+	r.CancelFunc()
+	return nil
 }
 
 func (r *Route) getPublishersChangeChan(

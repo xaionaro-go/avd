@@ -29,7 +29,7 @@ func (s *Server) Listen(
 		ConnectionsConsumers:  make(map[net.Addr]*Connection[*NodeOutput]),
 	}
 
-	err := result.StartListening(ctx, mode)
+	err := result.startListening(ctx, mode)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start listening: %w", err)
 	}
