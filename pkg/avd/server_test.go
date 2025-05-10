@@ -36,6 +36,7 @@ func TestServer(t *testing.T) {
 
 	for _, proto := range []types.Protocol{
 		ProtocolRTMP,
+		ProtocolRTSP,
 	} {
 		t.Run(proto.String(), func(t *testing.T) {
 			ctx := belt.WithField(ctx, "protocol", proto.String())

@@ -41,7 +41,7 @@ func Default() Config {
 				CustomOptions: DictionaryItems{},
 			},
 		},
-		Endpoints: map[string]EndpointConfig{
+		Endpoints: map[types.RoutePath]EndpointConfig{
 			"mystream": {
 				Forwardings: []ForwardConfig{{
 					Recoding: &recoder.EncodersConfig{},

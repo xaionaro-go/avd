@@ -8,10 +8,11 @@ import (
 
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/processor"
-	"github.com/xaionaro-go/avpipeline/types"
+	avptypes "github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/typing"
 	"github.com/xaionaro-go/xsync"
@@ -23,11 +24,13 @@ const (
 
 type NodeRouting = avpipeline.NodeWithCustomData[*Route, *processor.FromKernel[*kernel.MapStreamIndices]]
 
+type RoutePath = types.RoutePath
+
 type Route struct {
 	Locker xsync.Mutex
 
 	// read only:
-	Path string
+	Path RoutePath
 
 	// access only when Locker is locked:
 	Node                 *NodeRouting
@@ -40,7 +43,7 @@ type Route struct {
 
 func newRoute(
 	ctx context.Context,
-	path string,
+	path RoutePath,
 	errCh chan<- avpipeline.ErrNode,
 	onOpen func(context.Context, *Route),
 	onClosed func(context.Context, *Route),
@@ -93,7 +96,7 @@ func (r *Route) getPublishersChangeChan(
 
 func (r *Route) StreamIndexAssign(
 	ctx context.Context,
-	input types.InputPacketOrFrameUnion,
+	input avptypes.InputPacketOrFrameUnion,
 ) (typing.Optional[int], error) {
 	return typing.Opt(input.GetStreamIndex()), nil
 }

@@ -19,7 +19,7 @@ type Router struct {
 	Locker xsync.Mutex
 
 	// access only when Locker is locked:
-	RoutesByPath map[string]*Route
+	RoutesByPath map[RoutePath]*Route
 	CloseChan    chan struct{}
 	AddedChan    chan struct{}
 	ErrorChan    chan avpipeline.ErrNode
@@ -27,7 +27,7 @@ type Router struct {
 
 func newRouter(ctx context.Context) *Router {
 	r := &Router{
-		RoutesByPath: map[string]*Route{},
+		RoutesByPath: map[RoutePath]*Route{},
 		CloseChan:    make(chan struct{}),
 		AddedChan:    make(chan struct{}),
 		ErrorChan:    make(chan avpipeline.ErrNode, 100),
@@ -55,10 +55,10 @@ func (r *Router) init(
 		for err := range r.ErrorChan {
 			route := err.Node.(*NodeRouting).CustomData
 			if route == nil {
-				logger.Errorf(ctx, "got an error on node %p: %w", err.Node, err.Err)
+				logger.Errorf(ctx, "got an error on node %p: %v", err.Node, err.Err)
 				continue
 			}
-			logger.Errorf(ctx, "got an error on node %p (path: '%s'): %w", err.Node, route.Path, err)
+			logger.Errorf(ctx, "got an error on node %p (path: '%s'): %v", err.Node, route.Path, err)
 		}
 	})
 }
@@ -106,7 +106,7 @@ func (m GetRouteMode) String() string {
 
 func (r *Router) GetRoute(
 	ctx context.Context,
-	path string,
+	path RoutePath,
 	mode GetRouteMode,
 ) (_ret *Route, _err error) {
 	logger.Debugf(ctx, "GetRoute(ctx, '%s', '%s')", path, mode)
@@ -120,7 +120,7 @@ func (r *Router) GetRoute(
 
 func (r *Router) switchGetRoute(
 	ctx context.Context,
-	path string,
+	path RoutePath,
 	mode GetRouteMode,
 	curRoute *Route,
 ) (*Route, error) {
@@ -183,7 +183,7 @@ func (r *Router) switchGetRoute(
 
 func (r *Router) createRoute(
 	ctx context.Context,
-	path string,
+	path RoutePath,
 ) (_ret *Route) {
 	logger.Debugf(ctx, "createRoute(ctx, '%s')", path)
 	defer func() { logger.Debugf(ctx, "/createRoute(ctx, '%s'): %v", path, _ret) }()
@@ -223,14 +223,14 @@ func (r *Router) GetAddedChan(
 
 func (r *Router) RemoveRoute(
 	ctx context.Context,
-	path string,
+	path RoutePath,
 ) *Route {
 	return xsync.DoA2R1(ctx, &r.Locker, r.removeRouteNoLock, ctx, path)
 }
 
 func (r *Router) removeRouteNoLock(
 	ctx context.Context,
-	path string,
+	path RoutePath,
 ) *Route {
 	route := r.RoutesByPath[path]
 	delete(r.RoutesByPath, path)
@@ -239,7 +239,7 @@ func (r *Router) removeRouteNoLock(
 
 func (r *Router) WaitForRoute(
 	ctx context.Context,
-	path string,
+	path RoutePath,
 ) (*Route, error) {
 	for {
 		select {

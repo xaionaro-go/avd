@@ -1,9 +1,7 @@
 package avd
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +27,10 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
+const (
+	ConnectionEnableRoutePathUpdaterHack = true
+)
+
 type Connection[N AbstractNodeIO] struct {
 	Locker xsync.Mutex
 
@@ -42,7 +44,7 @@ type Connection[N AbstractNodeIO] struct {
 	Node         N
 	InitError    error
 	InitFinished chan struct{}
-	RoutePath    *string
+	RoutePath    *RoutePath
 	Route        *Route
 }
 
@@ -83,7 +85,7 @@ func newConnection[N AbstractNodeIO](
 		if ConnectionEnableRoutePathUpdaterHack {
 			var negotiate func(context.Context) error
 			switch p.Protocol {
-			case ProtocolRTMP:
+			case ProtocolRTMP, ProtocolRTSP:
 				negotiate = c.negotiate
 			default:
 				logger.Errorf(ctx, "negotiation for protocol '%s' is not implemented (yet?)", p.Protocol)
@@ -155,11 +157,11 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 			c.Route = nil
 		}
 		if c.AVConn != nil {
-			c.AVConn.SetDeadline(time.Unix(1, 0))
+			c.AVConn.Close()
 			c.AVConn = nil
 		}
 		if c.Conn != nil {
-			c.Conn.SetDeadline(time.Unix(1, 0))
+			c.Conn.Close()
 			c.Conn = nil
 		}
 		if c.Node != nil {
@@ -253,7 +255,7 @@ func (c *Connection[N]) initAVHandler(
 	switch c.Port.Protocol {
 	case ProtocolRTMP:
 		customOpts = append(customOpts, avpipelinetypes.DictionaryItems{
-			{Key: "rtmp_app", Value: c.GetRoutePath()},
+			{Key: "rtmp_app", Value: string(c.GetRoutePath())},
 			{Key: "rtmp_live", Value: "live"},
 			{Key: "rtmp_buffer", Value: fmt.Sprintf("%d", c.Port.GetConfig().GetBufferDuration().Milliseconds())},
 		}...)
@@ -266,9 +268,11 @@ func (c *Connection[N]) initAVHandler(
 				Key: "pkt_size", Value: fmt.Sprintf("%d", c.Port.Config.RTSP.PacketSize),
 			})
 		}
-		if c.Port.Config.RTSP.TransportProtocol != UndefinedTransportProtocol {
+		if c.Port.Config.RTSP.TransportProtocol == TransportProtocolUDP {
+			return fmt.Errorf("we do not support UDP transport protocol for RTSP, yet")
+		} else {
 			customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
-				Key: "rtsp_transport", Value: c.Port.Config.RTSP.TransportProtocol.String(),
+				Key: "rtsp_transport", Value: TransportProtocolTCP.String(),
 			})
 		}
 	case ProtocolSRT:
@@ -379,28 +383,6 @@ func (c *Connection[N]) onInitFinished(
 	close(c.InitFinished)
 }
 
-func (c *Connection[N]) onInitFinishedRTMP(
-	ctx context.Context,
-) {
-	routePath := c.GetRoutePath()
-	rtmpCtx := c.AVRTMPContext()
-	logger.Debugf(ctx, "updating the app name: '%s' -> '%s'", rtmpCtx.App(), routePath)
-	rtmpCtx.SetApp(routePath)
-}
-
-func (c *Connection[N]) onInitFinishedRTSP(
-	ctx context.Context,
-) {
-	routePath := c.GetRoutePath()
-	rtspState := c.AVRTSPState()
-	logger.Debugf(ctx, "updating the control URI: '%s' -> '%s'", rtspState.ControlURI(), routePath)
-	rtspState.SetControlURI(routePath)
-	for idx, stream := range rtspState.RTSPStreams() {
-		logger.Debugf(ctx, "updating the control URL in stream #%d: '%s' -> '%s'", idx, stream.ControlURL(), routePath)
-		stream.SetControlURL(routePath)
-	}
-}
-
 func (c *Connection[N]) negotiate(
 	origCtx context.Context,
 ) (_err error) {
@@ -479,8 +461,12 @@ func (c *Connection[N]) negotiate(
 			}
 
 			msg := buf[:r]
-			logger.Tracef(ctx, "msg: %X (suspect 'connect': %t)", msg, bytes.Contains(msg, []byte("connect")))
-			if !bytes.Contains(msg, connectMagic) {
+			routePath, err := c.tryExtractRouteString(ctx, msg)
+			if err != nil {
+				errCh <- fmt.Errorf("unable to snoop the route path: %w", err)
+				return
+			}
+			if routePath == nil {
 				logger.Tracef(ctx, "waiting for c.AVConn output...")
 				err := forward(c.AVConn, msg)
 				logger.Tracef(ctx, "/waiting for c.AVConn output")
@@ -491,26 +477,20 @@ func (c *Connection[N]) negotiate(
 				continue
 			}
 
-			appName, err := parseAppName(ctx, msg)
-			if err != nil {
-				errCh <- fmt.Errorf("unable to parse the route path from the 'connect' message: %w", err)
-				return
-			}
-			c.RoutePath = ptr(string(appName))
-			logger.Debugf(ctx, "appName == '%s'", *c.RoutePath)
+			c.RoutePath = routePath
+			logger.Debugf(ctx, "routePath == '%s'", *c.RoutePath)
 
-			routePath := *c.RoutePath
-			ctx = belt.WithField(ctx, "path", routePath)
-			route, err := c.Port.GetServer().GetRoute(ctx, routePath, GetRouteModeCreateIfNotFound)
+			ctx = belt.WithField(ctx, "path", *routePath)
+			route, err := c.Port.GetServer().GetRoute(origCtx, *routePath, GetRouteModeCreateIfNotFound)
 			if err != nil {
-				errCh <- fmt.Errorf("unable to create a route '%s': %w", routePath, err)
+				errCh <- fmt.Errorf("unable to create a route '%s': %w", *routePath, err)
 				return
 			}
 			c.Route = route
 			switch c.Mode() {
 			case PortModePublishers:
 				if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
-					errCh <- fmt.Errorf("unable to add myself as a  to '%s': %w", routePath, err)
+					errCh <- fmt.Errorf("unable to add myself as a  to '%s': %w", *routePath, err)
 					return
 				}
 				c.Node.AddPushPacketsTo(route.Node)
@@ -537,7 +517,7 @@ func (c *Connection[N]) negotiate(
 					return
 				}
 				logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
-				serveCtx := belt.WithField(origCtx, "path", routePath)
+				serveCtx := belt.WithField(origCtx, "path", *routePath)
 				switch c.Mode() {
 				case types.PortModeConsumers:
 					c.Route.Node.AddPushPacketsTo(c.Node)
@@ -571,6 +551,20 @@ func (c *Connection[N]) negotiate(
 	}
 }
 
+func (c *Connection[N]) tryExtractRouteString(
+	ctx context.Context,
+	msg []byte,
+) (*RoutePath, error) {
+	switch c.Port.Protocol {
+	case ProtocolRTMP:
+		return c.tryExtractRouteStringRTMP(ctx, msg)
+	case ProtocolRTSP:
+		return c.tryExtractRouteStringRTSP(ctx, msg)
+	default:
+		return nil, fmt.Errorf("protocol '%s' is not supported", c.Port.Protocol)
+	}
+}
+
 func (c *Connection[N]) getKernel() kernel.Abstract {
 	switch p := c.Node.GetProcessor().(type) {
 	case *processor.FromKernel[*kernel.Input]:
@@ -593,25 +587,24 @@ func (c *Connection[N]) getFormatContext() *astiav.FormatContext {
 	}
 }
 
-func (c *Connection[N]) AVURLContext() *avcommon.URLContext {
-	fmtCtx := avcommon.WrapAVFormatContext(
+func (c *Connection[N]) AVFormatContext() *avcommon.AVFormatContext {
+	return avcommon.WrapAVFormatContext(
 		xastiav.CFromAVFormatContext(
 			c.getFormatContext(),
 		),
 	)
+}
+
+func (c *Connection[N]) AVURLContext() *avcommon.URLContext {
+	fmtCtx := c.AVFormatContext()
 	avioCtx := fmtCtx.Pb()
+	if avioCtx == nil {
+		panic("internal error: avioCtx == nil")
+	}
 	return avcommon.WrapURLContext(avioCtx.Opaque())
 }
 
-func (c *Connection[N]) AVRTMPContext() *avcommon.RTMPContext {
-	return avcommon.WrapRTMPContext(c.AVURLContext().PrivData())
-}
-
-func (c *Connection[N]) AVRTSPState() *avcommon.RTSPState {
-	return avcommon.WrapRTSPState(c.AVURLContext().PrivData())
-}
-
-func (c *Connection[N]) GetRoutePath() string {
+func (c *Connection[N]) GetRoutePath() RoutePath {
 	if c.RoutePath != nil {
 		return *c.RoutePath
 	}
@@ -719,100 +712,5 @@ func (c *Connection[N]) forward(
 	case err := <-errCh:
 		cancelFn()
 		return err
-	}
-}
-
-const (
-	ConnectionEnableRoutePathUpdaterHack = true
-)
-
-var connectMagic []byte
-
-func init() {
-	/* An example of a packet:
-	00000000  03 00 00 00 00 00 91 14  00 00 00 00 02 00 07 63  |...............c|
-	00000010  6f 6e 6e 65 63 74 00 3f  f0 00 00 00 00 00 00 03  |onnect.?........|
-	00000020  00 03 61 70 70 02 00 07  74 65 73 74 41 70 70 00  |..app...testApp.|
-	00000030  04 74 79 70 65 02 00 0a  6e 6f 6e 70 72 69 76 61  |.type...nonpriva|
-	00000040  74 65 00 08 66 6c 61 73  68 56 65 72 02 00 23 46  |te..flashVer..#F|
-	00000050  4d 4c 45 2f 33 2e 30 20  28 63 6f 6d 70 61 74 69  |MLE/3.0 (compati|
-	00000060  62 6c 65 3b 20 4c 61 76  66 36 31 2e 37 2e 31 30  |ble; Lavf61.7.10|
-	00000070  30 29 00 05 74 63 55 72  6c 02 00 1e 72 74 6d 70  |0)..tcUrl...rtmp|
-	00000080  3a 2f 2f 31 32 37 2e 30  2e 30 2e 31 c3 3a 34 33  |://127.0.0.1.:43|
-	00000090  36 34 35 2f 74 65 73 74  41 70 70 00 00 09        |645/testApp...|
-	0000009e
-	*/
-	connectMagic = append(connectMagic, []byte{0x02, 0x00, 0x07}...)
-	connectMagic = append(connectMagic, []byte("connect\000")...)
-	connectMagic = append(connectMagic, []byte{0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03}...)
-}
-
-func parseAppName(
-	ctx context.Context,
-	msg []byte,
-) (_ret []byte, _err error) {
-	logger.Tracef(ctx, "parseAppName(ctx, %X)", msg)
-	defer func() { logger.Tracef(ctx, "/parseAppName: '%v' %v", string(_ret), _err) }()
-	/*
-			An example of a packet:
-
-		00000000  03 00 00 00 00 00 8b 14  00 00 00 00 02 00 07 63  |...............c|
-		00000010  6f 6e 6e 65 63 74 00 3f  f0 00 00 00 00 00 00 03  |onnect.?........|
-		00000020  00 03 61 70 70 02 00 04  74 65 73 74 00 04 74 79  |..app...test..ty|
-		00000030  70 65 02 00 0a 6e 6f 6e  70 72 69 76 61 74 65 00  |pe...nonprivate.|
-		00000040  08 66 6c 61 73 68 56 65  72 02 00 23 46 4d 4c 45  |.flashVer..#FMLE|
-		00000050  2f 33 2e 30 20 28 63 6f  6d 70 61 74 69 62 6c 65  |/3.0 (compatible|
-		00000060  3b 20 4c 61 76 66 36 31  2e 37 2e 31 30 30 29 00  |; Lavf61.7.100).|
-		00000070  05 74 63 55 72 6c 02 00  1b 72 74 6d 70 3a 2f 2f  |.tcUrl...rtmp://|
-		00000080  31 32 37 2e 30 2e 30 2e  31 3a 34 32 c3 34 34 39  |127.0.0.1:42.449|
-		00000090  2f 74 65 73 74 00 00 09                           |/test...|
-	*/
-
-	connectMagicIdx := bytes.Index(msg, connectMagic)
-	if connectMagicIdx < 0 {
-		return nil, fmt.Errorf("internal error: the 'connect' magic was not found")
-	}
-
-	idx := connectMagicIdx + len(connectMagic)
-	for {
-		if idx+2 >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the length of the key: %d >= %d", idx+2, len(msg))
-		}
-		keyLen := binary.BigEndian.Uint16(msg[idx:])
-		idx += 2
-
-		if idx+int(keyLen) >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the key: %d >= %d", idx+int(keyLen), len(msg))
-		}
-		key := string(msg[idx : idx+int(keyLen)])
-		idx += int(keyLen)
-
-		if idx+1 >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the the value type: %d >= %d (key: '%s')", idx+1, len(msg), key)
-		}
-		valueType := msg[idx]
-		idx++
-
-		if valueType != 0x02 {
-			return nil, fmt.Errorf("we currently support only string values, but received type ID %d (key: '%s')", valueType, key)
-		}
-
-		if idx+2 >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the length of the value: %d >= %d (key: '%s')", idx+2, len(msg), key)
-		}
-		valueLen := binary.BigEndian.Uint16(msg[idx:])
-		idx += 2
-
-		if idx+int(valueLen) >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the value: %d >= %d (key: '%s')", idx+int(valueLen), len(msg), key)
-		}
-		value := msg[idx : idx+int(valueLen)]
-		idx += int(valueLen)
-
-		logger.Debugf(ctx, "'%s': '%s'", key, value)
-		switch key {
-		case "app":
-			return value, nil
-		}
 	}
 }

@@ -11,8 +11,8 @@ import (
 )
 
 type Destination struct {
-	URL   string `yaml:"url"`
-	Route string `yaml:"route"`
+	URL   string          `yaml:"url"`
+	Route types.RoutePath `yaml:"route"`
 }
 
 type ForwardConfig struct {
@@ -83,6 +83,6 @@ func (cfg PortConfig) ListenOptions() []types.ListenOption {
 }
 
 type Config struct {
-	Ports     []PortConfig              `yaml:"ports"`
-	Endpoints map[string]EndpointConfig `yaml:"endpoints"`
+	Ports     []PortConfig                       `yaml:"ports"`
+	Endpoints map[types.RoutePath]EndpointConfig `yaml:"endpoints"`
 }

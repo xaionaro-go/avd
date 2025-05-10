@@ -21,9 +21,9 @@ var _ Publisher = (*ForwardingLocal)(nil)
 
 func (s *Server) AddForwardingLocal(
 	ctx context.Context,
-	srcPath string,
+	srcPath RoutePath,
 	getSrcRouteMode GetRouteMode,
-	dstPath string,
+	dstPath RoutePath,
 	getDstRouteMode GetRouteMode,
 	encodersConfig *recoder.EncodersConfig,
 ) (_ret *ForwardingLocal, _err error) {

@@ -5,7 +5,7 @@ import (
 )
 
 type ListenConfig struct {
-	DefaultRoutePath string
+	DefaultRoutePath RoutePath
 
 	// not all protocols respects these, but some do:
 	BufferDuration   time.Duration
@@ -44,7 +44,7 @@ func (opts ListenOptions) apply(cfg *ListenConfig) {
 type ListenOptionDefaultRoutePath string
 
 func (opt ListenOptionDefaultRoutePath) apply(cfg *ListenConfig) {
-	cfg.DefaultRoutePath = string(opt)
+	cfg.DefaultRoutePath = RoutePath(opt)
 }
 
 type ListenOptionBufferDuration time.Duration

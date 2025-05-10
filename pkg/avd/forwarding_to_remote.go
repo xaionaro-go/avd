@@ -26,7 +26,7 @@ type ForwardingToRemote struct {
 
 func (s *Server) AddForwardingToRemote(
 	ctx context.Context,
-	sourcePath string,
+	sourcePath RoutePath,
 	dstURL string,
 	streamKey secret.String,
 	getRouteMode GetRouteMode,
