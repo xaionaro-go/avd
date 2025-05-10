@@ -51,10 +51,14 @@ github.com/xaionaro-go/astiav v0.0.0-20250419202405-6baea371bdeb h1:nx1bWoquk+Uu
 github.com/xaionaro-go/astiav v0.0.0-20250419202405-6baea371bdeb/go.mod h1:K7D8UC6GeQt85FUxk2KVwYxHnotrxuEnp5evkkudc2s=
 github.com/xaionaro-go/avcommon v0.0.0-20250505020050-1c12a8387656 h1:QdRiIKwD2FC9uQnpmp1d+u9WHkIVpzOkE0HKHkT0rGg=
 github.com/xaionaro-go/avcommon v0.0.0-20250505020050-1c12a8387656/go.mod h1:kjLo1LasgdDJqbTGD5bbEM+D6RiZSbf5ZT8yiPFF1BA=
+github.com/xaionaro-go/avcommon v0.0.0-20250510235605-840f8210b727 h1:uQ8V1T3Oeru15gEIthts9GWkMS3eQ0Eo7vOKvE4G2/k=
+github.com/xaionaro-go/avcommon v0.0.0-20250510235605-840f8210b727/go.mod h1:kjLo1LasgdDJqbTGD5bbEM+D6RiZSbf5ZT8yiPFF1BA=
 github.com/xaionaro-go/avmediacodec v0.0.0-20250421150856-ddd390422c21 h1:afsJFvZaf4z87n/V9LgXgD6u8MZBesZj8mnHvlfRi2k=
 github.com/xaionaro-go/avmediacodec v0.0.0-20250421150856-ddd390422c21/go.mod h1:obX+/HoeX6lzM/Zuzgtm0JdG8CQ58I1isp5xSQEm+kQ=
 github.com/xaionaro-go/avpipeline v0.0.0-20250506000800-76fec41b6f18 h1:6wHHl/UuNexs8Uq//75L1MsuVb45owvf3XL8cidIb30=
 github.com/xaionaro-go/avpipeline v0.0.0-20250506000800-76fec41b6f18/go.mod h1:Czl84biYuPZeILYiRiziR0yeuXKvrqQfzJ1ItjSq/o0=
+github.com/xaionaro-go/avpipeline v0.0.0-20250510233611-bcfd2ea2632d h1:RyrJek4b9PzDfIbfA6n8aGds67/1JnSE97/A8X3Oe9U=
+github.com/xaionaro-go/avpipeline v0.0.0-20250510233611-bcfd2ea2632d/go.mod h1:Czl84biYuPZeILYiRiziR0yeuXKvrqQfzJ1ItjSq/o0=
 github.com/xaionaro-go/datacounter v1.0.4 h1:+QMZLmu73R5WGkQfUPwlXF/JFN+Weo4iuDZkiL2wVm8=
 github.com/xaionaro-go/datacounter v1.0.4/go.mod h1:Sf9vBevuV6w5iE6K3qJ9pWVKcyS60clWBUSQLjt5++c=
 github.com/xaionaro-go/gorex v0.0.0-20241010205749-bcd59d639c4d h1:9DyH0lboWWzKUwiqGmp9sTZ3bSPhgJHiiWgV+hqY9Uo=

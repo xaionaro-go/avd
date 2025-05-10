@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
-	"github.com/xaionaro-go/avpipeline"
+	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/recoder"
 	"github.com/xaionaro-go/xsync"
 )
@@ -121,7 +121,7 @@ func (fwd *ForwardingLocal) removePacketsPushing(
 ) (_err error) {
 	logger.Debugf(ctx, "removePacketsPushing")
 	defer func() { logger.Debugf(ctx, "/removePacketsPushing: %v", _err) }()
-	return avpipeline.RemovePushPacketsTo(ctx, fwd.Source.Node, fwd)
+	return node.RemovePushPacketsTo(ctx, fwd.Source.Node, fwd)
 }
 
 func (fwd *ForwardingLocal) String() string {
@@ -130,7 +130,7 @@ func (fwd *ForwardingLocal) String() string {
 
 func (fwd *ForwardingLocal) GetInputNode(
 	ctx context.Context,
-) avpipeline.AbstractNode {
+) node.Abstract {
 	if len(fwd.Source.Publishers) == 0 {
 		return nil
 	}

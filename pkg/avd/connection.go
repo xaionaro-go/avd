@@ -17,8 +17,8 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
-	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
+	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
 	avpipelinetypes "github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
@@ -41,7 +41,7 @@ type Connection[N AbstractNodeIO] struct {
 	AVInputKey   secret.String
 	AVConn       *net.TCPConn
 	Node         N
-	BSFNode      *avpipeline.Node[*processor.FromKernel[*kernel.BitstreamFilter]]
+	BSFNode      *node.Node[*processor.FromKernel[*kernel.BitstreamFilter]]
 	InitError    error
 	InitFinished chan struct{}
 	RoutePath    *RoutePath
@@ -115,7 +115,7 @@ func (c *Connection[N]) String() string {
 
 func (c *Connection[N]) GetInputNode(
 	context.Context,
-) avpipeline.AbstractNode {
+) node.Abstract {
 	return c.Node
 }
 
@@ -153,11 +153,11 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 					errs = append(errs, fmt.Errorf("unable to remove myself as a  at '%s': %w", c.Route.Path, err))
 				}
 			case PortModeConsumers:
-				dstNode := avpipeline.AbstractNode(c.Node)
+				dstNode := node.Abstract(c.Node)
 				if c.BSFNode != nil {
 					dstNode = c.BSFNode
 				}
-				if err := avpipeline.RemovePushPacketsTo(ctx, c.Route.Node, dstNode); err != nil {
+				if err := node.RemovePushPacketsTo(ctx, c.Route.Node, dstNode); err != nil {
 					errs = append(errs, fmt.Errorf("unable to unsubscribe from packets from '%s': %w", c.Route.Path, err))
 				}
 			}
@@ -582,7 +582,7 @@ func (c *Connection[N]) serve(
 		c.Node.AddPushPacketsTo(route.Node)
 	}
 
-	errCh := make(chan avpipeline.ErrNode, 100)
+	errCh := make(chan node.Error, 100)
 	defer close(errCh)
 	observability.Go(ctx, func() {
 		for err := range errCh {
@@ -613,16 +613,16 @@ func (c *Connection[N]) serve(
 			c.Route.Node.AddPushPacketsTo(c.BSFNode)
 			c.BSFNode.AddPushPacketsTo(c.Node)
 			observability.Go(ctx, func() {
-				c.BSFNode.Serve(ctx, avpipeline.ServeConfig{}, errCh)
+				c.BSFNode.Serve(ctx, node.ServeConfig{}, errCh)
 			})
 		}
 	}
-	c.Node.Serve(ctx, avpipeline.ServeConfig{}, errCh)
+	c.Node.Serve(ctx, node.ServeConfig{}, errCh)
 }
 
 func (c *Connection[N]) newBitStreamFilterIfNeeded(
 	_ context.Context,
-) *avpipeline.Node[*processor.FromKernel[*kernel.BitstreamFilter]] {
+) *node.Node[*processor.FromKernel[*kernel.BitstreamFilter]] {
 	switch c.Mode() {
 	case PortModeConsumers:
 	default:

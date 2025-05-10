@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
-	"github.com/xaionaro-go/avpipeline"
+	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/xsync"
 )
@@ -22,7 +22,7 @@ type Router struct {
 	RoutesByPath map[RoutePath]*Route
 	CloseChan    chan struct{}
 	AddedChan    chan struct{}
-	ErrorChan    chan avpipeline.ErrNode
+	ErrorChan    chan node.Error
 }
 
 func newRouter(ctx context.Context) *Router {
@@ -30,7 +30,7 @@ func newRouter(ctx context.Context) *Router {
 		RoutesByPath: map[RoutePath]*Route{},
 		CloseChan:    make(chan struct{}),
 		AddedChan:    make(chan struct{}),
-		ErrorChan:    make(chan avpipeline.ErrNode, 100),
+		ErrorChan:    make(chan node.Error, 100),
 	}
 	r.init(ctx)
 	return r

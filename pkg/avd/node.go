@@ -6,30 +6,30 @@ import (
 	"time"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
-	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
+	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/observability/xlogger"
 	"github.com/xaionaro-go/secret"
 )
 
-type NodeInput = avpipeline.NodeWithCustomData[Publisher, *processor.FromKernel[*kernel.Input]]
+type NodeInput = node.NodeWithCustomData[Publisher, *processor.FromKernel[*kernel.Input]]
 
 func newInputNode(
 	ctx context.Context,
 	publisher Publisher,
 	input *kernel.Input,
 ) *NodeInput {
-	node := avpipeline.NewNodeWithCustomDataFromKernel[Publisher](
+	n := node.NewWithCustomDataFromKernel[Publisher](
 		ctx, input, processor.DefaultOptionsInput()...,
 	)
-	node.CustomData = publisher
-	return node
+	n.CustomData = publisher
+	return n
 }
 
 type Sender any
 
-type NodeOutput = avpipeline.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Output]]
+type NodeOutput = node.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Output]]
 
 func newOutputNode(
 	ctx context.Context,
@@ -54,14 +54,14 @@ func newOutputNode(
 		return nil, fmt.Errorf("unable to open the output: %w", err)
 	}
 
-	node := avpipeline.NewNodeWithCustomDataFromKernel[Sender](
+	n := node.NewWithCustomDataFromKernel[Sender](
 		ctx, outputKernel, processor.DefaultOptionsOutput()...,
 	)
-	node.CustomData = sender
-	return node, nil
+	n.CustomData = sender
+	return n, nil
 }
 
-type NodeRetryOutput = avpipeline.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Retry[*kernel.Output]]]
+type NodeRetryOutput = node.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Retry[*kernel.Output]]]
 
 func newRetryOutputNode(
 	ctx context.Context,
@@ -93,12 +93,14 @@ func newRetryOutputNode(
 			return kernel.ErrRetry{Err: err}
 		},
 	)
-	node := avpipeline.NewNodeWithCustomDataFromKernel[Sender](
+	n := node.NewWithCustomDataFromKernel[Sender](
 		ctx, outputKernel, processor.DefaultOptionsOutput()...,
 	)
-	node.CustomData = sender
-	return node
+	n.CustomData = sender
+	return n
 }
+
+type NodeRouting = node.NodeWithCustomData[*Route, *processor.FromKernel[*kernel.MapStreamIndices]]
 
 type AbstractNodeOutput interface {
 	*NodeOutput | *NodeRetryOutput
@@ -106,6 +108,6 @@ type AbstractNodeOutput interface {
 
 type AbstractNodeIO interface {
 	*NodeInput | AbstractNodeOutput
-	avpipeline.AbstractNode
+	node.Abstract
 	DotString(bool) string
 }

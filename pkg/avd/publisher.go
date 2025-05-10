@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xaionaro-go/avpipeline"
+	"github.com/xaionaro-go/avpipeline/node"
 )
 
 type Publisher interface {
 	fmt.Stringer
-	GetInputNode(ctx context.Context) avpipeline.AbstractNode
+	GetInputNode(ctx context.Context) node.Abstract
 	GetOutputRoute(ctx context.Context) *Route
 }
 

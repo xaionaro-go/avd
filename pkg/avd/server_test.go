@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
+	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
@@ -65,21 +66,21 @@ func pushTestFileTo(
 	inputKernel, err := kernel.NewInputFromURL(ctx, recordingPath, secret.New(""), kernel.InputConfig{})
 	require.NoError(t, err)
 
-	inputNode := avpipeline.NewNodeFromKernel(ctx, inputKernel, processor.DefaultOptionsInput()...)
+	inputNode := node.NewFromKernel(ctx, inputKernel, processor.DefaultOptionsInput()...)
 
 	outputKernel, err := kernel.NewOutputFromURL(ctx, dstAddr, secret.New(""), kernel.OutputConfig{})
 	require.NoError(t, err)
 
-	outputNode := avpipeline.NewNodeFromKernel(ctx, outputKernel, processor.DefaultOptionsOutput()...)
+	outputNode := node.NewFromKernel(ctx, outputKernel, processor.DefaultOptionsOutput()...)
 
 	inputNode.AddPushPacketsTo(outputNode)
-	errCh := make(chan avpipeline.ErrNode, 100)
+	errCh := make(chan node.Error, 100)
 
 	wg.Add(1)
 	observability.Go(ctx, func() {
 		defer wg.Done()
 		defer close(errCh)
-		avpipeline.ServeRecursively(ctx, avpipeline.ServeConfig{}, errCh, inputNode)
+		avpipeline.Serve(ctx, avpipeline.ServeConfig{}, errCh, inputNode)
 	})
 
 	select {

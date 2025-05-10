@@ -8,8 +8,8 @@ import (
 
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
-	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
+	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/recoder"
 	"github.com/xaionaro-go/secret"
@@ -19,7 +19,7 @@ import (
 type ForwardingToRemote struct {
 	Source *Route
 	*NodeRetryOutput
-	ErrChan    chan avpipeline.ErrNode
+	ErrChan    chan node.Error
 	CancelFunc context.CancelFunc
 	CloseOnce  sync.Once
 }
@@ -63,7 +63,7 @@ func (s *Server) AddForwardingToRemote(
 	logger.Tracef(ctx, "building ForwardingToRemote")
 	fwd := &ForwardingToRemote{
 		Source:     source,
-		ErrChan:    make(chan avpipeline.ErrNode, 100),
+		ErrChan:    make(chan node.Error, 100),
 		CancelFunc: cancelFn,
 	}
 	fwd.NodeRetryOutput = newRetryOutputNode(ctx, fwd, func(ctx context.Context) error {
@@ -99,7 +99,7 @@ func (fwd *ForwardingToRemote) init(
 	}
 	observability.Go(ctx, func() {
 		defer close(fwd.ErrChan)
-		fwd.NodeRetryOutput.Serve(ctx, avpipeline.ServeConfig{}, fwd.ErrChan)
+		fwd.NodeRetryOutput.Serve(ctx, node.ServeConfig{}, fwd.ErrChan)
 	})
 	observability.Go(ctx, func() {
 		for err := range fwd.ErrChan {
@@ -156,5 +156,5 @@ func (fwd *ForwardingToRemote) removePacketsPushing(
 ) (_err error) {
 	logger.Debugf(ctx, "removePacketsPushing")
 	defer func() { defer logger.Debugf(ctx, "/removePacketsPushing: %v", _err) }()
-	return avpipeline.RemovePushPacketsTo(ctx, fwd.Source.Node, fwd)
+	return node.RemovePushPacketsTo(ctx, fwd.Source.Node, fwd)
 }

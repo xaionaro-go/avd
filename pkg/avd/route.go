@@ -10,8 +10,8 @@ import (
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/avd/types"
-	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
+	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
 	avptypes "github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
@@ -22,8 +22,6 @@ import (
 const (
 	routeFrameDrop = true
 )
-
-type NodeRouting = avpipeline.NodeWithCustomData[*Route, *processor.FromKernel[*kernel.MapStreamIndices]]
 
 type RoutePath = types.RoutePath
 
@@ -45,7 +43,7 @@ type Route struct {
 func newRoute(
 	ctx context.Context,
 	path RoutePath,
-	errCh chan<- avpipeline.ErrNode,
+	errCh chan<- node.Error,
 	onOpen func(context.Context, *Route),
 	onClosed func(context.Context, *Route),
 ) *Route {
@@ -56,7 +54,7 @@ func newRoute(
 		PublishersChangeChan: make(chan struct{}),
 		CancelFunc:           cancelFn,
 	}
-	r.Node = avpipeline.NewNodeWithCustomDataFromKernel[*Route](
+	r.Node = node.NewWithCustomDataFromKernel[*Route](
 		ctx,
 		kernel.NewMapStreamIndices(ctx, r),
 		processor.DefaultOptionsRecoder()...,
@@ -72,7 +70,7 @@ func newRoute(
 		}
 		defer logger.Debugf(ctx, "ended")
 		logger.Debugf(ctx, "started")
-		r.Node.Serve(ctx, avpipeline.ServeConfig{
+		r.Node.Serve(ctx, node.ServeConfig{
 			// we don't want the whole pipeline to hang just because of one bad consumer:
 			FrameDrop: routeFrameDrop,
 		}, errCh)
