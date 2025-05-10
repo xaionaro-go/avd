@@ -21,6 +21,10 @@ const (
 	ProtocolSRT       = types.ProtocolSRT
 )
 
+func SupportedProtocols() []Protocol {
+	return types.SupportedProtocols()
+}
+
 type ListenConfig = types.ListenConfig
 type ListenOption = types.ListenOption
 type ListenOptions = types.ListenOptions

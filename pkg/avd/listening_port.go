@@ -134,7 +134,7 @@ func (p *ListeningPort) listen(
 		observability.Go(ctx, func() {
 			err := addConnectionFunc(ctx, netConn)
 			if err != nil {
-				logger.Error(ctx, "unable to handle a new connection: %v", err)
+				logger.Errorf(ctx, "unable to handle a new connection: %v", err)
 			}
 		})
 	}

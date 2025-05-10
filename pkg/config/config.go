@@ -60,6 +60,8 @@ func (cfg ProtocolHandlerConfig) Protocol() (Protocol, error) {
 }
 
 type PortMode = types.PortMode
+type DictionaryItem = types.DictionaryItem
+type DictionaryItems = types.DictionaryItems
 type PortConfig struct {
 	Address         PortAddress           `yaml:"address"`
 	Mode            PortMode              `yaml:"mode"`

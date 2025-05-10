@@ -74,3 +74,7 @@ func (c *Protocol) UnmarshalYAML(b []byte) error {
 func (c Protocol) MarshalYAML() ([]byte, error) {
 	return json.Marshal(c.String())
 }
+
+func SupportedProtocols() []Protocol {
+	return []Protocol{ProtocolRTMP, ProtocolRTSP}
+}

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
@@ -35,12 +37,17 @@ func (c *Connection[N]) tryExtractRouteStringRTSP(
 		return nil, fmt.Errorf("expected the first packet to contain an 'OPTIONS' request, which consists of 3 parts and headers: OPTIONS URL protocol\\r\\nHeaders, but received '%s'", msg)
 	}
 
-	requestName, url, theRest := parts[0], parts[1], parts[2]
+	requestName, urlBytes, theRest := parts[0], parts[1], parts[2]
 	_ = theRest
 
 	if !bytes.Equal(bytes.ToUpper(requestName), []byte("OPTIONS")) {
 		return nil, fmt.Errorf("expected the first packet to contain an 'OPTIONS' request, which consists of 3 parts and headers: OPTIONS URL protocol\\r\\nHeaders, but the first word is '%s'", parts[0])
 	}
 
-	return ptr(RoutePath(url)), nil
+	url, err := url.Parse(string(urlBytes))
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse '%s' as an URL: %w", urlBytes, err)
+	}
+
+	return ptr(RoutePath(strings.Trim(url.Path, "/"))), nil
 }

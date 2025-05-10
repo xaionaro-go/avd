@@ -126,6 +126,9 @@ func (c *Connection[N]) GetOutputRoute(
 }
 
 func (c *Connection[N]) Mode() PortMode {
+	if c == nil {
+		return UndefinedPortMode
+	}
 	var nodeZeroValue N
 	switch any(nodeZeroValue).(type) {
 	case *NodeInput:
@@ -205,6 +208,22 @@ func (c *Connection[N]) builtAVListenURL(
 	c.AVInputKey = secretKey
 	logger.Debugf(ctx, "c.AVInputURL: %#+v", c.AVInputURL)
 	return url, secretKey, nil
+
+}
+func (c *Connection[N]) isAsyncOpen(
+	ctx context.Context,
+) (_ret bool) {
+	logger.Debugf(ctx, "isAsyncOpen")
+	defer func() { logger.Debugf(ctx, "/isAsyncOpen: %v", _ret) }()
+	switch c.Port.Protocol {
+	case ProtocolRTMP:
+		return true
+	}
+	switch any(c.Node).(type) {
+	case *NodeInput:
+		return true
+	}
+	return false
 }
 
 func (c *Connection[N]) initAVHandler(
@@ -282,6 +301,8 @@ func (c *Connection[N]) initAVHandler(
 		}...)
 	}
 
+	customOpts = append(customOpts, c.Port.Config.CustomOptions...)
+
 	logger.Debugf(ctx, "attempting to listen by libav at '%s'...", url)
 	switch c.Mode() {
 	case PortModePublishers:
@@ -290,9 +311,12 @@ func (c *Connection[N]) initAVHandler(
 			url.String(),
 			secretKey,
 			kernel.InputConfig{
-				CustomOptions: append(avpipelinetypes.DictionaryItems{}, customOpts...),
-				AsyncOpen:     true,
+				CustomOptions: customOpts,
+				AsyncOpen:     c.isAsyncOpen(ctx),
 				OnOpened: func(ctx context.Context, i *kernel.Input) error {
+					if !c.isAsyncOpen(ctx) {
+						return nil
+					}
 					c.onInitFinished(ctx)
 					return nil
 				},
@@ -306,7 +330,7 @@ func (c *Connection[N]) initAVHandler(
 			observability.Go(ctx, func() {
 				c.Close(ctx)
 			})
-			return
+			return err
 		}
 		c.Node = any(newInputNode(ctx, c, input)).(N)
 	case PortModeConsumers:
@@ -320,8 +344,11 @@ func (c *Connection[N]) initAVHandler(
 				CustomOptions: append(avpipelinetypes.DictionaryItems{
 					{Key: "f", Value: c.Port.Protocol.FormatName()},
 				}, customOpts...),
-				AsyncOpen: true,
-				OnOpened: func(ctx context.Context, o *kernel.Output) error {
+				AsyncOpen: c.isAsyncOpen(ctx),
+				OnOpened: func(ctx context.Context, i *kernel.Output) error {
+					if !c.isAsyncOpen(ctx) {
+						return nil
+					}
 					c.onInitFinished(ctx)
 					return nil
 				},
@@ -335,7 +362,7 @@ func (c *Connection[N]) initAVHandler(
 			observability.Go(ctx, func() {
 				c.Close(ctx)
 			})
-			return
+			return err
 		}
 		c.Node = any(node).(N)
 	}
@@ -372,6 +399,8 @@ func (c *Connection[N]) initAVHandler(
 func (c *Connection[N]) onInitFinished(
 	ctx context.Context,
 ) {
+	logger.Debugf(ctx, "onInitFinished")
+	defer func() { logger.Debugf(ctx, "/onInitFinished") }()
 	switch c.Port.Protocol {
 	case ProtocolRTMP:
 		c.onInitFinishedRTMP(ctx)
@@ -479,6 +508,9 @@ func (c *Connection[N]) negotiate(
 
 			c.RoutePath = routePath
 			logger.Debugf(ctx, "routePath == '%s'", *c.RoutePath)
+			if !c.isAsyncOpen(ctx) {
+				c.onInitFinished(ctx)
+			}
 
 			ctx = belt.WithField(ctx, "path", *routePath)
 			route, err := c.Port.GetServer().GetRoute(origCtx, *routePath, GetRouteModeCreateIfNotFound)

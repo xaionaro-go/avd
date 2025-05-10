@@ -9,35 +9,20 @@ import (
 	"testing"
 
 	"github.com/facebookincubator/go-belt"
-	"github.com/facebookincubator/go-belt/pkg/runtime"
 	"github.com/facebookincubator/go-belt/tool/logger"
-	"github.com/facebookincubator/go-belt/tool/logger/implementation/logrus"
 	"github.com/stretchr/testify/require"
-	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
-	"github.com/xaionaro-go/xsync"
 )
 
 func TestServer(t *testing.T) {
-	loggerLevel := logger.LevelTrace
-
-	runtime.DefaultCallerPCFilter = observability.CallerPCFilter(runtime.DefaultCallerPCFilter)
-	l := logrus.Default().WithLevel(loggerLevel)
-	ctx := logger.CtxWithLogger(context.Background(), l)
-	ctx = xsync.WithNoLogging(ctx, true)
-	logger.Default = func() logger.Logger {
-		return l
-	}
+	ctx := ctx()
 	defer belt.Flush(ctx)
 
-	for _, proto := range []types.Protocol{
-		ProtocolRTMP,
-		ProtocolRTSP,
-	} {
+	for _, proto := range SupportedProtocols() {
 		t.Run(proto.String(), func(t *testing.T) {
 			ctx := belt.WithField(ctx, "protocol", proto.String())
 			ctx, cancelFn := context.WithCancel(ctx)

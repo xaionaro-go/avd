@@ -6,6 +6,7 @@ import (
 
 type ListenConfig struct {
 	DefaultRoutePath RoutePath
+	CustomOptions    DictionaryItems
 
 	// not all protocols respects these, but some do:
 	BufferDuration   time.Duration
