@@ -14,7 +14,6 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/facebookincubator/go-belt/tool/logger/implementation/logrus"
 	"github.com/stretchr/testify/require"
-	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/processor"
@@ -36,7 +35,7 @@ func TestServerRTMP(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	s := NewServer(ctx)
-	_, err = s.ListenRTMP(ctx, listener, types.RTMPModePublishers)
+	_, err = s.Listen(ctx, listener, ProtocolRTMP, PortModePublishers)
 	require.NoError(t, err)
 
 	pushTestFLVTo(ctx, t, fmt.Sprintf("rtmp://%s/testApp/testKey", listener.Addr()))

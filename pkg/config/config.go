@@ -1,6 +1,12 @@
 package config
 
 import (
+	"fmt"
+	"strings"
+
+	"slices"
+
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/recoder"
 )
 
@@ -18,9 +24,62 @@ type EndpointConfig struct {
 	Forwardings []ForwardConfig `yaml:"forwardings"`
 }
 
+type ProtocolHandlerConfig struct {
+	RTMP *RTMPConfig `yaml:"rtmp,omitempty"`
+	RTSP *RTSPConfig `yaml:"rtsp,omitempty"`
+}
+
+type Protocol = types.Protocol
+
+func (cfg ProtocolHandlerConfig) Protocol() (Protocol, error) {
+	m := map[Protocol]bool{
+		types.ProtocolRTMP: cfg.RTMP != nil,
+		types.ProtocolRTSP: cfg.RTSP != nil,
+	}
+
+	var enabledProtocols []Protocol
+	for protocol, isEnabled := range m {
+		if isEnabled {
+			enabledProtocols = append(enabledProtocols, protocol)
+		}
+	}
+	slices.Sort(enabledProtocols)
+
+	switch len(enabledProtocols) {
+	case 0:
+		return 0, fmt.Errorf("no protocols enabled")
+	case 1:
+		return enabledProtocols[0], nil
+	default:
+		var s []string
+		for _, p := range enabledProtocols {
+			s = append(s, p.String())
+		}
+		return 0, fmt.Errorf("more than one protocol enabled: %s", strings.Join(s, ","))
+	}
+}
+
+type PortMode = types.PortMode
 type PortConfig struct {
-	Address PortAddress `yaml:"address"`
-	RTMP    *RTMPConfig `yaml:"rtmp"`
+	Address         PortAddress           `yaml:"address"`
+	Mode            PortMode              `yaml:"mode"`
+	ProtocolHandler ProtocolHandlerConfig `yaml:"protocol_handler"`
+	CustomOptions   DictionaryItems       `yaml:"custom_options"`
+	Hacks           struct {
+		DefaultRoutePath string `yaml:"default_route_path"`
+	} `yaml:"hacks"`
+}
+
+func (cfg PortConfig) ListenOptions() []types.ListenOption {
+	var opts []types.ListenOption
+	if cfg.Hacks.DefaultRoutePath != "" {
+		opts = append(opts, types.ListenOptionDefaultRoutePath(cfg.Hacks.DefaultRoutePath))
+	}
+	if cfg.ProtocolHandler.RTSP != nil &&
+		cfg.ProtocolHandler.RTSP.TransportProtocol != types.UndefinedTransportProtocol {
+		opts = append(opts, types.ListenOptionTransportProtocol(cfg.ProtocolHandler.RTSP.TransportProtocol))
+	}
+	return opts
 }
 
 type Config struct {

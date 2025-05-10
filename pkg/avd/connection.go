@@ -28,11 +28,11 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
-type ConnectionRTMP[N AbstractNodeIO] struct {
+type Connection[N AbstractNodeIO] struct {
 	Locker xsync.Mutex
 
 	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
-	Port         *ListeningPortRTMP
+	Port         *ListeningPort
 	Conn         net.Conn
 	CancelFunc   context.CancelFunc
 	AVInputURL   *url.URL
@@ -41,27 +41,27 @@ type ConnectionRTMP[N AbstractNodeIO] struct {
 	Node         N
 	InitError    error
 	InitFinished chan struct{}
-	AppName      *string
+	RoutePath    *string
 	Route        *Route
 }
 
-var _ = (*ConnectionRTMP[*NodeInput])(nil)
+var _ = (*Connection[*NodeInput])(nil)
 
-func newConnectionRTMP[N AbstractNodeIO](
+func newConnection[N AbstractNodeIO](
 	ctx context.Context,
-	p *ListeningPortRTMP,
+	p *ListeningPort,
 	conn net.Conn,
-) (_ret *ConnectionRTMP[N], _err error) {
+) (_ret *Connection[N], _err error) {
 	ctx, cancelFn := context.WithCancel(ctx)
 	ctx = belt.WithField(ctx, "remote_addr", conn.RemoteAddr())
-	c := &ConnectionRTMP[N]{
+	c := &Connection[N]{
 		Port:         p,
 		Conn:         conn,
 		CancelFunc:   cancelFn,
 		InitFinished: make(chan struct{}),
 	}
-	logger.Debugf(ctx, "newConnectionRTMP[%s]", c.Mode())
-	defer func() { logger.Debugf(ctx, "/newConnectionRTMP[%s]: %v %v", c.Mode(), _ret, _err) }()
+	logger.Debugf(ctx, "newConnection[%s]", c.Mode())
+	defer func() { logger.Debugf(ctx, "/newConnection[%s]: %v %v", c.Mode(), _ret, _err) }()
 	defer func() {
 		if _ret == nil {
 			logger.Debugf(ctx, "not initialized")
@@ -69,7 +69,7 @@ func newConnectionRTMP[N AbstractNodeIO](
 		}
 	}()
 
-	err := c.initRTMPHandler(ctx)
+	err := c.initAVHandler(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to handle connection from %s: %w", conn.RemoteAddr(), err)
 	}
@@ -79,8 +79,16 @@ func newConnectionRTMP[N AbstractNodeIO](
 			logger.Debugf(ctx, "the end")
 			c.Close(ctx)
 		}()
-		if ConnectionRTMPEnableAppNameUpdaterHack {
-			if err := c.negotiate(ctx); err != nil {
+		if ConnectionEnableRoutePathUpdaterHack {
+			var negotiate func(context.Context) error
+			switch p.Protocol {
+			case ProtocolRTMP:
+				negotiate = c.negotiate
+			default:
+				logger.Errorf(ctx, "negotiation for protocol '%s' is not implemented (yet?)", p.Protocol)
+				return
+			}
+			if err := negotiate(ctx); err != nil {
 				logger.Errorf(ctx, "unable to negotiate the connection with %s: %v", conn.RemoteAddr(), err)
 				return
 			}
@@ -94,35 +102,39 @@ func newConnectionRTMP[N AbstractNodeIO](
 	return c, nil
 }
 
-func (c *ConnectionRTMP[N]) String() string {
-	return fmt.Sprintf("RTMP[%s](%s->%s->%s->%s)", c.Mode(), c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.AVConn.LocalAddr(), c.AVConn.RemoteAddr())
+func (c *Connection[N]) String() string {
+	return fmt.Sprintf(
+		"%s[%s](%s->%s->%s->%s)",
+		strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
+		c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.AVConn.LocalAddr(), c.AVConn.RemoteAddr(),
+	)
 }
 
-func (c *ConnectionRTMP[N]) GetInputNode(
+func (c *Connection[N]) GetInputNode(
 	context.Context,
 ) avpipeline.AbstractNode {
 	return c.Node
 }
 
-func (c *ConnectionRTMP[N]) GetOutputRoute(
+func (c *Connection[N]) GetOutputRoute(
 	context.Context,
 ) *Route {
 	return c.Route
 }
 
-func (c *ConnectionRTMP[N]) Mode() RTMPMode {
+func (c *Connection[N]) Mode() PortMode {
 	var nodeZeroValue N
 	switch any(nodeZeroValue).(type) {
 	case *NodeInput:
-		return RTMPModePublishers
+		return PortModePublishers
 	case *NodeOutput:
-		return RTMPModeConsumers
+		return PortModeConsumers
 	default:
 		panic(fmt.Errorf("unexpected type: '%T'", nodeZeroValue))
 	}
 }
 
-func (c *ConnectionRTMP[N]) Close(ctx context.Context) (_err error) {
+func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 	logger.Debugf(ctx, "Close()")
 	defer logger.Debugf(ctx, "/Close(): %v", _err)
 	c.CancelFunc()
@@ -130,11 +142,11 @@ func (c *ConnectionRTMP[N]) Close(ctx context.Context) (_err error) {
 		var errs []error
 		if c.Route != nil {
 			switch c.Mode() {
-			case RTMPModePublishers:
+			case PortModePublishers:
 				if _, err := c.Route.removePublisher(ctx, c); err != nil {
 					errs = append(errs, fmt.Errorf("unable to remove myself as a  at '%s': %w", c.Route.Path, err))
 				}
-			case RTMPModeConsumers:
+			case PortModeConsumers:
 				if err := avpipeline.RemovePushPacketsTo(ctx, c.Route.Node, c.Node); err != nil {
 					errs = append(errs, fmt.Errorf("unable to unsubscribe from packets from '%s': %w", c.Route.Path, err))
 				}
@@ -159,28 +171,28 @@ func (c *ConnectionRTMP[N]) Close(ctx context.Context) (_err error) {
 	})
 }
 
-func (c *ConnectionRTMP[N]) initRTMPHandler(
+func (c *Connection[N]) builtAVListenURL(
 	ctx context.Context,
-) (_err error) {
-	logger.Debugf(ctx, "initRTMPHandler")
-	defer func() { logger.Debugf(ctx, "/initRTMPHandler: %v", _err) }()
+) (*url.URL, secret.String, error) {
+	if !c.Port.Protocol.IsValid() {
+		return nil, secret.New(""), fmt.Errorf("protocol is not set")
+	}
 
 	randomPortTaker, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return fmt.Errorf("unable to take a random port")
+		return nil, secret.String{}, fmt.Errorf("unable to take a random port")
 	}
-	randomPort := randomPortTaker.Addr().String()
+	randomAddr := randomPortTaker.Addr().String()
 	randomPortTaker.Close()
 
-	defaultAppName := "avd-input"
-	if c.Port.GetConfig().DefaultAppName != "" {
-		defaultAppName = c.Port.GetConfig().DefaultAppName
-	}
+	defaultRoutePath := c.GetRoutePath()
 
-	listenURL := fmt.Sprintf("rtmp://%s/%s/", randomPort, defaultAppName)
-	url, err := url.Parse(listenURL)
-	if err != nil {
-		return fmt.Errorf("unable to parse URL '%s' (it is an internal URL for communication between AVD and LibAV): %w", listenURL, err)
+	logger.Debugf(ctx, "protocol: '%s", c.Port.Protocol)
+	url := &url.URL{
+		Scheme:   c.Port.Protocol.String(),
+		Host:     randomAddr,
+		Path:     fmt.Sprintf("%s/", defaultRoutePath),
+		RawQuery: "",
 	}
 	queryWords := strings.Split(url.Path, "/")
 	url.Path = strings.Join(queryWords[:len(queryWords)-1], "/")
@@ -189,6 +201,19 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 	c.AVInputURL = url
 	c.AVInputKey = secretKey
 	logger.Debugf(ctx, "c.AVInputURL: %#+v", c.AVInputURL)
+	return url, secretKey, nil
+}
+
+func (c *Connection[N]) initAVHandler(
+	ctx context.Context,
+) (_err error) {
+	logger.Debugf(ctx, "initAVHandler")
+	defer func() { logger.Debugf(ctx, "/initAVHandler: %v", _err) }()
+
+	url, secretKey, err := c.builtAVListenURL(ctx)
+	if err != nil {
+		return fmt.Errorf("unable to build an URL to be listened by libav's handlers: %w", err)
+	}
 
 	host, portString, err := net.SplitHostPort(url.Host)
 	if err != nil {
@@ -206,18 +231,62 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 	}
 	logger.Debugf(ctx, "avInputAddr: %#+v", avInputAddr)
 
+	customOpts := avpipelinetypes.DictionaryItems{
+		{Key: "listen", Value: "1"},
+	}
+	if c.Port.Config.MaxBufferSize != 0 {
+		customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
+			Key: "buffer_size", Value: fmt.Sprintf("%d", c.Port.Config.MaxBufferSize),
+		})
+	}
+	if c.Port.Config.ReorderQueueSize != 0 {
+		customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
+			Key: "reorder_queue_size", Value: fmt.Sprintf("%d", c.Port.Config.ReorderQueueSize),
+		})
+	}
+	if c.Port.Config.Timeout != 0 {
+		customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
+			Key: "timeout", Value: fmt.Sprintf("%d", c.Port.Config.Timeout.Microseconds()),
+		})
+	}
+	switch c.Port.Protocol {
+	case ProtocolRTMP:
+		customOpts = append(customOpts, avpipelinetypes.DictionaryItems{
+			{Key: "rtmp_app", Value: c.GetRoutePath()},
+			{Key: "rtmp_live", Value: "live"},
+			{Key: "rtmp_buffer", Value: fmt.Sprintf("%d", c.Port.GetConfig().GetBufferDuration().Milliseconds())},
+		}...)
+	case ProtocolRTSP:
+		customOpts = append(customOpts, avpipelinetypes.DictionaryItems{
+			{Key: "rtsp_flags", Value: "listen"},
+		}...)
+		if c.Port.Config.RTSP.PacketSize != 0 {
+			customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
+				Key: "pkt_size", Value: fmt.Sprintf("%d", c.Port.Config.RTSP.PacketSize),
+			})
+		}
+		if c.Port.Config.RTSP.TransportProtocol != UndefinedTransportProtocol {
+			customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
+				Key: "rtsp_transport", Value: c.Port.Config.RTSP.TransportProtocol.String(),
+			})
+		}
+	case ProtocolSRT:
+		customOpts = append(customOpts, avpipelinetypes.DictionaryItems{
+			{Key: "smoother", Value: "live"},
+			{Key: "transtype", Value: "live"},
+		}...)
+	}
+
 	logger.Debugf(ctx, "attempting to listen by libav at '%s'...", url)
 	switch c.Mode() {
-	case RTMPModePublishers:
+	case PortModePublishers:
 		input, err := kernel.NewInputFromURL(
 			ctx,
 			url.String(),
 			secretKey,
 			kernel.InputConfig{
-				CustomOptions: avpipelinetypes.DictionaryItems{
-					{Key: "listen", Value: "1"},
-				},
-				AsyncOpen: true,
+				CustomOptions: append(avpipelinetypes.DictionaryItems{}, customOpts...),
+				AsyncOpen:     true,
 				OnOpened: func(ctx context.Context, i *kernel.Input) error {
 					c.onInitFinished(ctx)
 					return nil
@@ -225,7 +294,7 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 			},
 		)
 		if err != nil {
-			err = fmt.Errorf("unable to start listening '%s' using libav: %w", listenURL, err)
+			err = fmt.Errorf("unable to start listening '%s' using libav: %w", url.String(), err)
 			logger.Errorf(ctx, "%v", err)
 			c.InitError = err
 			close(c.InitFinished)
@@ -235,7 +304,7 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 			return
 		}
 		c.Node = any(newInputNode(ctx, c, input)).(N)
-	case RTMPModeConsumers:
+	case PortModeConsumers:
 		node, err := newOutputNode(
 			ctx,
 			c,
@@ -243,10 +312,9 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 			url.String(),
 			secretKey,
 			kernel.OutputConfig{
-				CustomOptions: avpipelinetypes.DictionaryItems{
-					{Key: "f", Value: "flv"},
-					{Key: "listen", Value: "1"},
-				},
+				CustomOptions: append(avpipelinetypes.DictionaryItems{
+					{Key: "f", Value: c.Port.Protocol.FormatName()},
+				}, customOpts...),
 				AsyncOpen: true,
 				OnOpened: func(ctx context.Context, o *kernel.Output) error {
 					c.onInitFinished(ctx)
@@ -255,7 +323,7 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 			},
 		)
 		if err != nil {
-			err = fmt.Errorf("unable to start listening '%s' using libav: %w", listenURL, err)
+			err = fmt.Errorf("unable to start listening '%s' using libav: %w", url.String(), err)
 			logger.Errorf(ctx, "%v", err)
 			c.InitError = err
 			close(c.InitFinished)
@@ -285,7 +353,8 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 			var AVConn *net.TCPConn
 			AVConn, connErr = net.DialTCP("tcp4", nil, avInputAddr)
 			if connErr != nil {
-				logger.Tracef(ctx, "unable to connect to the libav input '%s': %w", avInputAddr, err)
+				connErr = fmt.Errorf("unable to connect to the libav input '%s': %w", avInputAddr, connErr)
+				logger.Tracef(ctx, "%s", connErr)
 				continue
 			}
 
@@ -295,17 +364,43 @@ func (c *ConnectionRTMP[N]) initRTMPHandler(
 	}
 }
 
-func (c *ConnectionRTMP[N]) onInitFinished(
+func (c *Connection[N]) onInitFinished(
 	ctx context.Context,
 ) {
-	appName := c.GetAppName()
-	rtmpCtx := c.AVRTMPContext()
-	logger.Debugf(ctx, "updating the app name: '%s' -> '%s'", rtmpCtx.App(), appName)
-	rtmpCtx.SetApp(appName)
+	switch c.Port.Protocol {
+	case ProtocolRTMP:
+		c.onInitFinishedRTMP(ctx)
+	case ProtocolRTSP:
+		c.onInitFinishedRTSP(ctx)
+	default:
+		logger.Errorf(ctx, "onInitFinished is not implemented for protocol '%s' (yet?)", c.Port.Protocol)
+	}
 	close(c.InitFinished)
 }
 
-func (c *ConnectionRTMP[N]) negotiate(
+func (c *Connection[N]) onInitFinishedRTMP(
+	ctx context.Context,
+) {
+	routePath := c.GetRoutePath()
+	rtmpCtx := c.AVRTMPContext()
+	logger.Debugf(ctx, "updating the app name: '%s' -> '%s'", rtmpCtx.App(), routePath)
+	rtmpCtx.SetApp(routePath)
+}
+
+func (c *Connection[N]) onInitFinishedRTSP(
+	ctx context.Context,
+) {
+	routePath := c.GetRoutePath()
+	rtspState := c.AVRTSPState()
+	logger.Debugf(ctx, "updating the control URI: '%s' -> '%s'", rtspState.ControlURI(), routePath)
+	rtspState.SetControlURI(routePath)
+	for idx, stream := range rtspState.RTSPStreams() {
+		logger.Debugf(ctx, "updating the control URL in stream #%d: '%s' -> '%s'", idx, stream.ControlURL(), routePath)
+		stream.SetControlURL(routePath)
+	}
+}
+
+func (c *Connection[N]) negotiate(
 	origCtx context.Context,
 ) (_err error) {
 	logger.Debugf(origCtx, "negotiate")
@@ -397,13 +492,13 @@ func (c *ConnectionRTMP[N]) negotiate(
 
 			appName, err := parseAppName(ctx, msg)
 			if err != nil {
-				errCh <- fmt.Errorf("unable to parse the app name from the 'connect' message: %w", err)
+				errCh <- fmt.Errorf("unable to parse the route path from the 'connect' message: %w", err)
 				return
 			}
-			c.AppName = ptr(string(appName))
-			logger.Debugf(ctx, "appName == '%s'", *c.AppName)
+			c.RoutePath = ptr(string(appName))
+			logger.Debugf(ctx, "appName == '%s'", *c.RoutePath)
 
-			routePath := *c.AppName
+			routePath := *c.RoutePath
 			ctx = belt.WithField(ctx, "path", routePath)
 			route, err := c.Port.GetServer().GetRoute(ctx, routePath, GetRouteModeCreateIfNotFound)
 			if err != nil {
@@ -412,7 +507,7 @@ func (c *ConnectionRTMP[N]) negotiate(
 			}
 			c.Route = route
 			switch c.Mode() {
-			case RTMPModePublishers:
+			case PortModePublishers:
 				if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
 					errCh <- fmt.Errorf("unable to add myself as a  to '%s': %w", routePath, err)
 					return
@@ -436,7 +531,7 @@ func (c *ConnectionRTMP[N]) negotiate(
 				logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
 				serveCtx := belt.WithField(origCtx, "path", routePath)
 				switch c.Mode() {
-				case types.RTMPModeConsumers:
+				case types.PortModeConsumers:
 					c.Route.Node.AddPushPacketsTo(c.Node)
 				}
 				c.Node.Serve(serveCtx, avpipeline.ServeConfig{}, errCh)
@@ -468,7 +563,7 @@ func (c *ConnectionRTMP[N]) negotiate(
 	}
 }
 
-func (c *ConnectionRTMP[N]) getKernel() kernel.Abstract {
+func (c *Connection[N]) getKernel() kernel.Abstract {
 	switch p := c.Node.GetProcessor().(type) {
 	case *processor.FromKernel[*kernel.Input]:
 		return p.Kernel
@@ -479,7 +574,7 @@ func (c *ConnectionRTMP[N]) getKernel() kernel.Abstract {
 	}
 }
 
-func (c *ConnectionRTMP[N]) getFormatContext() *astiav.FormatContext {
+func (c *Connection[N]) getFormatContext() *astiav.FormatContext {
 	switch k := c.getKernel().(type) {
 	case *kernel.Input:
 		return k.FormatContext
@@ -490,26 +585,37 @@ func (c *ConnectionRTMP[N]) getFormatContext() *astiav.FormatContext {
 	}
 }
 
-func (c *ConnectionRTMP[N]) AVRTMPContext() *avcommon.RTMPContext {
+func (c *Connection[N]) AVURLContext() *avcommon.URLContext {
 	fmtCtx := avcommon.WrapAVFormatContext(
 		xastiav.CFromAVFormatContext(
 			c.getFormatContext(),
 		),
 	)
 	avioCtx := fmtCtx.Pb()
-	urlCtx := avcommon.WrapURLContext(avioCtx.Opaque())
-	return avcommon.WrapRTMPContext(urlCtx.PrivData())
+	return avcommon.WrapURLContext(avioCtx.Opaque())
 }
 
-func (c *ConnectionRTMP[N]) GetAppName() string {
-	if ConnectionRTMPEnableAppNameUpdaterHack {
-		return *c.AppName
-	} else {
-		return c.AVRTMPContext().App()
+func (c *Connection[N]) AVRTMPContext() *avcommon.RTMPContext {
+	return avcommon.WrapRTMPContext(c.AVURLContext().PrivData())
+}
+
+func (c *Connection[N]) AVRTSPState() *avcommon.RTSPState {
+	return avcommon.WrapRTSPState(c.AVURLContext().PrivData())
+}
+
+func (c *Connection[N]) GetRoutePath() string {
+	if c.RoutePath != nil {
+		return *c.RoutePath
 	}
+
+	if c.Port.Config.DefaultRoutePath != "" {
+		return c.Port.Config.DefaultRoutePath
+	}
+
+	return "avd-input"
 }
 
-func (c *ConnectionRTMP[N]) forward(
+func (c *Connection[N]) forward(
 	ctx context.Context,
 ) (_err error) {
 	logger.Debugf(ctx, "forward")
@@ -609,7 +715,7 @@ func (c *ConnectionRTMP[N]) forward(
 }
 
 const (
-	ConnectionRTMPEnableAppNameUpdaterHack = true
+	ConnectionEnableRoutePathUpdaterHack = true
 )
 
 var connectMagic []byte

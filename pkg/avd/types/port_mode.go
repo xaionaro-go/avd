@@ -6,42 +6,43 @@ import (
 	"strings"
 )
 
-type RTMPMode int
+type PortMode int
 
 const (
-	RTMPModeConsumers = RTMPMode(iota)
-	RTMPModePublishers
-	EndOfRTMPMode
+	UndefinedPortMode = PortMode(iota)
+	PortModeConsumers
+	PortModePublishers
+	EndOfPortMode
 )
 
-func (c RTMPMode) String() string {
+func (c PortMode) String() string {
 	switch c {
-	case RTMPModeConsumers:
+	case PortModeConsumers:
 		return "consumers"
-	case RTMPModePublishers:
+	case PortModePublishers:
 		return "publishers"
 	default:
 		return ""
 	}
 }
 
-func (c *RTMPMode) UnmarshalYAML(b []byte) error {
+func (c *PortMode) UnmarshalYAML(b []byte) error {
 	var modeString string
 	if err := json.Unmarshal(b, &modeString); err != nil {
 		return err
 	}
 
 	modeString = strings.Trim(strings.ToLower(modeString), " ")
-	for candidate := RTMPMode(0); candidate < EndOfRTMPMode; candidate++ {
+	for candidate := PortMode(0); candidate < EndOfPortMode; candidate++ {
 		if candidate.String() == modeString {
 			*c = candidate
 			return nil
 		}
 	}
 
-	return fmt.Errorf("unknown RTMP port mode: '%s'", modeString)
+	return fmt.Errorf("unknown port mode: '%s'", modeString)
 }
 
-func (c RTMPMode) MarshalYAML() ([]byte, error) {
+func (c PortMode) MarshalYAML() ([]byte, error) {
 	return json.Marshal(c.String())
 }

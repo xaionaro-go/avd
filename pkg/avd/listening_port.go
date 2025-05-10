@@ -12,21 +12,22 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
-type ListeningPortRTMP struct {
+type ListeningPort struct {
 	Server                *Server
 	Listener              net.Listener
+	Protocol              Protocol
 	ConnectionsLocker     xsync.Mutex
-	ConnectionsPublishers map[net.Addr]*ConnectionRTMP[*NodeInput]
-	ConnectionsConsumers  map[net.Addr]*ConnectionRTMP[*NodeOutput]
-	Config                ListeningPortRTMPConfig
+	ConnectionsPublishers map[net.Addr]*Connection[*NodeInput]
+	ConnectionsConsumers  map[net.Addr]*Connection[*NodeOutput]
+	Config                ListenConfig
 }
 
-func (p *ListeningPortRTMP) StartListening(
+func (p *ListeningPort) StartListening(
 	ctx context.Context,
-	mode types.RTMPMode,
+	mode types.PortMode,
 ) error {
 	switch mode {
-	case RTMPModePublishers:
+	case PortModePublishers:
 		observability.Go(ctx, func() {
 			err := p.listenPublishers(ctx)
 			if err != nil {
@@ -34,7 +35,7 @@ func (p *ListeningPortRTMP) StartListening(
 				p.Close(ctx)
 			}
 		})
-	case RTMPModeConsumers:
+	case PortModeConsumers:
 		observability.Go(ctx, func() {
 			err := p.listenConsumers(ctx)
 			if err != nil {
@@ -49,66 +50,66 @@ func (p *ListeningPortRTMP) StartListening(
 	return nil
 }
 
-func (p *ListeningPortRTMP) GetServer() *Server {
+func (p *ListeningPort) GetServer() *Server {
 	return p.Server
 }
 
-func (p *ListeningPortRTMP) GetConfig() ListeningPortRTMPConfig {
+func (p *ListeningPort) GetConfig() ListenConfig {
 	return p.Config
 }
 
-func (p *ListeningPortRTMP) Close(ctx context.Context) error {
+func (p *ListeningPort) Close(ctx context.Context) error {
 	p.Listener.Close()
 	return nil
 }
 
-func (p *ListeningPortRTMP) listenPublishers(
+func (p *ListeningPort) listenPublishers(
 	ctx context.Context,
 ) error {
 	// TODO: deduplicate with listenConsumers
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
-	ctx = belt.WithField(ctx, "rtmp_mode", RTMPModePublishers.String())
+	ctx = belt.WithField(ctx, "port_mode", PortModePublishers.String())
 	observability.Go(ctx, func() {
 		<-ctx.Done()
 		p.Listener.Close()
 	})
 	for {
-		conn, err := p.Listener.Accept()
+		netConn, err := p.Listener.Accept()
 		if err != nil {
 			return fmt.Errorf("unable to accept a connection: %w", err)
 		}
 
-		rtmpConn, err := newConnectionRTMP[*NodeInput](ctx, p, conn)
+		conn, err := newConnection[*NodeInput](ctx, p, netConn)
 		if err != nil {
-			return fmt.Errorf("unable to initialize a connection for '%s': %w", conn.RemoteAddr(), err)
+			return fmt.Errorf("unable to initialize a connection for '%s': %w", netConn.RemoteAddr(), err)
 		}
 
 		if err := xsync.DoR1(ctx, &p.ConnectionsLocker, func() error {
-			if oldRTMPConn, ok := p.ConnectionsPublishers[conn.RemoteAddr()]; ok {
-				logger.Errorf(ctx, "there is already a connection from '%s', closing the old one", conn.RemoteAddr())
+			if oldRTMPConn, ok := p.ConnectionsPublishers[netConn.RemoteAddr()]; ok {
+				logger.Errorf(ctx, "there is already a connection from '%s', closing the old one", netConn.RemoteAddr())
 				if err := oldRTMPConn.Close(ctx); err != nil {
-					logger.Errorf(ctx, "unable to close the old connection from '%s': %v", conn.RemoteAddr(), err)
+					logger.Errorf(ctx, "unable to close the old connection from '%s': %v", netConn.RemoteAddr(), err)
 				}
 			}
-			p.ConnectionsPublishers[conn.RemoteAddr()] = rtmpConn
+			p.ConnectionsPublishers[netConn.RemoteAddr()] = conn
 			return nil
 		}); err != nil {
-			if err := rtmpConn.Close(ctx); err != nil {
-				logger.Errorf(ctx, "unable to close the connection from '%s': %v", conn.RemoteAddr(), err)
+			if err := conn.Close(ctx); err != nil {
+				logger.Errorf(ctx, "unable to close the connection from '%s': %v", netConn.RemoteAddr(), err)
 			}
 			return fmt.Errorf("unable to store the new connection: %w", err)
 		}
 	}
 }
 
-func (p *ListeningPortRTMP) listenConsumers(
+func (p *ListeningPort) listenConsumers(
 	ctx context.Context,
 ) error {
 	// TODO: deduplicate with listenPublishers
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
-	ctx = belt.WithField(ctx, "rtmp_mode", RTMPModeConsumers.String())
+	ctx = belt.WithField(ctx, "port_mode", PortModeConsumers.String())
 	observability.Go(ctx, func() {
 		<-ctx.Done()
 		p.Listener.Close()
@@ -119,7 +120,7 @@ func (p *ListeningPortRTMP) listenConsumers(
 			return fmt.Errorf("unable to accept a connection: %w", err)
 		}
 
-		rtmpConn, err := newConnectionRTMP[*NodeOutput](ctx, p, conn)
+		rtmpConn, err := newConnection[*NodeOutput](ctx, p, conn)
 		if err != nil {
 			return fmt.Errorf("unable to initialize a connection for '%s': %w", conn.RemoteAddr(), err)
 		}
@@ -140,18 +141,4 @@ func (p *ListeningPortRTMP) listenConsumers(
 			return fmt.Errorf("unable to store the new connection: %w", err)
 		}
 	}
-}
-
-type ListeningPortRTMPConfig struct {
-	DefaultAppName string
-}
-
-type ListeningPortRTMPOption interface {
-	apply(*ListeningPortRTMPConfig)
-}
-
-type ListeningPortRTMPOptionDefaultAppName string
-
-func (opt ListeningPortRTMPOptionDefaultAppName) apply(cfg *ListeningPortRTMPConfig) {
-	cfg.DefaultAppName = string(opt)
 }

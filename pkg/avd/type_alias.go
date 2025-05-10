@@ -4,9 +4,32 @@ import (
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 )
 
-type RTMPMode = types.RTMPMode
+type PortMode = types.PortMode
 
 const (
-	RTMPModePublishers = types.RTMPModePublishers
-	RTMPModeConsumers  = types.RTMPModeConsumers
+	UndefinedPortMode  = types.UndefinedPortMode
+	PortModePublishers = types.PortModePublishers
+	PortModeConsumers  = types.PortModeConsumers
+)
+
+type Protocol = types.Protocol
+
+const (
+	UndefinedProtocol = types.UndefinedProtocol
+	ProtocolRTMP      = types.ProtocolRTMP
+	ProtocolRTSP      = types.ProtocolRTSP
+	ProtocolSRT       = types.ProtocolSRT
+)
+
+type ListenConfig = types.ListenConfig
+type ListenOption = types.ListenOption
+type ListenOptions = types.ListenOptions
+type ListenOptionDefaultAppName = types.ListenOptionDefaultRoutePath
+
+type TransportProtocol = types.TransportProtocol
+
+const (
+	UndefinedTransportProtocol = types.UndefinedTransportProtocol
+	TransportProtocolTCP       = types.TransportProtocolTCP
+	TransportProtocolUDP       = types.TransportProtocolUDP
 )

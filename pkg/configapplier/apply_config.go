@@ -16,7 +16,7 @@ func ApplyConfig(
 	cfg config.Config,
 	srv *avd.Server,
 ) error {
-	for idx, port := range cfg.Ports {
+	for _, port := range cfg.Ports {
 		proto, host, err := port.Address.Parse(ctx)
 		if err != nil {
 			return fmt.Errorf("unable to parse the port string '%s': %w", port.Address, err)
@@ -26,14 +26,15 @@ func ApplyConfig(
 		if err != nil {
 			return fmt.Errorf("unable to start listening on '%s': %w", port.Address, err)
 		}
-		switch {
-		case port.RTMP != nil:
-			_, err := srv.ListenRTMP(ctx, listener, port.RTMP.Mode)
-			if err != nil {
-				return fmt.Errorf("unable to listen '%s' with the RTMP-%s handler: %w", listener.Addr(), port.RTMP.Mode, err)
-			}
-		default:
-			return fmt.Errorf("unknown/missing port type in port #%d ('%s')", idx, port.Address)
+
+		protocol, err := port.ProtocolHandler.Protocol()
+		if err != nil {
+			return fmt.Errorf("unable to identify which protocol to use on '%s': %w", port.Address, err)
+		}
+
+		_, err = srv.Listen(ctx, listener, protocol, port.Mode, port.ListenOptions()...)
+		if err != nil {
+			return fmt.Errorf("unable to listen '%s' with the RTMP-%s handler: %w", listener.Addr(), port.Mode, err)
 		}
 	}
 
