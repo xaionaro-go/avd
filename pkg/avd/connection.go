@@ -17,7 +17,6 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
-	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/processor"
@@ -42,6 +41,7 @@ type Connection[N AbstractNodeIO] struct {
 	AVInputKey   secret.String
 	AVConn       *net.TCPConn
 	Node         N
+	BSFNode      *avpipeline.Node[*processor.FromKernel[*kernel.BitstreamFilter]]
 	InitError    error
 	InitFinished chan struct{}
 	RoutePath    *RoutePath
@@ -153,7 +153,11 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 					errs = append(errs, fmt.Errorf("unable to remove myself as a  at '%s': %w", c.Route.Path, err))
 				}
 			case PortModeConsumers:
-				if err := avpipeline.RemovePushPacketsTo(ctx, c.Route.Node, c.Node); err != nil {
+				dstNode := avpipeline.AbstractNode(c.Node)
+				if c.BSFNode != nil {
+					dstNode = c.BSFNode
+				}
+				if err := avpipeline.RemovePushPacketsTo(ctx, c.Route.Node, dstNode); err != nil {
 					errs = append(errs, fmt.Errorf("unable to unsubscribe from packets from '%s': %w", c.Route.Path, err))
 				}
 			}
@@ -169,9 +173,15 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 		}
 		if c.Node != nil {
 			if err := c.Node.GetProcessor().Close(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("unable to close the input node processor: %w", err))
+				errs = append(errs, fmt.Errorf("unable to close the node processor: %w", err))
 			}
 			c.Node = nil
+		}
+		if c.BSFNode != nil {
+			if err := c.BSFNode.GetProcessor().Close(ctx); err != nil {
+				errs = append(errs, fmt.Errorf("unable to close the BSF node processor: %w", err))
+			}
+			c.BSFNode = nil
 		}
 		return errors.Join(errs...)
 	})
@@ -513,48 +523,8 @@ func (c *Connection[N]) negotiate(
 			}
 
 			ctx = belt.WithField(ctx, "path", *routePath)
-			route, err := c.Port.GetServer().GetRoute(origCtx, *routePath, GetRouteModeCreateIfNotFound)
-			if err != nil {
-				errCh <- fmt.Errorf("unable to create a route '%s': %w", *routePath, err)
-				return
-			}
-			c.Route = route
-			switch c.Mode() {
-			case PortModePublishers:
-				if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
-					errCh <- fmt.Errorf("unable to add myself as a  to '%s': %w", *routePath, err)
-					return
-				}
-				c.Node.AddPushPacketsTo(route.Node)
-
-			}
 			observability.Go(ctx, func() {
-				errCh := make(chan avpipeline.ErrNode, 100)
-				defer close(errCh)
-				observability.Go(ctx, func() {
-					for err := range errCh {
-						switch {
-						case errors.Is(err, context.Canceled):
-							logger.Debugf(ctx, "cancelled: %v", err)
-						case errors.Is(err, io.EOF):
-							logger.Debugf(ctx, "EOF: %v", err)
-						default:
-							logger.Errorf(ctx, "got an error: %v", err)
-						}
-					}
-				})
-				<-c.InitFinished
-				if c.InitError != nil {
-					logger.Debugf(ctx, "not running Serve, because of InitError: %v", c.InitError)
-					return
-				}
-				logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
-				serveCtx := belt.WithField(origCtx, "path", *routePath)
-				switch c.Mode() {
-				case types.PortModeConsumers:
-					c.Route.Node.AddPushPacketsTo(c.Node)
-				}
-				c.Node.Serve(serveCtx, avpipeline.ServeConfig{}, errCh)
+				c.serve(origCtx)
 			})
 
 			logger.Tracef(ctx, "waiting for c.AVConn output...")
@@ -581,6 +551,85 @@ func (c *Connection[N]) negotiate(
 		}
 		return err
 	}
+}
+
+func (c *Connection[N]) serve(
+	ctx context.Context,
+) {
+	var routeGetMode GetRouteMode
+	switch c.Mode() {
+	case PortModePublishers:
+		routeGetMode = GetRouteModeCreateIfNotFound
+	case PortModeConsumers:
+		routeGetMode = GetRouteModeWaitForPublisher
+	}
+
+	routePath := *c.RoutePath
+	route, err := c.Port.GetServer().GetRoute(ctx, routePath, routeGetMode)
+	if err != nil {
+		logger.Errorf(ctx, "unable to create a route '%s': %v", routePath, err)
+		c.Close(ctx)
+		return
+	}
+	c.Route = route
+	switch c.Mode() {
+	case PortModePublishers:
+		if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
+			logger.Errorf(ctx, "unable to add myself as a  to '%s': %v", routePath, err)
+			c.Close(ctx)
+			return
+		}
+		c.Node.AddPushPacketsTo(route.Node)
+	}
+
+	errCh := make(chan avpipeline.ErrNode, 100)
+	defer close(errCh)
+	observability.Go(ctx, func() {
+		for err := range errCh {
+			switch {
+			case errors.Is(err, context.Canceled):
+				logger.Debugf(ctx, "cancelled: %v", err)
+			case errors.Is(err, io.EOF):
+				logger.Debugf(ctx, "EOF: %v", err)
+			default:
+				logger.Errorf(ctx, "got an error: %v", err)
+			}
+			c.Close(ctx)
+		}
+	})
+	<-c.InitFinished
+	if c.InitError != nil {
+		logger.Debugf(ctx, "not running Serve, because of InitError: %v", c.InitError)
+		return
+	}
+	logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
+	switch c.Mode() {
+	case PortModeConsumers:
+		c.BSFNode = c.newBitStreamFilterIfNeeded(ctx)
+		if c.BSFNode == nil {
+			c.Route.Node.AddPushPacketsTo(c.Node)
+		} else {
+			logger.Debugf(ctx, "using a bitstream filter: %v", c.BSFNode)
+			c.Route.Node.AddPushPacketsTo(c.BSFNode)
+			c.BSFNode.AddPushPacketsTo(c.Node)
+			observability.Go(ctx, func() {
+				c.BSFNode.Serve(ctx, avpipeline.ServeConfig{}, errCh)
+			})
+		}
+	}
+	c.Node.Serve(ctx, avpipeline.ServeConfig{}, errCh)
+}
+
+func (c *Connection[N]) newBitStreamFilterIfNeeded(
+	_ context.Context,
+) *avpipeline.Node[*processor.FromKernel[*kernel.BitstreamFilter]] {
+	switch c.Mode() {
+	case PortModeConsumers:
+	default:
+		return nil
+	}
+
+	return nil
 }
 
 func (c *Connection[N]) tryExtractRouteString(

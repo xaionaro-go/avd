@@ -4,6 +4,10 @@ go 1.24.1
 
 replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20250419202405-6baea371bdeb
 
+replace github.com/xaionaro-go/avcommon v0.0.0-20250505020050-1c12a8387656 => ../avcommon
+
+replace github.com/xaionaro-go/avpipeline v0.0.0-20250506000800-76fec41b6f18 => ../avpipeline
+
 require (
 	github.com/asticode/go-astiav v0.36.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
