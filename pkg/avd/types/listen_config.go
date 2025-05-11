@@ -14,6 +14,7 @@ type ListenConfig struct {
 	ReorderQueueSize uint32
 	Timeout          time.Duration
 
+	// protocol-specific stuff
 	RTSP ListenConfigRTSP
 }
 

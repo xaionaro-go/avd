@@ -6,7 +6,6 @@ import (
 
 	"slices"
 
-	"github.com/asticode/go-astiav"
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/avd/types"
@@ -116,12 +115,12 @@ func (r *Route) addPublisherIfNoPublishers(
 		if len(r.Publishers) > 0 {
 			return fmt.Errorf("there are already %d publishers on this route", len(r.Publishers))
 		}
-		_ = r.addPublisherNoLock(ctx, publisher)
+		_ = r.addPublisherLocked(ctx, publisher)
 		return nil
 	})
 }
 
-func (r *Route) addPublisherNoLock(
+func (r *Route) addPublisherLocked(
 	_ context.Context,
 	publisher Publisher,
 ) Publishers {
@@ -140,10 +139,10 @@ func (r *Route) removePublisher(
 	ctx context.Context,
 	publisher Publisher,
 ) (Publishers, error) {
-	return xsync.DoA2R2(ctx, &r.Locker, r.removePublisherNoLock, ctx, publisher)
+	return xsync.DoA2R2(ctx, &r.Locker, r.removePublisherLocked, ctx, publisher)
 }
 
-func (r *Route) removePublisherNoLock(
+func (r *Route) removePublisherLocked(
 	ctx context.Context,
 	publisher Publisher,
 ) (Publishers, error) {
@@ -178,28 +177,6 @@ func (r *Route) WaitForPublisher(
 	}
 }
 
-func (r *Route) GetVideoCodecs(
-	ctx context.Context,
-) (result []astiav.CodecID) {
-	r.Node.Processor.Kernel.WithOutputFormatContext(ctx, func(fmtCtx *astiav.FormatContext) {
-		for _, stream := range fmtCtx.Streams() {
-			if stream.CodecParameters().MediaType() == astiav.MediaTypeVideo {
-				result = append(result, stream.CodecParameters().CodecID())
-			}
-		}
-	})
-	return
-}
-
-func (r *Route) GetAudioCodecs(
-	ctx context.Context,
-) (result []astiav.CodecID) {
-	r.Node.Processor.Kernel.WithOutputFormatContext(ctx, func(fmtCtx *astiav.FormatContext) {
-		for _, stream := range fmtCtx.Streams() {
-			if stream.CodecParameters().MediaType() == astiav.MediaTypeAudio {
-				result = append(result, stream.CodecParameters().CodecID())
-			}
-		}
-	})
-	return
+func (r *Route) String() string {
+	return string(r.Path)
 }

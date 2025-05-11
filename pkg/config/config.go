@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/xaionaro-go/avd/pkg/avd/types"
-	"github.com/xaionaro-go/recoder"
+	transcodertypes "github.com/xaionaro-go/avpipeline/chain/transcoderwithpassthrough/types"
 )
 
 type Destination struct {
@@ -16,8 +16,8 @@ type Destination struct {
 }
 
 type ForwardConfig struct {
-	Destination Destination             `yaml:"destination"`
-	Recoding    *recoder.EncodersConfig `yaml:"recoding"`
+	Destination Destination                    `yaml:"destination"`
+	Recoding    *transcodertypes.RecoderConfig `yaml:"recoding"`
 }
 
 type EndpointConfig struct {
@@ -73,7 +73,7 @@ type PortConfig struct {
 }
 
 func (cfg PortConfig) ListenOptions() []types.ListenOption {
-	var opts []types.ListenOption
+	opts := types.ListenOptions{}
 	if cfg.Hacks.DefaultRoutePath != "" {
 		opts = append(opts, types.ListenOptionDefaultRoutePath(cfg.Hacks.DefaultRoutePath))
 	}

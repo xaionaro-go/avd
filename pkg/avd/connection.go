@@ -17,8 +17,6 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
-	transcoder "github.com/xaionaro-go/avpipeline/chain/transcoderwithpassthrough"
-	transcodertypes "github.com/xaionaro-go/avpipeline/chain/transcoderwithpassthrough/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
@@ -48,8 +46,7 @@ type Connection[N AbstractNodeIO] struct {
 	RoutePath    *RoutePath
 	Route        *Route
 
-	CancelStreamForwarding context.CancelFunc
-	StreamForwarding       *transcoder.TranscoderWithPassthrough[*Route, *ProcessorRouting]
+	Forwarder *StreamForwarderCopy
 }
 
 var _ = (*Connection[*NodeInput])(nil)
@@ -150,6 +147,12 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 	c.CancelFunc()
 	return xsync.DoR1(ctx, &c.Locker, func() error {
 		var errs []error
+		if c.Forwarder != nil {
+			if err := c.Forwarder.Stop(ctx); err != nil {
+				errs = append(errs, fmt.Errorf("unable to stop stream forwarding: %w", err))
+			}
+			c.Forwarder = nil
+		}
 		if c.Route != nil {
 			switch c.Mode() {
 			case PortModePublishers:
@@ -172,14 +175,6 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 				errs = append(errs, fmt.Errorf("unable to close the node processor: %w", err))
 			}
 			c.Node = nil
-		}
-		if c.StreamForwarding != nil {
-			c.CancelStreamForwarding()
-			if err := c.StreamForwarding.Wait(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("unable to wait for streamforwarding closure: %w", err))
-			}
-			c.StreamForwarding = nil
-			c.CancelStreamForwarding = nil
 		}
 		return errors.Join(errs...)
 	})
@@ -417,6 +412,16 @@ func (c *Connection[N]) onInitFinished(
 	default:
 		logger.Errorf(ctx, "onInitFinished is not implemented for protocol '%s' (yet?)", c.Port.Protocol)
 	}
+	c.AVInputURL.Path = c.GetURLPath()
+	switch c.Mode() {
+	case PortModePublishers:
+		n := any(c.Node).(*NodeInput)
+		n.Processor.Kernel.URL = c.AVInputURL.String()
+	case PortModeConsumers:
+		n := any(c.Node).(*NodeOutput)
+		n.Processor.Kernel.URL = c.AVInputURL.String()
+		n.Processor.Kernel.URLParsed = c.AVInputURL
+	}
 	close(c.InitFinished)
 }
 
@@ -621,43 +626,15 @@ func (c *Connection[N]) startStreamForward(
 	logger.Debugf(ctx, "startStreamForward(%s, %s)", src, dst)
 	defer func() { logger.Debugf(ctx, "/startStreamForward(%s, %s): %v", src, dst, _err) }()
 
-	ctx, cancelFn := context.WithCancel(ctx)
-	c.CancelStreamForwarding = cancelFn
-	defer func() {
-		if _err != nil {
-			cancelFn()
-		}
-	}()
-
-	var err error
-	c.StreamForwarding, err = transcoder.New(ctx, src, dst)
+	fwd, err := newStreamForwarderCopy(ctx, src, dst)
 	if err != nil {
-		return fmt.Errorf("unable to initialize a StreamForward: %w", err)
+		return fmt.Errorf("unable to make a new stream forwarder from %s to %s: %w", src, dst, err)
 	}
 
-	cfg := transcodertypes.RecoderConfig{}
-	src.Processor.Kernel.WithOutputFormatContext(ctx, func(fmtCtx *astiav.FormatContext) {
-		for _, stream := range fmtCtx.Streams() {
-			switch stream.CodecParameters().MediaType() {
-			case astiav.MediaTypeVideo:
-				cfg.VideoTracks = append(cfg.VideoTracks, transcodertypes.TrackConfig{
-					InputTrackIDs: []int{stream.Index()},
-					CodecName:     "copy",
-				})
-			case astiav.MediaTypeAudio:
-				cfg.AudioTracks = append(cfg.AudioTracks, transcodertypes.TrackConfig{
-					InputTrackIDs: []int{stream.Index()},
-					CodecName:     "copy",
-				})
-			}
-		}
-	})
-	c.StreamForwarding.SetRecoderConfig(ctx, cfg)
-
-	if err := c.StreamForwarding.Start(ctx, false); err != nil {
-		return fmt.Errorf("unable to start the StreamForward: %w", err)
+	c.Forwarder = fwd
+	if err := fwd.Start(ctx); err != nil {
+		return fmt.Errorf("unable to start forwarding the traffic from %s to %s: %w", src, dst, err)
 	}
-
 	return nil
 }
 
@@ -724,6 +701,18 @@ func (c *Connection[N]) GetRoutePath() RoutePath {
 	}
 
 	return "avd-input"
+}
+
+func (c *Connection[N]) GetURLPath() string {
+	routePath := c.GetRoutePath()
+	switch c.Port.Protocol {
+	case ProtocolRTMP:
+		return string(routePath) + "/"
+	case ProtocolRTSP:
+		return string(routePath)
+	default:
+		panic(fmt.Errorf("unsupported protocol: %s", c.Port.Protocol))
+	}
 }
 
 func (c *Connection[N]) forward(

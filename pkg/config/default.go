@@ -2,7 +2,7 @@ package config
 
 import (
 	"github.com/xaionaro-go/avd/pkg/avd/types"
-	"github.com/xaionaro-go/recoder"
+	transcodertypes "github.com/xaionaro-go/avpipeline/chain/transcoderwithpassthrough/types"
 )
 
 func Default() Config {
@@ -44,7 +44,16 @@ func Default() Config {
 		Endpoints: map[types.RoutePath]EndpointConfig{
 			"mystream": {
 				Forwardings: []ForwardConfig{{
-					Recoding: &recoder.EncodersConfig{},
+					Recoding: &transcodertypes.RecoderConfig{
+						AudioTracks: []transcodertypes.TrackConfig{{
+							InputTrackIDs: []int{0, 1, 2, 3, 4, 5, 6, 7},
+							CodecName:     "copy",
+						}},
+						VideoTracks: []transcodertypes.TrackConfig{{
+							InputTrackIDs: []int{0, 1, 2, 3, 4, 5, 6, 7},
+							CodecName:     "copy",
+						}},
+					},
 				}},
 			},
 		},
