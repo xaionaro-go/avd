@@ -8,6 +8,8 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/avd"
 	"github.com/xaionaro-go/avd/pkg/config"
+	"github.com/xaionaro-go/avpipeline/router"
+	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
 )
 
@@ -39,7 +41,7 @@ func ApplyConfig(
 	}
 
 	for path := range cfg.Endpoints {
-		_, err := srv.Router.GetRoute(ctx, path, avd.GetRouteModeCreate)
+		_, err := srv.Router.GetRoute(ctx, path, router.GetRouteModeCreate)
 		if err != nil {
 			return fmt.Errorf("unable to create route '%s': %w", path, err)
 		}
@@ -47,31 +49,32 @@ func ApplyConfig(
 
 	for path, endpoint := range cfg.Endpoints {
 		for idx, fwd := range endpoint.Forwardings {
-			switch {
-			case fwd.Destination.Route != "":
-				_, err := srv.AddRouteForwardingLocal(
-					ctx,
-					path, avd.GetRouteModeFailIfNotFound,
-					fwd.Destination.Route, avd.GetRouteModeFailIfNotFound,
-					fwd.Recoding,
-				)
-				if err != nil {
-					return fmt.Errorf("unable to create forwarding from '%s' to a local stream '%s': %w", path, fwd.Destination.Route, err)
+			idx, fwd := idx, fwd
+			observability.Go(ctx, func() {
+				switch {
+				case fwd.Destination.Route != "":
+					_, err := srv.AddRouteForwardingLocal(
+						ctx, path, fwd.Destination.Route, fwd.Recoding,
+					)
+					if err != nil {
+						logger.Errorf(ctx, "unable to create forwarding from '%s' to a local stream '%s': %v", path, fwd.Destination.Route, err)
+						return
+					}
+				case fwd.Destination.URL != "":
+					_, err := srv.AddRouteForwardingToRemote(
+						ctx,
+						path,
+						fwd.Destination.URL, secret.New(""),
+						fwd.Recoding,
+					)
+					if err != nil {
+						logger.Errorf(ctx, "unable to create forwarding from '%s' to a remote destination '%s': %v", path, fwd.Destination.URL, err)
+						return
+					}
+				default:
+					logger.Debugf(ctx, "skipped forwarding #%d: no destination", idx)
 				}
-			case fwd.Destination.URL != "":
-				_, err := srv.AddRouteForwardingToRemote(
-					ctx,
-					path,
-					fwd.Destination.URL, secret.New(""),
-					avd.GetRouteModeFailIfNotFound,
-					fwd.Recoding,
-				)
-				if err != nil {
-					return fmt.Errorf("unable to create forwarding from '%s' to a remote destination '%s': %w", path, fwd.Destination.URL, err)
-				}
-			default:
-				logger.Debugf(ctx, "skipped forwarding #%d: no destination", idx)
-			}
+			})
 		}
 	}
 

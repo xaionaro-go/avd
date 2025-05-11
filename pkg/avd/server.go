@@ -4,17 +4,18 @@ import (
 	"context"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/xaionaro-go/avpipeline/router"
 )
 
 type Server struct {
-	*Router
+	*router.Router
 }
 
 func NewServer(
 	ctx context.Context,
 ) *Server {
 	return &Server{
-		Router: newRouter(ctx),
+		Router: router.New(ctx),
 	}
 }
 

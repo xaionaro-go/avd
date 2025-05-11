@@ -6,6 +6,7 @@ import (
 
 	"github.com/facebookincubator/go-belt"
 	"github.com/stretchr/testify/require"
+	"github.com/xaionaro-go/avpipeline/router"
 )
 
 func TestConnection(t *testing.T) {
@@ -39,7 +40,7 @@ func testConnectionInputOrOutput[N AbstractNodeIO](t *testing.T) {
 				ctx,
 				&ListeningPort{
 					Server: &Server{
-						Router: newRouter(ctx),
+						Router: router.New(ctx),
 					},
 					Protocol:              proto,
 					ConnectionsPublishers: map[net.Addr]*Connection[*NodeInput]{},

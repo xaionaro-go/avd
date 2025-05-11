@@ -20,6 +20,7 @@ import (
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
+	"github.com/xaionaro-go/avpipeline/router"
 	avpipelinetypes "github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
@@ -44,9 +45,9 @@ type Connection[N AbstractNodeIO] struct {
 	InitError    error
 	InitFinished chan struct{}
 	RoutePath    *RoutePath
-	Route        *Route
+	Route        *router.Route
 
-	Forwarder *StreamForwarderCopy
+	Forwarder *router.StreamForwarderCopy
 }
 
 var _ = (*Connection[*NodeInput])(nil)
@@ -122,7 +123,7 @@ func (c *Connection[N]) GetInputNode(
 
 func (c *Connection[N]) GetOutputRoute(
 	context.Context,
-) *Route {
+) *router.Route {
 	return c.Route
 }
 
@@ -156,7 +157,7 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 		if c.Route != nil {
 			switch c.Mode() {
 			case PortModePublishers:
-				if _, err := c.Route.removePublisher(ctx, c); err != nil {
+				if _, err := c.Route.RemovePublisher(ctx, c); err != nil {
 					errs = append(errs, fmt.Errorf("unable to remove myself as a  at '%s': %w", c.Route.Path, err))
 				}
 			}
@@ -559,12 +560,12 @@ func (c *Connection[N]) negotiate(
 func (c *Connection[N]) serve(
 	ctx context.Context,
 ) {
-	var routeGetMode GetRouteMode
+	var routeGetMode router.GetRouteMode
 	switch c.Mode() {
 	case PortModePublishers:
-		routeGetMode = GetRouteModeCreateIfNotFound
+		routeGetMode = router.GetRouteModeCreateIfNotFound
 	case PortModeConsumers:
-		routeGetMode = GetRouteModeWaitForPublisher
+		routeGetMode = router.GetRouteModeWaitForPublisher
 	}
 
 	routePath := *c.RoutePath
@@ -577,7 +578,7 @@ func (c *Connection[N]) serve(
 	c.Route = route
 	switch c.Mode() {
 	case PortModePublishers:
-		if err := route.addPublisherIfNoPublishers(ctx, c); err != nil {
+		if err := route.AddPublisher(ctx, c); err != nil {
 			logger.Errorf(ctx, "unable to add myself as a  to '%s': %v", routePath, err)
 			c.Close(ctx)
 			return
@@ -626,7 +627,7 @@ func (c *Connection[N]) startStreamForward(
 	logger.Debugf(ctx, "startStreamForward(%s, %s)", src, dst)
 	defer func() { logger.Debugf(ctx, "/startStreamForward(%s, %s): %v", src, dst, _err) }()
 
-	fwd, err := newStreamForwarderCopy(ctx, src, dst)
+	fwd, err := router.NewStreamForwarderCopy(ctx, src, dst)
 	if err != nil {
 		return fmt.Errorf("unable to make a new stream forwarder from %s to %s: %w", src, dst, err)
 	}

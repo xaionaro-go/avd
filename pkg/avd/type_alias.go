@@ -37,3 +37,5 @@ const (
 	TransportProtocolTCP       = types.TransportProtocolTCP
 	TransportProtocolUDP       = types.TransportProtocolUDP
 )
+
+type RoutePath = types.RoutePath

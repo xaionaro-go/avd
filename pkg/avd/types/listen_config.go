@@ -2,7 +2,11 @@ package types
 
 import (
 	"time"
+
+	routertypes "github.com/xaionaro-go/avpipeline/router/types"
 )
+
+type RoutePath = routertypes.RoutePath
 
 type ListenConfig struct {
 	DefaultRoutePath RoutePath
