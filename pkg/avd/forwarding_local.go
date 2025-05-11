@@ -11,6 +11,7 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
+// TODO: delete me in favor of streamforward.StreamForward
 type ForwardingLocal struct {
 	Source      *Route
 	Destination *Route

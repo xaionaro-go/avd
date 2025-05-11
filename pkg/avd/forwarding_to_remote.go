@@ -16,6 +16,7 @@ import (
 	"github.com/xaionaro-go/xsync"
 )
 
+// TODO: delete me in favor of streamforward.StreamForward
 type ForwardingToRemote struct {
 	Source *Route
 	*NodeRetryOutput

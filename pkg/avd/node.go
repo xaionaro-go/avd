@@ -100,7 +100,8 @@ func newRetryOutputNode(
 	return n
 }
 
-type NodeRouting = node.NodeWithCustomData[*Route, *processor.FromKernel[*kernel.MapStreamIndices]]
+type ProcessorRouting = processor.FromKernel[*kernel.MapStreamIndices]
+type NodeRouting = node.NodeWithCustomData[*Route, *ProcessorRouting]
 
 type AbstractNodeOutput interface {
 	*NodeOutput | *NodeRetryOutput

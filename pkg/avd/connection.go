@@ -19,6 +19,8 @@ import (
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
+	"github.com/xaionaro-go/avpipeline/node/transcoder"
+	transcodertypes "github.com/xaionaro-go/avpipeline/node/transcoder/types"
 	"github.com/xaionaro-go/avpipeline/processor"
 	avpipelinetypes "github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
@@ -41,11 +43,13 @@ type Connection[N AbstractNodeIO] struct {
 	AVInputKey   secret.String
 	AVConn       *net.TCPConn
 	Node         N
-	BSFNode      *node.Node[*processor.FromKernel[*kernel.BitstreamFilter]]
 	InitError    error
 	InitFinished chan struct{}
 	RoutePath    *RoutePath
 	Route        *Route
+
+	CancelStreamForwarding context.CancelFunc
+	StreamForwarding       *transcoder.Transcoder[*Route, *ProcessorRouting]
 }
 
 var _ = (*Connection[*NodeInput])(nil)
@@ -152,14 +156,6 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 				if _, err := c.Route.removePublisher(ctx, c); err != nil {
 					errs = append(errs, fmt.Errorf("unable to remove myself as a  at '%s': %w", c.Route.Path, err))
 				}
-			case PortModeConsumers:
-				dstNode := node.Abstract(c.Node)
-				if c.BSFNode != nil {
-					dstNode = c.BSFNode
-				}
-				if err := node.RemovePushPacketsTo(ctx, c.Route.Node, dstNode); err != nil {
-					errs = append(errs, fmt.Errorf("unable to unsubscribe from packets from '%s': %w", c.Route.Path, err))
-				}
 			}
 			c.Route = nil
 		}
@@ -177,11 +173,13 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 			}
 			c.Node = nil
 		}
-		if c.BSFNode != nil {
-			if err := c.BSFNode.GetProcessor().Close(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("unable to close the BSF node processor: %w", err))
+		if c.StreamForwarding != nil {
+			c.CancelStreamForwarding()
+			if err := c.StreamForwarding.Wait(ctx); err != nil {
+				errs = append(errs, fmt.Errorf("unable to wait for streamforwarding closure: %w", err))
 			}
-			c.BSFNode = nil
+			c.StreamForwarding = nil
+			c.CancelStreamForwarding = nil
 		}
 		return errors.Join(errs...)
 	})
@@ -605,28 +603,49 @@ func (c *Connection[N]) serve(
 	logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
 	switch c.Mode() {
 	case PortModeConsumers:
-		c.BSFNode = c.newBitStreamFilterIfNeeded(ctx)
-		if c.BSFNode == nil {
-			c.Route.Node.AddPushPacketsTo(c.Node)
-		} else {
-			logger.Debugf(ctx, "using a bitstream filter: %v", c.BSFNode)
-			c.Route.Node.AddPushPacketsTo(c.BSFNode)
-			c.BSFNode.AddPushPacketsTo(c.Node)
-			observability.Go(ctx, func() {
-				c.BSFNode.Serve(ctx, node.ServeConfig{}, errCh)
-			})
+		err := c.startStreamForward(ctx, c.Route.Node, c.Node)
+		if err != nil {
+			logger.Errorf(ctx, "unable to forward the stream: %v", err)
+			c.Close(ctx)
+			return
 		}
 	}
 	c.Node.Serve(ctx, node.ServeConfig{}, errCh)
 }
 
-func (c *Connection[N]) newBitStreamFilterIfNeeded(
-	_ context.Context,
-) *node.Node[*processor.FromKernel[*kernel.BitstreamFilter]] {
-	switch c.Mode() {
-	case PortModeConsumers:
-	default:
-		return nil
+func (c *Connection[N]) startStreamForward(
+	ctx context.Context,
+	src *NodeRouting,
+	dst node.Abstract,
+) (_err error) {
+	logger.Debugf(ctx, "startStreamForward(%s, %s)", src, dst)
+	defer func() { logger.Debugf(ctx, "/startStreamForward(%s, %s): %v", src, dst, _err) }()
+
+	ctx, cancelFn := context.WithCancel(ctx)
+	c.CancelStreamForwarding = cancelFn
+	defer func() {
+		if _err != nil {
+			cancelFn()
+		}
+	}()
+
+	var err error
+	c.StreamForwarding, err = transcoder.New(ctx, src, dst)
+	if err != nil {
+		return fmt.Errorf("unable to initialize a StreamForward: %w", err)
+	}
+
+	c.StreamForwarding.SetRecoderConfig(ctx, transcodertypes.RecoderConfig{
+		Audio: transcodertypes.CodecConfig{
+			CodecName: "copy",
+		},
+		Video: transcodertypes.CodecConfig{
+			CodecName: "copy",
+		},
+	})
+
+	if err := c.StreamForwarding.Start(ctx, false); err != nil {
+		return fmt.Errorf("unable to start the StreamForward: %w", err)
 	}
 
 	return nil
