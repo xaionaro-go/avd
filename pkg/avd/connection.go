@@ -17,10 +17,10 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
+	transcoder "github.com/xaionaro-go/avpipeline/chain/transcoderwithpassthrough"
+	transcodertypes "github.com/xaionaro-go/avpipeline/chain/transcoderwithpassthrough/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
-	"github.com/xaionaro-go/avpipeline/node/transcoder"
-	transcodertypes "github.com/xaionaro-go/avpipeline/node/transcoder/types"
 	"github.com/xaionaro-go/avpipeline/processor"
 	avpipelinetypes "github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
@@ -49,7 +49,7 @@ type Connection[N AbstractNodeIO] struct {
 	Route        *Route
 
 	CancelStreamForwarding context.CancelFunc
-	StreamForwarding       *transcoder.Transcoder[*Route, *ProcessorRouting]
+	StreamForwarding       *transcoder.TranscoderWithPassthrough[*Route, *ProcessorRouting]
 }
 
 var _ = (*Connection[*NodeInput])(nil)
@@ -635,14 +635,24 @@ func (c *Connection[N]) startStreamForward(
 		return fmt.Errorf("unable to initialize a StreamForward: %w", err)
 	}
 
-	c.StreamForwarding.SetRecoderConfig(ctx, transcodertypes.RecoderConfig{
-		Audio: transcodertypes.CodecConfig{
-			CodecName: "copy",
-		},
-		Video: transcodertypes.CodecConfig{
-			CodecName: "copy",
-		},
+	cfg := transcodertypes.RecoderConfig{}
+	src.Processor.Kernel.WithOutputFormatContext(ctx, func(fmtCtx *astiav.FormatContext) {
+		for _, stream := range fmtCtx.Streams() {
+			switch stream.CodecParameters().MediaType() {
+			case astiav.MediaTypeVideo:
+				cfg.VideoTracks = append(cfg.VideoTracks, transcodertypes.TrackConfig{
+					InputTrackIDs: []int{stream.Index()},
+					CodecName:     "copy",
+				})
+			case astiav.MediaTypeAudio:
+				cfg.AudioTracks = append(cfg.AudioTracks, transcodertypes.TrackConfig{
+					InputTrackIDs: []int{stream.Index()},
+					CodecName:     "copy",
+				})
+			}
+		}
 	})
+	c.StreamForwarding.SetRecoderConfig(ctx, cfg)
 
 	if err := c.StreamForwarding.Start(ctx, false); err != nil {
 		return fmt.Errorf("unable to start the StreamForward: %w", err)

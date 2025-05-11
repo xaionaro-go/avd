@@ -181,7 +181,7 @@ func (r *Route) WaitForPublisher(
 func (r *Route) GetVideoCodecs(
 	ctx context.Context,
 ) (result []astiav.CodecID) {
-	r.Node.Processor.Kernel.WithFormatContext(ctx, func(fmtCtx *astiav.FormatContext) {
+	r.Node.Processor.Kernel.WithOutputFormatContext(ctx, func(fmtCtx *astiav.FormatContext) {
 		for _, stream := range fmtCtx.Streams() {
 			if stream.CodecParameters().MediaType() == astiav.MediaTypeVideo {
 				result = append(result, stream.CodecParameters().CodecID())
@@ -194,7 +194,7 @@ func (r *Route) GetVideoCodecs(
 func (r *Route) GetAudioCodecs(
 	ctx context.Context,
 ) (result []astiav.CodecID) {
-	r.Node.Processor.Kernel.WithFormatContext(ctx, func(fmtCtx *astiav.FormatContext) {
+	r.Node.Processor.Kernel.WithOutputFormatContext(ctx, func(fmtCtx *astiav.FormatContext) {
 		for _, stream := range fmtCtx.Streams() {
 			if stream.CodecParameters().MediaType() == astiav.MediaTypeAudio {
 				result = append(result, stream.CodecParameters().CodecID())
