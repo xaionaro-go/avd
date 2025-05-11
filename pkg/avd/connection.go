@@ -99,7 +99,12 @@ func newConnection[N AbstractNodeIO](
 			}
 		}
 		if err := c.forward(ctx); err != nil {
-			logger.Errorf(ctx, "unable to forward the connection with %s: %v", conn.RemoteAddr(), err)
+			switch {
+			case errors.Is(err, io.EOF):
+				logger.Debugf(ctx, "EOF: finished the forward the connection with %s: %v", conn.RemoteAddr(), err)
+			default:
+				logger.Errorf(ctx, "unable to forward the connection with %s: %v", conn.RemoteAddr(), err)
+			}
 			return
 		}
 	})
@@ -606,7 +611,9 @@ func (c *Connection[N]) serve(
 		logger.Debugf(ctx, "not running Serve, because of InitError: %v", c.InitError)
 		return
 	}
-	logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
+	if logger.FromCtx(ctx).Level() >= logger.LevelDebug {
+		logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
+	}
 	switch c.Mode() {
 	case PortModeConsumers:
 		err := c.startStreamForward(ctx, c.Route.Node, c.Node)

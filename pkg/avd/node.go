@@ -26,8 +26,7 @@ func newInputNode(
 	return n
 }
 
-type Sender any
-
+type Sender = router.Sender
 type NodeOutput = node.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Output]]
 
 func newOutputNode(

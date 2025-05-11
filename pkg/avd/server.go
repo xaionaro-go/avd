@@ -14,9 +14,12 @@ type Server struct {
 func NewServer(
 	ctx context.Context,
 ) *Server {
-	return &Server{
+	s := &Server{
 		Router: router.New(ctx),
 	}
+	s.Router.OnRouteCreated = s.OnRouteCreated
+	s.Router.OnRouteRemoved = s.OnRouteRemoved
+	return s
 }
 
 func (s *Server) Close(
