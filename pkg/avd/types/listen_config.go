@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"time"
 
 	routertypes "github.com/xaionaro-go/avpipeline/router/types"
@@ -27,6 +28,72 @@ func (cfg ListenConfig) GetBufferDuration() time.Duration {
 		return time.Second
 	}
 	return cfg.BufferDuration
+}
+
+func (cfg ListenConfig) DictionaryItems(
+	protocol Protocol,
+	mode PortMode,
+) DictionaryItems {
+	customOpts := DictionaryItems{
+		{Key: "listen", Value: "1"},
+	}
+	if cfg.MaxBufferSize != 0 {
+		customOpts = append(customOpts, DictionaryItem{
+			Key: "buffer_size", Value: fmt.Sprintf("%d", cfg.MaxBufferSize),
+		})
+	}
+	if cfg.ReorderQueueSize != 0 {
+		customOpts = append(customOpts, DictionaryItem{
+			Key: "reorder_queue_size", Value: fmt.Sprintf("%d", cfg.ReorderQueueSize),
+		})
+	}
+	if cfg.Timeout != 0 {
+		customOpts = append(customOpts, DictionaryItem{
+			Key: "timeout", Value: fmt.Sprintf("%d", cfg.Timeout.Microseconds()),
+		})
+	}
+	switch protocol {
+	case ProtocolRTMP:
+		customOpts = append(customOpts, DictionaryItems{
+			{Key: "rtmp_live", Value: "live"},
+			{Key: "rtmp_buffer", Value: fmt.Sprintf("%d", cfg.GetBufferDuration().Milliseconds())},
+		}...)
+		if cfg.DefaultRoutePath != "" {
+			customOpts = append(customOpts, DictionaryItem{
+				Key: "rtmp_app", Value: string(cfg.DefaultRoutePath),
+			})
+		}
+	case ProtocolRTSP:
+		customOpts = append(customOpts, DictionaryItems{
+			{Key: "rtsp_flags", Value: "listen"},
+		}...)
+		if cfg.RTSP.PacketSize != 0 {
+			customOpts = append(customOpts, DictionaryItem{
+				Key: "pkt_size", Value: fmt.Sprintf("%d", cfg.RTSP.PacketSize),
+			})
+		}
+		if cfg.RTSP.TransportProtocol == TransportProtocolUDP {
+			panic(fmt.Errorf("we do not support UDP transport protocol for RTSP, yet"))
+		} else {
+			customOpts = append(customOpts, DictionaryItem{
+				Key: "rtsp_transport", Value: TransportProtocolTCP.String(),
+			})
+		}
+	case ProtocolSRT:
+		customOpts = append(customOpts, DictionaryItems{
+			{Key: "smoother", Value: "live"},
+			{Key: "transtype", Value: "live"},
+		}...)
+	}
+
+	switch mode {
+	case PortModeConsumers:
+		customOpts = append(customOpts, DictionaryItem{Key: "f", Value: protocol.FormatName()})
+	}
+
+	customOpts = append(customOpts, cfg.CustomOptions...)
+
+	return customOpts
 }
 
 type ListenOption interface {

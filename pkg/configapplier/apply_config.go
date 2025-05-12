@@ -3,7 +3,6 @@ package configapplier
 import (
 	"context"
 	"fmt"
-	"net"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/avd"
@@ -19,29 +18,19 @@ func ApplyConfig(
 	srv *avd.Server,
 ) error {
 	for _, port := range cfg.Ports {
-		proto, host, err := port.Address.Parse(ctx)
-		if err != nil {
-			return fmt.Errorf("unable to parse the port string '%s': %w", port.Address, err)
-		}
-		logger.Debugf(ctx, "parsed: transport='%s', host='%s' (orig='%s')", proto, host, port.Address)
-		listener, err := net.Listen(proto, host)
-		if err != nil {
-			return fmt.Errorf("unable to start listening on '%s': %w", port.Address, err)
-		}
-
 		protocol, err := port.ProtocolHandler.Protocol()
 		if err != nil {
 			return fmt.Errorf("unable to identify which protocol to use on '%s': %w", port.Address, err)
 		}
 
-		_, err = srv.Listen(ctx, listener, protocol, port.Mode, port.ListenOptions()...)
+		_, err = srv.Listen(ctx, port.Address, protocol, port.Mode, port.ListenOptions()...)
 		if err != nil {
-			return fmt.Errorf("unable to listen '%s' with the RTMP-%s handler: %w", listener.Addr(), port.Mode, err)
+			return fmt.Errorf("unable to listen '%s' with the %s-%s handler: %w", port.Address, protocol, port.Mode, err)
 		}
 	}
 
 	for path := range cfg.Endpoints {
-		_, err := srv.Router.GetRoute(ctx, path, router.GetRouteModeCreate)
+		_, err := srv.Router.GetRoute(ctx, path, router.GetRouteModeCreateIfNotFound)
 		if err != nil {
 			return fmt.Errorf("unable to create route '%s': %w", path, err)
 		}

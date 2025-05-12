@@ -36,7 +36,7 @@ func TestServer(t *testing.T) {
 			s := NewServer(ctx)
 			defer func() { require.NoError(t, s.Close(ctx)) }()
 
-			portHandler, err := s.Listen(ctx, listener, proto, PortModePublishers)
+			portHandler, err := s.ListenProxied(ctx, listener, proto, PortModePublishers)
 			require.NoError(t, err)
 			defer func() { require.NoError(t, portHandler.Close(ctx)) }()
 

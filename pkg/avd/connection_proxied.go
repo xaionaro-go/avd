@@ -21,7 +21,6 @@ import (
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/avpipeline/router"
-	avpipelinetypes "github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
 	"github.com/xaionaro-go/xsync"
@@ -31,11 +30,11 @@ const (
 	ConnectionEnableRoutePathUpdaterHack = true
 )
 
-type Connection[N AbstractNodeIO] struct {
+type ConnectionProxied[N AbstractNodeIO] struct {
 	Locker xsync.Mutex
 
 	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
-	Port         *ListeningPort
+	Port         *ListeningPortProxied
 	Conn         net.Conn
 	CancelFunc   context.CancelFunc
 	AVInputURL   *url.URL
@@ -50,16 +49,16 @@ type Connection[N AbstractNodeIO] struct {
 	Forwarder *router.StreamForwarderCopy
 }
 
-var _ = (*Connection[*NodeInput])(nil)
+var _ = (*ConnectionProxied[*NodeInput])(nil)
 
-func newConnection[N AbstractNodeIO](
+func newConnectionProxied[N AbstractNodeIO](
 	ctx context.Context,
-	p *ListeningPort,
+	p *ListeningPortProxied,
 	conn net.Conn,
-) (_ret *Connection[N], _err error) {
+) (_ret *ConnectionProxied[N], _err error) {
 	ctx, cancelFn := context.WithCancel(ctx)
 	ctx = belt.WithField(ctx, "remote_addr", conn.RemoteAddr())
-	c := &Connection[N]{
+	c := &ConnectionProxied[N]{
 		Port:         p,
 		Conn:         conn,
 		CancelFunc:   cancelFn,
@@ -112,7 +111,7 @@ func newConnection[N AbstractNodeIO](
 	return c, nil
 }
 
-func (c *Connection[N]) String() string {
+func (c *ConnectionProxied[N]) String() string {
 	return fmt.Sprintf(
 		"%s[%s](%s->%s->%s->%s)",
 		strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
@@ -120,19 +119,19 @@ func (c *Connection[N]) String() string {
 	)
 }
 
-func (c *Connection[N]) GetInputNode(
+func (c *ConnectionProxied[N]) GetInputNode(
 	context.Context,
 ) node.Abstract {
 	return c.Node
 }
 
-func (c *Connection[N]) GetOutputRoute(
+func (c *ConnectionProxied[N]) GetOutputRoute(
 	context.Context,
 ) *router.Route {
 	return c.Route
 }
 
-func (c *Connection[N]) Mode() PortMode {
+func (c *ConnectionProxied[N]) Mode() PortMode {
 	if c == nil {
 		return UndefinedPortMode
 	}
@@ -147,7 +146,7 @@ func (c *Connection[N]) Mode() PortMode {
 	}
 }
 
-func (c *Connection[N]) Close(ctx context.Context) (_err error) {
+func (c *ConnectionProxied[N]) Close(ctx context.Context) (_err error) {
 	logger.Debugf(ctx, "Close()")
 	defer logger.Debugf(ctx, "/Close(): %v", _err)
 	c.CancelFunc()
@@ -186,7 +185,7 @@ func (c *Connection[N]) Close(ctx context.Context) (_err error) {
 	})
 }
 
-func (c *Connection[N]) builtAVListenURL(
+func (c *ConnectionProxied[N]) builtAVListenURL(
 	ctx context.Context,
 ) (*url.URL, secret.String, error) {
 	if !c.Port.Protocol.IsValid() {
@@ -219,7 +218,7 @@ func (c *Connection[N]) builtAVListenURL(
 	return url, secretKey, nil
 
 }
-func (c *Connection[N]) isAsyncOpen(
+func (c *ConnectionProxied[N]) isAsyncOpen(
 	ctx context.Context,
 ) (_ret bool) {
 	logger.Debugf(ctx, "isAsyncOpen")
@@ -235,7 +234,7 @@ func (c *Connection[N]) isAsyncOpen(
 	return false
 }
 
-func (c *Connection[N]) initAVHandler(
+func (c *ConnectionProxied[N]) initAVHandler(
 	ctx context.Context,
 ) (_err error) {
 	logger.Debugf(ctx, "initAVHandler")
@@ -262,55 +261,7 @@ func (c *Connection[N]) initAVHandler(
 	}
 	logger.Debugf(ctx, "avInputAddr: %#+v", avInputAddr)
 
-	customOpts := avpipelinetypes.DictionaryItems{
-		{Key: "listen", Value: "1"},
-	}
-	if c.Port.Config.MaxBufferSize != 0 {
-		customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
-			Key: "buffer_size", Value: fmt.Sprintf("%d", c.Port.Config.MaxBufferSize),
-		})
-	}
-	if c.Port.Config.ReorderQueueSize != 0 {
-		customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
-			Key: "reorder_queue_size", Value: fmt.Sprintf("%d", c.Port.Config.ReorderQueueSize),
-		})
-	}
-	if c.Port.Config.Timeout != 0 {
-		customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
-			Key: "timeout", Value: fmt.Sprintf("%d", c.Port.Config.Timeout.Microseconds()),
-		})
-	}
-	switch c.Port.Protocol {
-	case ProtocolRTMP:
-		customOpts = append(customOpts, avpipelinetypes.DictionaryItems{
-			{Key: "rtmp_app", Value: string(c.GetRoutePath())},
-			{Key: "rtmp_live", Value: "live"},
-			{Key: "rtmp_buffer", Value: fmt.Sprintf("%d", c.Port.GetConfig().GetBufferDuration().Milliseconds())},
-		}...)
-	case ProtocolRTSP:
-		customOpts = append(customOpts, avpipelinetypes.DictionaryItems{
-			{Key: "rtsp_flags", Value: "listen"},
-		}...)
-		if c.Port.Config.RTSP.PacketSize != 0 {
-			customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
-				Key: "pkt_size", Value: fmt.Sprintf("%d", c.Port.Config.RTSP.PacketSize),
-			})
-		}
-		if c.Port.Config.RTSP.TransportProtocol == TransportProtocolUDP {
-			return fmt.Errorf("we do not support UDP transport protocol for RTSP, yet")
-		} else {
-			customOpts = append(customOpts, avpipelinetypes.DictionaryItem{
-				Key: "rtsp_transport", Value: TransportProtocolTCP.String(),
-			})
-		}
-	case ProtocolSRT:
-		customOpts = append(customOpts, avpipelinetypes.DictionaryItems{
-			{Key: "smoother", Value: "live"},
-			{Key: "transtype", Value: "live"},
-		}...)
-	}
-
-	customOpts = append(customOpts, c.Port.Config.CustomOptions...)
+	customOpts := c.Port.Config.DictionaryItems(c.Port.Protocol, c.Mode())
 
 	logger.Debugf(ctx, "attempting to listen by libav at '%s'...", url)
 	switch c.Mode() {
@@ -350,10 +301,8 @@ func (c *Connection[N]) initAVHandler(
 			url.String(),
 			secretKey,
 			kernel.OutputConfig{
-				CustomOptions: append(avpipelinetypes.DictionaryItems{
-					{Key: "f", Value: c.Port.Protocol.FormatName()},
-				}, customOpts...),
-				AsyncOpen: c.isAsyncOpen(ctx),
+				CustomOptions: customOpts,
+				AsyncOpen:     c.isAsyncOpen(ctx),
 				OnOpened: func(ctx context.Context, i *kernel.Output) error {
 					if !c.isAsyncOpen(ctx) {
 						return nil
@@ -405,7 +354,7 @@ func (c *Connection[N]) initAVHandler(
 	}
 }
 
-func (c *Connection[N]) onInitFinished(
+func (c *ConnectionProxied[N]) onInitFinished(
 	ctx context.Context,
 ) {
 	logger.Debugf(ctx, "onInitFinished")
@@ -431,7 +380,7 @@ func (c *Connection[N]) onInitFinished(
 	close(c.InitFinished)
 }
 
-func (c *Connection[N]) negotiate(
+func (c *ConnectionProxied[N]) negotiate(
 	origCtx context.Context,
 ) (_err error) {
 	logger.Debugf(origCtx, "negotiate")
@@ -562,7 +511,7 @@ func (c *Connection[N]) negotiate(
 	}
 }
 
-func (c *Connection[N]) serve(
+func (c *ConnectionProxied[N]) serve(
 	ctx context.Context,
 ) {
 	var routeGetMode router.GetRouteMode
@@ -626,7 +575,7 @@ func (c *Connection[N]) serve(
 	c.Node.Serve(ctx, node.ServeConfig{}, errCh)
 }
 
-func (c *Connection[N]) startStreamForward(
+func (c *ConnectionProxied[N]) startStreamForward(
 	ctx context.Context,
 	src *NodeRouting,
 	dst node.Abstract,
@@ -646,7 +595,7 @@ func (c *Connection[N]) startStreamForward(
 	return nil
 }
 
-func (c *Connection[N]) tryExtractRouteString(
+func (c *ConnectionProxied[N]) tryExtractRouteString(
 	ctx context.Context,
 	msg []byte,
 ) (*RoutePath, error) {
@@ -660,7 +609,7 @@ func (c *Connection[N]) tryExtractRouteString(
 	}
 }
 
-func (c *Connection[N]) getKernel() kernel.Abstract {
+func (c *ConnectionProxied[N]) getKernel() kernel.Abstract {
 	switch p := c.Node.GetProcessor().(type) {
 	case *processor.FromKernel[*kernel.Input]:
 		return p.Kernel
@@ -671,7 +620,7 @@ func (c *Connection[N]) getKernel() kernel.Abstract {
 	}
 }
 
-func (c *Connection[N]) getFormatContext() *astiav.FormatContext {
+func (c *ConnectionProxied[N]) getFormatContext() *astiav.FormatContext {
 	switch k := c.getKernel().(type) {
 	case *kernel.Input:
 		return k.FormatContext
@@ -682,7 +631,7 @@ func (c *Connection[N]) getFormatContext() *astiav.FormatContext {
 	}
 }
 
-func (c *Connection[N]) AVFormatContext() *avcommon.AVFormatContext {
+func (c *ConnectionProxied[N]) AVFormatContext() *avcommon.AVFormatContext {
 	return avcommon.WrapAVFormatContext(
 		xastiav.CFromAVFormatContext(
 			c.getFormatContext(),
@@ -690,7 +639,7 @@ func (c *Connection[N]) AVFormatContext() *avcommon.AVFormatContext {
 	)
 }
 
-func (c *Connection[N]) AVURLContext() *avcommon.URLContext {
+func (c *ConnectionProxied[N]) AVURLContext() *avcommon.URLContext {
 	fmtCtx := c.AVFormatContext()
 	avioCtx := fmtCtx.Pb()
 	if avioCtx == nil {
@@ -699,7 +648,7 @@ func (c *Connection[N]) AVURLContext() *avcommon.URLContext {
 	return avcommon.WrapURLContext(avioCtx.Opaque())
 }
 
-func (c *Connection[N]) GetRoutePath() RoutePath {
+func (c *ConnectionProxied[N]) GetRoutePath() RoutePath {
 	if c.RoutePath != nil {
 		return *c.RoutePath
 	}
@@ -711,7 +660,7 @@ func (c *Connection[N]) GetRoutePath() RoutePath {
 	return "avd-input"
 }
 
-func (c *Connection[N]) GetURLPath() string {
+func (c *ConnectionProxied[N]) GetURLPath() string {
 	routePath := c.GetRoutePath()
 	switch c.Port.Protocol {
 	case ProtocolRTMP:
@@ -723,7 +672,7 @@ func (c *Connection[N]) GetURLPath() string {
 	}
 }
 
-func (c *Connection[N]) forward(
+func (c *ConnectionProxied[N]) forward(
 	ctx context.Context,
 ) (_err error) {
 	logger.Debugf(ctx, "forward")

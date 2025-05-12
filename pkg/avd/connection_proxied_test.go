@@ -9,18 +9,18 @@ import (
 	"github.com/xaionaro-go/avpipeline/router"
 )
 
-func TestConnection(t *testing.T) {
+func TestConnectionProxied(t *testing.T) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
 	t.Run("Input", func(t *testing.T) {
-		testConnectionInputOrOutput[*NodeInput](t)
+		testConnectionProxiedInputOrOutput[*NodeInput](t)
 	})
 	t.Run("Output", func(t *testing.T) {
-		testConnectionInputOrOutput[*NodeOutput](t)
+		testConnectionProxiedInputOrOutput[*NodeOutput](t)
 	})
 }
 
-func testConnectionInputOrOutput[N AbstractNodeIO](t *testing.T) {
+func testConnectionProxiedInputOrOutput[N AbstractNodeIO](t *testing.T) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
 
@@ -36,15 +36,15 @@ func testConnectionInputOrOutput[N AbstractNodeIO](t *testing.T) {
 			myEnd, mockConn := net.Pipe()
 			defer myEnd.Close()
 
-			c, err := newConnection[N](
+			c, err := newConnectionProxied[N](
 				ctx,
-				&ListeningPort{
+				&ListeningPortProxied{
 					Server: &Server{
 						Router: router.New(ctx),
 					},
 					Protocol:              proto,
-					ConnectionsPublishers: map[net.Addr]*Connection[*NodeInput]{},
-					ConnectionsConsumers:  map[net.Addr]*Connection[*NodeOutput]{},
+					ConnectionsPublishers: map[net.Addr]*ConnectionProxied[*NodeInput]{},
+					ConnectionsConsumers:  map[net.Addr]*ConnectionProxied[*NodeOutput]{},
 				},
 				mockConn,
 			)

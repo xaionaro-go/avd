@@ -19,6 +19,7 @@ const (
 	ProtocolRTMP      = types.ProtocolRTMP
 	ProtocolRTSP      = types.ProtocolRTSP
 	ProtocolSRT       = types.ProtocolSRT
+	ProtocolMPEGTSUDP = types.ProtocolMPEGTS
 )
 
 func SupportedProtocols() []Protocol {
@@ -39,3 +40,4 @@ const (
 )
 
 type RoutePath = types.RoutePath
+type PortAddress = types.PortAddress

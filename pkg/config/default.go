@@ -40,6 +40,15 @@ func Default() Config {
 				},
 				CustomOptions: DictionaryItems{},
 			},
+			{
+				Address:          "udp:127.0.0.1:4445",
+				Mode:             types.PortModePublishers,
+				DefaultRoutePath: "mystream",
+				ProtocolHandler: ProtocolHandlerConfig{
+					MPEGTS: &MPEGTSConfig{},
+				},
+				CustomOptions: DictionaryItems{},
+			},
 		},
 		Endpoints: map[types.RoutePath]EndpointConfig{
 			"mystream": {

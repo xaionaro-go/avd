@@ -11,28 +11,37 @@ import (
 
 func (s *Server) Listen(
 	ctx context.Context,
-	listener net.Listener,
+	portAddr PortAddress,
 	protocol Protocol,
 	mode types.PortMode,
 	opts ...ListenOption,
-) (_ret *ListeningPort, _err error) {
-	logger.Debugf(ctx, "Listen(ctx, '%s')", listener.Addr())
-	defer func() { logger.Debugf(ctx, "/Listen(ctx, '%s'): %v %v", listener.Addr(), _ret, _err) }()
+) (_ret ListeningPort, _err error) {
+	logger.Debugf(ctx, "Listen(ctx, '%s')", portAddr)
+	defer func() { logger.Debugf(ctx, "/Listen(ctx, '%s'): %v %v", portAddr, _ret, _err) }()
 
-	cfg := ListenOptions(opts).Config()
-	result := &ListeningPort{
-		Server:                s,
-		Listener:              listener,
-		Protocol:              protocol,
-		Config:                cfg,
-		ConnectionsPublishers: make(map[net.Addr]*Connection[*NodeInput]),
-		ConnectionsConsumers:  make(map[net.Addr]*Connection[*NodeOutput]),
+	switch protocol {
+	case ProtocolMPEGTSUDP:
+		port, err := s.ListenDirect(ctx, portAddr, protocol, mode, opts...)
+		if err != nil {
+			return nil, err
+		}
+		return port, nil
+	default:
+		proto, host, err := portAddr.Parse(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse the port string '%s': %w", portAddr, err)
+		}
+		logger.Debugf(ctx, "parsed: transport='%s', host='%s' (orig='%s')", proto, host, portAddr)
+		listener, err := net.Listen(proto, host)
+		if err != nil {
+			return nil, fmt.Errorf("unable to start listening on '%s': %w", portAddr, err)
+		}
+
+		port, err := s.ListenProxied(ctx, listener, protocol, mode, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("unable to listen '%s' with the RTMP-%s handler: %w", listener.Addr(), mode, err)
+		}
+
+		return port, nil
 	}
-
-	err := result.startListening(ctx, mode)
-	if err != nil {
-		return nil, fmt.Errorf("unable to start listening: %w", err)
-	}
-
-	return result, nil
 }

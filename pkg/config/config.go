@@ -25,16 +25,18 @@ type EndpointConfig struct {
 }
 
 type ProtocolHandlerConfig struct {
-	RTMP *RTMPConfig `yaml:"rtmp,omitempty"`
-	RTSP *RTSPConfig `yaml:"rtsp,omitempty"`
+	RTMP   *RTMPConfig   `yaml:"rtmp,omitempty"`
+	RTSP   *RTSPConfig   `yaml:"rtsp,omitempty"`
+	MPEGTS *MPEGTSConfig `yaml:"mpegts,omitempty"`
 }
 
 type Protocol = types.Protocol
 
 func (cfg ProtocolHandlerConfig) Protocol() (Protocol, error) {
 	m := map[Protocol]bool{
-		types.ProtocolRTMP: cfg.RTMP != nil,
-		types.ProtocolRTSP: cfg.RTSP != nil,
+		types.ProtocolRTMP:   cfg.RTMP != nil,
+		types.ProtocolRTSP:   cfg.RTSP != nil,
+		types.ProtocolMPEGTS: cfg.MPEGTS != nil,
 	}
 
 	var enabledProtocols []Protocol
@@ -63,19 +65,17 @@ type PortMode = types.PortMode
 type DictionaryItem = types.DictionaryItem
 type DictionaryItems = types.DictionaryItems
 type PortConfig struct {
-	Address         PortAddress           `yaml:"address"`
-	Mode            PortMode              `yaml:"mode"`
-	ProtocolHandler ProtocolHandlerConfig `yaml:"protocol_handler"`
-	CustomOptions   DictionaryItems       `yaml:"custom_options"`
-	Hacks           struct {
-		DefaultRoutePath string `yaml:"default_route_path"`
-	} `yaml:"hacks"`
+	Address          PortAddress           `yaml:"address"`
+	Mode             PortMode              `yaml:"mode"`
+	ProtocolHandler  ProtocolHandlerConfig `yaml:"protocol_handler"`
+	CustomOptions    DictionaryItems       `yaml:"custom_options"`
+	DefaultRoutePath string                `yaml:"default_route_path"`
 }
 
 func (cfg PortConfig) ListenOptions() []types.ListenOption {
 	opts := types.ListenOptions{}
-	if cfg.Hacks.DefaultRoutePath != "" {
-		opts = append(opts, types.ListenOptionDefaultRoutePath(cfg.Hacks.DefaultRoutePath))
+	if cfg.DefaultRoutePath != "" {
+		opts = append(opts, types.ListenOptionDefaultRoutePath(cfg.DefaultRoutePath))
 	}
 	if cfg.ProtocolHandler.RTSP != nil &&
 		cfg.ProtocolHandler.RTSP.TransportProtocol != types.UndefinedTransportProtocol {

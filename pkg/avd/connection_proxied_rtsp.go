@@ -11,11 +11,11 @@ import (
 	"github.com/xaionaro-go/avcommon"
 )
 
-func (c *Connection[N]) AVRTSPState() *avcommon.RTSPState {
+func (c *ConnectionProxied[N]) AVRTSPState() *avcommon.RTSPState {
 	return avcommon.WrapRTSPState(c.AVFormatContext().PrivData())
 }
 
-func (c *Connection[N]) onInitFinishedRTSP(
+func (c *ConnectionProxied[N]) onInitFinishedRTSP(
 	ctx context.Context,
 ) {
 	routePath := c.GetRoutePath()
@@ -28,7 +28,7 @@ func (c *Connection[N]) onInitFinishedRTSP(
 	}
 }
 
-func (c *Connection[N]) tryExtractRouteStringRTSP(
+func (c *ConnectionProxied[N]) tryExtractRouteStringRTSP(
 	_ context.Context,
 	msg []byte,
 ) (*RoutePath, error) {

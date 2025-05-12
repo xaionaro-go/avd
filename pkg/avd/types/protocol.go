@@ -13,6 +13,7 @@ const (
 	ProtocolRTMP
 	ProtocolRTSP
 	ProtocolSRT
+	ProtocolMPEGTS
 	EndOfProtocol
 )
 
@@ -23,6 +24,8 @@ func (c Protocol) IsValid() bool {
 	case ProtocolRTSP:
 		return true
 	case ProtocolSRT:
+		return true
+	case ProtocolMPEGTS:
 		return true
 	}
 	return false
@@ -36,6 +39,8 @@ func (c Protocol) String() string {
 		return "rtsp"
 	case ProtocolSRT:
 		return "srt"
+	case ProtocolMPEGTS:
+		return "mpegts"
 	default:
 		return ""
 	}
@@ -48,6 +53,8 @@ func (c Protocol) FormatName() string {
 	case ProtocolRTSP:
 		return "rtsp"
 	case ProtocolSRT:
+		return "mpegts"
+	case ProtocolMPEGTS:
 		return "mpegts"
 	default:
 		return ""
