@@ -70,6 +70,7 @@ type PortConfig struct {
 	ProtocolHandler  ProtocolHandlerConfig `yaml:"protocol_handler"`
 	CustomOptions    DictionaryItems       `yaml:"custom_options"`
 	DefaultRoutePath string                `yaml:"default_route_path"`
+	WaitUntil        WaitUntilConfig       `yaml:"wait_until"`
 }
 
 func (cfg PortConfig) ListenOptions() []types.ListenOption {
@@ -80,6 +81,12 @@ func (cfg PortConfig) ListenOptions() []types.ListenOption {
 	if cfg.ProtocolHandler.RTSP != nil &&
 		cfg.ProtocolHandler.RTSP.TransportProtocol != types.UndefinedTransportProtocol {
 		opts = append(opts, types.ListenOptionTransportProtocol(cfg.ProtocolHandler.RTSP.TransportProtocol))
+	}
+	if cfg.WaitUntil.VideoTrackCount > 0 {
+		opts = append(opts, types.ListenOptionWaitUntilVideoTracksCount(cfg.WaitUntil.VideoTrackCount))
+	}
+	if cfg.WaitUntil.AudioTrackCount > 0 {
+		opts = append(opts, types.ListenOptionWaitUntilAudioTracksCount(cfg.WaitUntil.AudioTrackCount))
 	}
 	return opts
 }

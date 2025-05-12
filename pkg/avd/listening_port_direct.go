@@ -19,15 +19,16 @@ import (
 )
 
 type ListeningPortDirect struct {
-	Server      *Server
-	PortAddress PortAddress
-	Protocol    Protocol
-	Mode        PortMode
-	Config      ListenConfig
-	CancelFn    context.CancelFunc
-	Node        node.Abstract
-	Route       *router.Route
-	WaitGroup   sync.WaitGroup
+	Server        *Server
+	PortAddress   PortAddress
+	Protocol      Protocol
+	Mode          PortMode
+	Config        ListenConfig
+	CancelFn      context.CancelFunc
+	Node          node.Abstract
+	Route         *router.Route
+	WaitGroup     sync.WaitGroup
+	StreamForward *router.StreamForwarderCopy
 }
 
 func (s *Server) ListenDirect(
@@ -113,6 +114,7 @@ func (p *ListeningPortDirect) startListening(
 			p.Close(ctx)
 			return
 		}
+
 		p.Node.AddPushPacketsTo(route.Node)
 	case PortModeConsumers:
 		proc, err := processor.NewOutputFromURL(
@@ -131,7 +133,6 @@ func (p *ListeningPortDirect) startListening(
 		n := node.NewWithCustomData[*ListeningPortDirect](proc)
 		n.CustomData = p
 		p.Node = n
-
 		route.Node.AddPushPacketsTo(p.Node)
 	default:
 		return fmt.Errorf("unknown port mode '%s'", p.Mode)

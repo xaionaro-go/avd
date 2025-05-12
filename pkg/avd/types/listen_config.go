@@ -10,8 +10,10 @@ import (
 type RoutePath = routertypes.RoutePath
 
 type ListenConfig struct {
-	DefaultRoutePath RoutePath
-	CustomOptions    DictionaryItems
+	DefaultRoutePath          RoutePath
+	WaitUntilVideoTracksCount uint
+	WaitUntilAudioTracksCount uint
+	CustomOptions             DictionaryItems
 
 	// not all protocols respects these, but some do:
 	BufferDuration   time.Duration
@@ -124,4 +126,16 @@ type ListenOptionBufferDuration time.Duration
 
 func (opt ListenOptionBufferDuration) apply(cfg *ListenConfig) {
 	cfg.BufferDuration = time.Duration(opt)
+}
+
+type ListenOptionWaitUntilVideoTracksCount uint
+
+func (opt ListenOptionWaitUntilVideoTracksCount) apply(cfg *ListenConfig) {
+	cfg.WaitUntilVideoTracksCount = uint(opt)
+}
+
+type ListenOptionWaitUntilAudioTracksCount uint
+
+func (opt ListenOptionWaitUntilAudioTracksCount) apply(cfg *ListenConfig) {
+	cfg.WaitUntilAudioTracksCount = uint(opt)
 }
