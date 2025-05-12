@@ -19,16 +19,16 @@ import (
 )
 
 type ListeningPortDirect struct {
-	Server        *Server
-	PortAddress   PortAddress
-	Protocol      Protocol
-	Mode          PortMode
-	Config        ListenConfig
-	CancelFn      context.CancelFunc
-	Node          node.Abstract
-	Route         *router.Route
-	WaitGroup     sync.WaitGroup
-	StreamForward *router.StreamForwarderCopy
+	Server      *Server
+	PortAddress PortAddress
+	Protocol    Protocol
+	Mode        PortMode
+	Config      ListenConfig
+	CancelFn    context.CancelFunc
+	Node        node.Abstract
+	Route       *router.Route
+	RouteSource *router.RouteSource[*ListeningPortDirect, *processor.FromKernel[*kernel.Input]]
+	WaitGroup   sync.WaitGroup
 }
 
 func (s *Server) ListenDirect(
@@ -109,13 +109,11 @@ func (p *ListeningPortDirect) startListening(
 		n.CustomData = p
 		p.Node = n
 
-		if err := route.AddPublisher(ctx, p); err != nil {
-			logger.Errorf(ctx, "unable to add myself as a  to '%s': %v", routePath, err)
-			p.Close(ctx)
-			return
+		routeSource, err := router.AddRouteSource(ctx, p.Server.Router, n, p.Route.Path, nil)
+		if err != nil {
+			return fmt.Errorf("unable to add a source to router '%s': %w", p.Route, err)
 		}
-
-		p.Node.AddPushPacketsTo(route.Node)
+		p.RouteSource = routeSource
 	case PortModeConsumers:
 		proc, err := processor.NewOutputFromURL(
 			ctx, url, secret.New(""),
@@ -145,9 +143,9 @@ func (p *ListeningPortDirect) startListening(
 		defer func() {
 			switch p.Mode {
 			case PortModePublishers:
-				_, err := p.Route.RemovePublisher(ctx, p)
+				err := p.RouteSource.Close(ctx)
 				if err != nil {
-					logger.Errorf(ctx, "unable to remove myself as the publisher to '%s': %v", p.Route, err)
+					logger.Errorf(ctx, "unable to remove myself as the source for route to '%s': %v", p.Route, err)
 				}
 			case PortModeConsumers:
 				err := node.RemovePushPacketsTo(ctx, route.Node, p.Node)
