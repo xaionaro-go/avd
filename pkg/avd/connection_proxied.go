@@ -46,7 +46,7 @@ type ConnectionProxied[N AbstractNodeIO] struct {
 	RoutePath    *RoutePath
 	Route        *router.Route
 
-	Forwarder *router.StreamForwarderRecoding[*router.Route, *router.ProcessorRouting]
+	Forwarder *router.StreamForwarderCopy[*router.Route, *router.ProcessorRouting]
 }
 
 var _ = (*ConnectionProxied[*NodeInput])(nil)
@@ -583,7 +583,7 @@ func (c *ConnectionProxied[N]) startStreamForward(
 	logger.Debugf(ctx, "startStreamForward(%s, %s)", src, dst)
 	defer func() { logger.Debugf(ctx, "/startStreamForward(%s, %s): %v", src, dst, _err) }()
 
-	fwd, err := router.NewStreamForwarderRecoding(ctx, src, dst, nil)
+	fwd, err := router.NewStreamForwarderCopy(ctx, src, dst)
 	if err != nil {
 		return fmt.Errorf("unable to make a new stream forwarder from %s to %s: %w", src, dst, err)
 	}
