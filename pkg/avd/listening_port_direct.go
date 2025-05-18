@@ -16,6 +16,7 @@ import (
 	"github.com/xaionaro-go/avpipeline/router"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
+	"github.com/xaionaro-go/xsync"
 )
 
 type ListeningPortDirect struct {
@@ -29,6 +30,7 @@ type ListeningPortDirect struct {
 	Route       *router.Route
 	RouteSource *router.RouteSource[*ListeningPortDirect, *processor.FromKernel[*kernel.Input]]
 	WaitGroup   sync.WaitGroup
+	Locker      xsync.Mutex
 }
 
 func (s *Server) ListenDirect(
@@ -92,12 +94,20 @@ func (p *ListeningPortDirect) startListening(
 	customOptions := p.Config.DictionaryItems(p.Protocol, p.Mode)
 	switch p.Mode {
 	case PortModePublishers:
+		var n *node.NodeWithCustomData[*ListeningPortDirect, *processor.FromKernel[*kernel.Input]]
 		proc, err := processor.NewInputFromURL(
 			ctx, url, secret.New(""),
 			kernel.InputConfig{
 				CustomOptions: customOptions,
 				AsyncOpen:     true,
 				OnOpened: func(ctx context.Context, k *kernel.Input) error {
+					routeSource, err := router.AddRouteSource(ctx, p.Server.Router, n, p.Route.Path, nil)
+					if err != nil {
+						return fmt.Errorf("unable to add a source to router '%s': %w", p.Route, err)
+					}
+					p.Locker.Do(ctx, func() {
+						p.RouteSource = routeSource
+					})
 					return nil
 				},
 			},
@@ -105,15 +115,9 @@ func (p *ListeningPortDirect) startListening(
 		if err != nil {
 			return fmt.Errorf("unable to initialize an input listener at '%s': %w", url, err)
 		}
-		n := node.NewWithCustomData[*ListeningPortDirect](proc)
+		n = node.NewWithCustomData[*ListeningPortDirect](proc)
 		n.CustomData = p
 		p.Node = n
-
-		routeSource, err := router.AddRouteSource(ctx, p.Server.Router, n, p.Route.Path, nil)
-		if err != nil {
-			return fmt.Errorf("unable to add a source to router '%s': %w", p.Route, err)
-		}
-		p.RouteSource = routeSource
 	case PortModeConsumers:
 		proc, err := processor.NewOutputFromURL(
 			ctx, url, secret.New(""),
@@ -146,6 +150,10 @@ func (p *ListeningPortDirect) startListening(
 				err := p.RouteSource.Close(ctx)
 				if err != nil {
 					logger.Errorf(ctx, "unable to remove myself as the source for route to '%s': %v", p.Route, err)
+				}
+				err = PublisherClose(ctx, p, p.Config.OnEndAction)
+				if err != nil {
+					logger.Errorf(ctx, "unable to close the publisher to '%s': %v", p.Route, err)
 				}
 			case PortModeConsumers:
 				err := node.RemovePushPacketsTo(ctx, route.Node, p.Node)

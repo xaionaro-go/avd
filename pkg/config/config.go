@@ -64,17 +64,21 @@ func (cfg ProtocolHandlerConfig) Protocol() (Protocol, error) {
 type PortMode = types.PortMode
 type DictionaryItem = types.DictionaryItem
 type DictionaryItems = types.DictionaryItems
+type OnEndAction = types.OnEndAction
 type PortConfig struct {
 	Address          PortAddress           `yaml:"address"`
 	Mode             PortMode              `yaml:"mode"`
 	ProtocolHandler  ProtocolHandlerConfig `yaml:"protocol_handler"`
 	CustomOptions    DictionaryItems       `yaml:"custom_options"`
 	DefaultRoutePath string                `yaml:"default_route_path"`
+	OnEnd            OnEndAction           `yaml:"on_end"`
 	WaitUntil        WaitUntilConfig       `yaml:"wait_until"`
 }
 
 func (cfg PortConfig) ListenOptions() []types.ListenOption {
-	opts := types.ListenOptions{}
+	opts := types.ListenOptions{
+		types.ListenOptionOnEndAction(cfg.OnEnd),
+	}
 	if cfg.DefaultRoutePath != "" {
 		opts = append(opts, types.ListenOptionDefaultRoutePath(cfg.DefaultRoutePath))
 	}

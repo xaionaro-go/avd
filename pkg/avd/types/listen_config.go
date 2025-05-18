@@ -11,6 +11,7 @@ type RoutePath = routertypes.RoutePath
 
 type ListenConfig struct {
 	DefaultRoutePath          RoutePath
+	OnEndAction               OnEndAction
 	WaitUntilVideoTracksCount uint
 	WaitUntilAudioTracksCount uint
 	CustomOptions             DictionaryItems
@@ -126,6 +127,12 @@ type ListenOptionBufferDuration time.Duration
 
 func (opt ListenOptionBufferDuration) apply(cfg *ListenConfig) {
 	cfg.BufferDuration = time.Duration(opt)
+}
+
+type ListenOptionOnEndAction OnEndAction
+
+func (opt ListenOptionOnEndAction) apply(cfg *ListenConfig) {
+	cfg.OnEndAction = OnEndAction(opt)
 }
 
 type ListenOptionWaitUntilVideoTracksCount uint

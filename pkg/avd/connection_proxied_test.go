@@ -28,11 +28,12 @@ func testConnectionProxiedInputOrOutput[N AbstractNodeIO](t *testing.T) {
 		var zeroNodeValue N
 		_, isOutput := any(zeroNodeValue).(*NodeOutput)
 		if proto == ProtocolRTSP && isOutput {
-			// this test case fails, something wrong in the avpipeline
-			// TODO: fix
+			// this case is not supported
 			continue
 		}
 		t.Run(proto.String(), func(t *testing.T) {
+			defer belt.Flush(ctx)
+
 			myEnd, mockConn := net.Pipe()
 			defer myEnd.Close()
 

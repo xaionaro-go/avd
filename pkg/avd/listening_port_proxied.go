@@ -35,6 +35,9 @@ func (s *Server) ListenProxied(
 ) (_ret *ListeningPortProxied, _err error) {
 	logger.Debugf(ctx, "ListenProxied(ctx, '%s')", listener.Addr())
 	defer func() { logger.Debugf(ctx, "/ListenProxied(ctx, '%s'): %v %v", listener.Addr(), _ret, _err) }()
+	ctx = belt.WithField(ctx, "listener", listener.Addr().String())
+	ctx = belt.WithField(ctx, "proto", protocol)
+	ctx = belt.WithField(ctx, "port_mode", mode)
 
 	cfg := ListenOptions(opts).Config()
 	result := &ListeningPortProxied{
@@ -62,7 +65,6 @@ func (p *ListeningPortProxied) String() string {
 func (p *ListeningPortProxied) startListening(
 	ctx context.Context,
 ) (_err error) {
-	ctx = belt.WithField(ctx, "port_mode", p.Mode.String())
 	if p.CancelFn != nil {
 		return fmt.Errorf("the port was already started")
 	}

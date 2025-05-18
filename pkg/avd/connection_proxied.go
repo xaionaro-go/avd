@@ -17,6 +17,7 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
@@ -112,6 +113,22 @@ func newConnectionProxied[N AbstractNodeIO](
 }
 
 func (c *ConnectionProxied[N]) String() string {
+	ctx := context.TODO()
+	if !c.Locker.ManualTryLock(ctx) {
+		return fmt.Sprintf(
+			"%s[%s](?->?->?->?)",
+			strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
+		)
+	}
+	defer c.Locker.ManualUnlock(ctx)
+
+	if c.Conn == nil || c.AVConn == nil {
+		return fmt.Sprintf(
+			"%s[%s](?->?->?->?)",
+			strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
+		)
+	}
+
 	return fmt.Sprintf(
 		"%s[%s](%s->%s->%s->%s)",
 		strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
@@ -161,8 +178,9 @@ func (c *ConnectionProxied[N]) Close(ctx context.Context) (_err error) {
 		if c.Route != nil {
 			switch c.Mode() {
 			case PortModePublishers:
-				if _, err := c.Route.RemovePublisher(ctx, c); err != nil {
-					errs = append(errs, fmt.Errorf("unable to remove myself as a  at '%s': %w", c.Route.Path, err))
+				err := PublisherClose(ctx, c, c.Port.Config.OnEndAction)
+				if err != nil {
+					errs = append(errs, fmt.Errorf("unable to close the publisher: %w", err))
 				}
 			}
 			c.Route = nil
@@ -190,6 +208,10 @@ func (c *ConnectionProxied[N]) builtAVListenURL(
 ) (*url.URL, secret.String, error) {
 	if !c.Port.Protocol.IsValid() {
 		return nil, secret.New(""), fmt.Errorf("protocol is not set")
+	}
+
+	if c.Port.Protocol == ProtocolRTSP && c.Mode() == PortModeConsumers {
+		return nil, secret.New(""), fmt.Errorf("AFAIK, libav does not support the server mode for RTSP")
 	}
 
 	randomPortTaker, err := net.Listen("tcp", "127.0.0.1:0")
@@ -386,6 +408,17 @@ func (c *ConnectionProxied[N]) negotiate(
 	logger.Debugf(origCtx, "negotiate")
 	defer func() { logger.Debugf(origCtx, "/negotiate: %v", _err) }()
 
+	avConn, conn := c.AVConn, c.Conn
+
+	defer func() {
+		if err := avConn.SetDeadline(time.Time{}); err != nil {
+			logger.Errorf(origCtx, "unable to revert the deadline for AVConn: %v", err)
+		}
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			logger.Errorf(origCtx, "unable to revert the deadline for Conn: %v", err)
+		}
+	}()
+
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
@@ -416,12 +449,12 @@ func (c *ConnectionProxied[N]) negotiate(
 		var buf [SizeBuffer]byte
 		for {
 			logger.Tracef(ctx, "waiting for c.AVConn input...")
-			r, err := c.AVConn.Read(buf[:])
+			r, err := avConn.Read(buf[:])
 			logger.Tracef(ctx, "/waiting for c.AVConn input: %v %v", r, err)
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					// revert back:
-					c.AVConn.SetDeadline(time.Time{})
+					logger.Debugf(ctx, "it was a deadline, ignoring")
+					return
 				}
 				errCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
 				return
@@ -429,7 +462,7 @@ func (c *ConnectionProxied[N]) negotiate(
 
 			msg := buf[:r]
 			logger.Tracef(ctx, "waiting for c.Conn output...")
-			err = forward(c.Conn, msg)
+			err = forward(conn, msg)
 			logger.Tracef(ctx, "/waiting for c.Conn output")
 			if err != nil {
 				errCh <- err
@@ -443,16 +476,14 @@ func (c *ConnectionProxied[N]) negotiate(
 		defer wg.Done()
 		var buf [SizeBuffer]byte
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
 			logger.Tracef(ctx, "waiting for c.Conn input...")
-			r, err := c.Conn.Read(buf[:])
+			r, err := conn.Read(buf[:])
 			logger.Tracef(ctx, "/waiting for c.Conn input")
 			if err != nil {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					logger.Debugf(ctx, "it was a deadline, ignoring")
+					return
+				}
 				errCh <- fmt.Errorf("unable to read from the client: %w", err)
 				return
 			}
@@ -465,7 +496,7 @@ func (c *ConnectionProxied[N]) negotiate(
 			}
 			if routePath == nil {
 				logger.Tracef(ctx, "waiting for c.AVConn output...")
-				err := forward(c.AVConn, msg)
+				err := forward(avConn, msg)
 				logger.Tracef(ctx, "/waiting for c.AVConn output")
 				if err != nil {
 					errCh <- err
@@ -486,7 +517,7 @@ func (c *ConnectionProxied[N]) negotiate(
 			})
 
 			logger.Tracef(ctx, "waiting for c.AVConn output...")
-			err = forward(c.AVConn, msg)
+			err = forward(avConn, msg)
 			logger.Tracef(ctx, "/waiting for c.AVConn output")
 			if err != nil {
 				errCh <- err
@@ -497,16 +528,25 @@ func (c *ConnectionProxied[N]) negotiate(
 		}
 	})
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
+	interrupt := func() {
 		cancelFn()
-		// to interrupt reading from the socket:
+		// to interrupt reading from the sockets:
 		logger.Debugf(ctx, "setting a deadline in the past for c.AVConn")
-		if err := c.AVConn.SetReadDeadline(time.Unix(1, 0)); err != nil {
+		if err := avConn.SetReadDeadline(time.Unix(1, 0)); err != nil {
 			logger.Errorf(ctx, "unable to set the read deadline for AVConn: %v", err)
 		}
+		logger.Debugf(ctx, "setting a deadline in the past for c.Conn")
+		if err := conn.SetReadDeadline(time.Unix(1, 0)); err != nil {
+			logger.Errorf(ctx, "unable to set the read deadline for Conn: %v", err)
+		}
+	}
+
+	select {
+	case <-ctx.Done():
+		interrupt()
+		return ctx.Err()
+	case err := <-errCh:
+		interrupt()
 		return err
 	}
 }
@@ -514,6 +554,8 @@ func (c *ConnectionProxied[N]) negotiate(
 func (c *ConnectionProxied[N]) serve(
 	ctx context.Context,
 ) {
+	logger.Debugf(ctx, "serve")
+	defer logger.Debugf(ctx, "/serve")
 	var routeGetMode router.GetRouteMode
 	switch c.Mode() {
 	case PortModePublishers:
@@ -523,21 +565,41 @@ func (c *ConnectionProxied[N]) serve(
 	}
 
 	routePath := *c.RoutePath
-	route, err := c.Port.GetServer().GetRoute(ctx, routePath, routeGetMode)
-	if err != nil {
-		logger.Errorf(ctx, "unable to create a route '%s': %v", routePath, err)
-		c.Close(ctx)
-		return
-	}
-	c.Route = route
-	switch c.Mode() {
-	case PortModePublishers:
-		if err := route.AddPublisher(ctx, c); err != nil {
-			logger.Errorf(ctx, "unable to add myself as a  to '%s': %v", routePath, err)
+	for {
+		route, err := c.Port.GetServer().GetRoute(ctx, routePath, routeGetMode)
+		if err != nil {
+			logger.Errorf(ctx, "unable to create a route '%s': %v", routePath, err)
 			c.Close(ctx)
 			return
 		}
-		c.Node.AddPushPacketsTo(route.Node)
+		c.Route = route
+		switch c.Mode() {
+		case PortModePublishers:
+			logger.Debugf(ctx, "AddPublisher")
+			var wg sync.WaitGroup
+			route.LockDo(ctx, func(ctx context.Context) {
+				for _, publisher := range route.Publishers {
+					wg.Add(1)
+					observability.Go(ctx, func() {
+						defer wg.Done()
+						publisher.Close(ctx)
+					})
+				}
+			})
+			wg.Wait()
+			// TODO: resolve the race condition between LockDo above and AddPublisher below
+			if err := route.AddPublisher(ctx, c); err != nil {
+				if errors.Is(err, types.ErrRouteClosed{}) {
+					logger.Debugf(ctx, "the route is closed, trying to re-find it")
+					continue
+				}
+				logger.Errorf(ctx, "unable to add myself as a  to '%s': %v", routePath, err)
+				c.Close(ctx)
+				return
+			}
+			c.Node.AddPushPacketsTo(route.Node)
+		}
+		break
 	}
 
 	errCh := make(chan node.Error, 100)
@@ -678,6 +740,17 @@ func (c *ConnectionProxied[N]) forward(
 	logger.Debugf(ctx, "forward")
 	defer func() { logger.Debugf(ctx, "/forward: %v", _err) }()
 
+	avConn, conn := c.AVConn, c.Conn
+
+	defer func() {
+		if err := avConn.SetDeadline(time.Time{}); err != nil {
+			logger.Errorf(ctx, "unable to revert the deadline for AVConn: %v", err)
+		}
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			logger.Errorf(ctx, "unable to revert the deadline for Conn: %v", err)
+		}
+	}()
+
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
@@ -707,23 +780,21 @@ func (c *ConnectionProxied[N]) forward(
 		defer wg.Done()
 		var buf [SizeBuffer]byte
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
 			logger.Tracef(ctx, "waiting for AVConn input...")
-			r, err := c.AVConn.Read(buf[:])
+			r, err := avConn.Read(buf[:])
 			logger.Tracef(ctx, "/waiting for AVConn input")
 			if err != nil {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					logger.Debugf(ctx, "it was a deadline, ignoring")
+					return
+				}
 				errCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
 				return
 			}
 
 			msg := buf[:r]
 			logger.Tracef(ctx, "waiting for c.Conn output...")
-			err = forward(c.Conn, msg)
+			err = forward(conn, msg)
 			logger.Tracef(ctx, "/waiting for c.Conn output")
 			if err != nil {
 				errCh <- err
@@ -737,23 +808,21 @@ func (c *ConnectionProxied[N]) forward(
 		defer wg.Done()
 		var buf [SizeBuffer]byte
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
 			logger.Tracef(ctx, "waiting for c.Conn input...")
-			r, err := c.Conn.Read(buf[:])
+			r, err := conn.Read(buf[:])
 			logger.Tracef(ctx, "/waiting for c.Conn input")
 			if err != nil {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					logger.Debugf(ctx, "it was a deadline, ignoring")
+					return
+				}
 				errCh <- fmt.Errorf("unable to read from the client: %w", err)
 				return
 			}
 
 			msg := buf[:r]
 			logger.Tracef(ctx, "waiting for c.AVConn output...")
-			err = forward(c.AVConn, msg)
+			err = forward(avConn, msg)
 			logger.Tracef(ctx, "/waiting for c.AVConn output")
 			if err != nil {
 				errCh <- err
@@ -762,11 +831,25 @@ func (c *ConnectionProxied[N]) forward(
 		}
 	})
 
+	interrupt := func() {
+		cancelFn()
+		// to interrupt reading from the sockets:
+		logger.Debugf(ctx, "setting a deadline in the past for c.AVConn")
+		if err := avConn.SetReadDeadline(time.Unix(1, 0)); err != nil {
+			logger.Errorf(ctx, "unable to set the read deadline for AVConn: %v", err)
+		}
+		logger.Debugf(ctx, "setting a deadline in the past for c.Conn")
+		if err := conn.SetReadDeadline(time.Unix(1, 0)); err != nil {
+			logger.Errorf(ctx, "unable to set the read deadline for Conn: %v", err)
+		}
+	}
+
 	select {
 	case <-ctx.Done():
+		interrupt()
 		return ctx.Err()
 	case err := <-errCh:
-		cancelFn()
+		interrupt()
 		return err
 	}
 }

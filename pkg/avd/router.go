@@ -11,14 +11,14 @@ func (s *Server) OnRouteCreated(
 	ctx context.Context,
 	route *router.Route,
 ) {
-	logger.Debugf(ctx, "OnRouteCreated")
-	defer func() { logger.Debugf(ctx, "/OnRouteCreated") }()
+	logger.Debugf(ctx, "OnRouteCreated: %s", route)
+	defer func() { logger.Debugf(ctx, "/OnRouteCreated: %s", route) }()
 }
 
 func (s *Server) OnRouteRemoved(
 	ctx context.Context,
 	route *router.Route,
 ) {
-	logger.Debugf(ctx, "OnRouteRemoved")
-	defer func() { logger.Debugf(ctx, "/OnRouteRemoved") }()
+	logger.Debugf(ctx, "OnRouteRemoved: %s", route)
+	defer func() { logger.Debugf(ctx, "/OnRouteRemoved: %s", route) }()
 }

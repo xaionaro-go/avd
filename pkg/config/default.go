@@ -23,18 +23,20 @@ func Default() Config {
 					RTMP: &RTMPConfig{},
 				},
 				CustomOptions: DictionaryItems{},
+				OnEnd:         types.OnEndActionCloseConsumers,
+			},
+			{
+				Address: "tcp:0.0.0.0:1937",
+				Mode:    types.PortModeConsumers,
+				ProtocolHandler: ProtocolHandlerConfig{
+					RTMP: &RTMPConfig{},
+				},
+				CustomOptions: DictionaryItems{},
+				OnEnd:         types.OnEndActionWaitForNewPublisher,
 			},
 			{
 				Address: "tcp:127.0.0.1:8555",
 				Mode:    types.PortModePublishers,
-				ProtocolHandler: ProtocolHandlerConfig{
-					RTSP: &RTSPConfig{},
-				},
-				CustomOptions: DictionaryItems{},
-			},
-			{
-				Address: "tcp:0.0.0.0:8554",
-				Mode:    types.PortModeConsumers,
 				ProtocolHandler: ProtocolHandlerConfig{
 					RTSP: &RTSPConfig{},
 				},
@@ -57,10 +59,12 @@ func Default() Config {
 						AudioTracks: []transcodertypes.TrackConfig{{
 							InputTrackIDs: []int{0, 1, 2, 3, 4, 5, 6, 7},
 							CodecName:     "copy",
+							CustomOptions: transcodertypes.DictionaryItems{},
 						}},
 						VideoTracks: []transcodertypes.TrackConfig{{
 							InputTrackIDs: []int{0, 1, 2, 3, 4, 5, 6, 7},
 							CodecName:     "copy",
+							CustomOptions: transcodertypes.DictionaryItems{},
 						}},
 					},
 				}},
