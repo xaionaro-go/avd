@@ -11,6 +11,10 @@ import (
 	"github.com/xaionaro-go/avcommon"
 )
 
+const (
+	connectionProxiedCorrectRTSPURL = false
+)
+
 func (c *ConnectionProxied[N]) AVRTSPState() *avcommon.RTSPState {
 	return avcommon.WrapRTSPState(c.AVFormatContext().PrivData())
 }
@@ -18,6 +22,10 @@ func (c *ConnectionProxied[N]) AVRTSPState() *avcommon.RTSPState {
 func (c *ConnectionProxied[N]) onInitFinishedRTSP(
 	ctx context.Context,
 ) {
+	logger.Debugf(ctx, "onInitFinishedRTSP")
+	if !connectionProxiedCorrectRTSPURL {
+		return
+	}
 	routePath := c.GetRoutePath()
 	rtspState := c.AVRTSPState()
 	logger.Debugf(ctx, "updating the control URI: '%s' -> '%s'", rtspState.ControlURI(), routePath)

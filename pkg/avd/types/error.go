@@ -16,9 +16,3 @@ func (e ErrNotImplemented) Error() string {
 func (e ErrNotImplemented) Unwrap() error {
 	return e.Err
 }
-
-type ErrRouteClosed struct{}
-
-func (ErrRouteClosed) Error() string {
-	return "the route is closed"
-}

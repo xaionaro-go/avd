@@ -7,7 +7,7 @@ import (
 	"slices"
 
 	"github.com/xaionaro-go/avd/pkg/avd/types"
-	transcodertypes "github.com/xaionaro-go/avpipeline/chain/transcoderwithpassthrough/types"
+	transcodertypes "github.com/xaionaro-go/avpipeline/preset/transcoderwithpassthrough/types"
 )
 
 type Destination struct {

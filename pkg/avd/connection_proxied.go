@@ -17,7 +17,6 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
-	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
@@ -47,7 +46,8 @@ type ConnectionProxied[N AbstractNodeIO] struct {
 	RoutePath    *RoutePath
 	Route        *router.Route
 
-	Forwarder *router.StreamForwarderCopy[*router.Route, *router.ProcessorRouting]
+	PublisherForwarder *router.StreamForwarderCopy[Publisher, *processor.FromKernel[*kernel.Input]]
+	ConsumerForwarder  *router.StreamForwarderCopy[*router.Route, *router.ProcessorRouting]
 }
 
 var _ = (*ConnectionProxied[*NodeInput])(nil)
@@ -169,11 +169,17 @@ func (c *ConnectionProxied[N]) Close(ctx context.Context) (_err error) {
 	c.CancelFunc()
 	return xsync.DoR1(ctx, &c.Locker, func() error {
 		var errs []error
-		if c.Forwarder != nil {
-			if err := c.Forwarder.Stop(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("unable to stop stream forwarding: %w", err))
+		if c.PublisherForwarder != nil {
+			if err := c.PublisherForwarder.Stop(ctx); err != nil {
+				errs = append(errs, fmt.Errorf("unable to stop stream forwarding (publisher): %w", err))
 			}
-			c.Forwarder = nil
+			c.PublisherForwarder = nil
+		}
+		if c.ConsumerForwarder != nil {
+			if err := c.ConsumerForwarder.Stop(ctx); err != nil {
+				errs = append(errs, fmt.Errorf("unable to stop stream forwarding (consumer): %w", err))
+			}
+			c.ConsumerForwarder = nil
 		}
 		if c.Route != nil {
 			switch c.Mode() {
@@ -556,50 +562,17 @@ func (c *ConnectionProxied[N]) serve(
 ) {
 	logger.Debugf(ctx, "serve")
 	defer logger.Debugf(ctx, "/serve")
-	var routeGetMode router.GetRouteMode
+	var err error
 	switch c.Mode() {
 	case PortModePublishers:
-		routeGetMode = router.GetRouteModeCreateIfNotFound
+		err = c.setPublishingRouteAndStartPublishing(ctx)
 	case PortModeConsumers:
-		routeGetMode = router.GetRouteModeWaitForPublisher
+		err = c.setConsumingRoute(ctx)
 	}
-
-	routePath := *c.RoutePath
-	for {
-		route, err := c.Port.GetServer().GetRoute(ctx, routePath, routeGetMode)
-		if err != nil {
-			logger.Errorf(ctx, "unable to create a route '%s': %v", routePath, err)
-			c.Close(ctx)
-			return
-		}
-		c.Route = route
-		switch c.Mode() {
-		case PortModePublishers:
-			logger.Debugf(ctx, "AddPublisher")
-			var wg sync.WaitGroup
-			route.LockDo(ctx, func(ctx context.Context) {
-				for _, publisher := range route.Publishers {
-					wg.Add(1)
-					observability.Go(ctx, func() {
-						defer wg.Done()
-						publisher.Close(ctx)
-					})
-				}
-			})
-			wg.Wait()
-			// TODO: resolve the race condition between LockDo above and AddPublisher below
-			if err := route.AddPublisher(ctx, c); err != nil {
-				if errors.Is(err, types.ErrRouteClosed{}) {
-					logger.Debugf(ctx, "the route is closed, trying to re-find it")
-					continue
-				}
-				logger.Errorf(ctx, "unable to add myself as a  to '%s': %v", routePath, err)
-				c.Close(ctx)
-				return
-			}
-			c.Node.AddPushPacketsTo(route.Node)
-		}
-		break
+	if err != nil {
+		logger.Errorf(ctx, "unable to handle the routing: %v", err)
+		c.Close(ctx)
+		return
 	}
 
 	errCh := make(chan node.Error, 100)
@@ -627,7 +600,7 @@ func (c *ConnectionProxied[N]) serve(
 	}
 	switch c.Mode() {
 	case PortModeConsumers:
-		err := c.startStreamForward(ctx, c.Route.Node, c.Node)
+		err := c.startStreamForwardConsumer(ctx, c.Route.Node, c.Node)
 		if err != nil {
 			logger.Errorf(ctx, "unable to forward the stream: %v", err)
 			c.Close(ctx)
@@ -635,26 +608,6 @@ func (c *ConnectionProxied[N]) serve(
 		}
 	}
 	c.Node.Serve(ctx, node.ServeConfig{}, errCh)
-}
-
-func (c *ConnectionProxied[N]) startStreamForward(
-	ctx context.Context,
-	src *NodeRouting,
-	dst node.Abstract,
-) (_err error) {
-	logger.Debugf(ctx, "startStreamForward(%s, %s)", src, dst)
-	defer func() { logger.Debugf(ctx, "/startStreamForward(%s, %s): %v", src, dst, _err) }()
-
-	fwd, err := router.NewStreamForwarderCopy(ctx, src, dst)
-	if err != nil {
-		return fmt.Errorf("unable to make a new stream forwarder from %s to %s: %w", src, dst, err)
-	}
-
-	c.Forwarder = fwd
-	if err := fwd.Start(ctx); err != nil {
-		return fmt.Errorf("unable to start forwarding the traffic from %s to %s: %w", src, dst, err)
-	}
-	return nil
 }
 
 func (c *ConnectionProxied[N]) tryExtractRouteString(
