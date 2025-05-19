@@ -56,15 +56,17 @@ func Default() Config {
 			"mystream": {
 				Forwardings: []ForwardConfig{{
 					Recoding: &transcodertypes.RecoderConfig{
-						AudioTracks: []transcodertypes.TrackConfig{{
-							InputTrackIDs: []int{0, 1, 2, 3, 4, 5, 6, 7},
-							CodecName:     "copy",
-							CustomOptions: transcodertypes.DictionaryItems{},
+						AudioTrackConfigs: []transcodertypes.TrackConfig{{
+							InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
+							OutputTrackIDs: []int{0},
+							CodecName:      "copy",
+							CustomOptions:  transcodertypes.DictionaryItems{},
 						}},
-						VideoTracks: []transcodertypes.TrackConfig{{
-							InputTrackIDs: []int{0, 1, 2, 3, 4, 5, 6, 7},
-							CodecName:     "copy",
-							CustomOptions: transcodertypes.DictionaryItems{},
+						VideoTrackConfigs: []transcodertypes.TrackConfig{{
+							InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
+							OutputTrackIDs: []int{1},
+							CodecName:      "copy",
+							CustomOptions:  transcodertypes.DictionaryItems{},
 						}},
 					},
 				}},
