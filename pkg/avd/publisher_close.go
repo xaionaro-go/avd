@@ -18,8 +18,8 @@ func PublisherClose(
 	publisher Publisher,
 	onEndAction types.OnEndAction,
 ) error {
-	route := publisher.GetOutputRoute(ctx)
 	var errs []error
+	route := publisher.GetOutputRoute(ctx)
 	if _, err := route.RemovePublisher(ctx, publisher); err != nil && !errors.As(err, &router.ErrPublisherNotFound{}) {
 		errs = append(errs, fmt.Errorf("unable to remove myself as a publisher at '%s': %w", route.Path, err))
 	}

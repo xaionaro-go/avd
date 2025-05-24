@@ -12,7 +12,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250510235605-840f8210b727
-	github.com/xaionaro-go/avpipeline v0.0.0-20250519040721-43f661cd0871
+	github.com/xaionaro-go/avpipeline v0.0.0-20250524210840-5a8c3dc760d7
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250420133500-5c4d2e045932
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
@@ -49,6 +49,7 @@ require (
 	github.com/xaionaro-go/xcontext v0.0.0-20250111150717-e70e1f5b299c // indirect
 	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
+	golang.org/x/oauth2 v0.26.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect

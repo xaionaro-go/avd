@@ -13,15 +13,15 @@ import (
 )
 
 type ProcessorInput = processor.FromKernel[*kernel.Input]
-type NodeInputProxied = node.NodeWithCustomData[*ConnectionProxiedPublisher, *ProcessorInput]
+type NodeInputProxied = node.NodeWithCustomData[*ConnectionProxiedHandlerPublisher, *ProcessorInput]
 type NodeInputDirect = node.NodeWithCustomData[*ListeningPortDirectPublishers, *ProcessorInput]
 
 func newProxiedInputNode(
 	ctx context.Context,
-	publisher *ConnectionProxiedPublisher,
+	publisher *ConnectionProxiedHandlerPublisher,
 	input *kernel.Input,
 ) *NodeInputProxied {
-	n := node.NewWithCustomDataFromKernel[*ConnectionProxiedPublisher](
+	n := node.NewWithCustomDataFromKernel[*ConnectionProxiedHandlerPublisher](
 		ctx, input, processor.DefaultOptionsInput()...,
 	)
 	n.CustomData = publisher
@@ -30,12 +30,12 @@ func newProxiedInputNode(
 
 type Sender = router.Sender
 type ProcessorOutput = processor.FromKernel[*kernel.Output]
-type NodeOutputProxied = node.NodeWithCustomData[*ConnectionProxiedConsumer, *ProcessorOutput]
+type NodeOutputProxied = node.NodeWithCustomData[*ConnectionProxiedHandlerConsumer, *ProcessorOutput]
 type NodeOutputDirect = node.NodeWithCustomData[*ListeningPortDirectConsumers, *ProcessorOutput]
 
 func newProxiedOutputNode(
 	ctx context.Context,
-	sender *ConnectionProxiedConsumer,
+	sender *ConnectionProxiedHandlerConsumer,
 	waitForInputFunc func(context.Context) error,
 	dstURL string,
 	streamKey secret.String,
@@ -56,7 +56,7 @@ func newProxiedOutputNode(
 		return nil, fmt.Errorf("unable to open the output: %w", err)
 	}
 
-	n := node.NewWithCustomDataFromKernel[*ConnectionProxiedConsumer](
+	n := node.NewWithCustomDataFromKernel[*ConnectionProxiedHandlerConsumer](
 		ctx, outputKernel, processor.DefaultOptionsOutput()...,
 	)
 	n.CustomData = sender

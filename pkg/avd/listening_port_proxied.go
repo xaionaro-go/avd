@@ -15,15 +15,14 @@ import (
 )
 
 type ListeningPortProxied struct {
-	Server                *Server
-	Listener              net.Listener
-	Protocol              Protocol
-	Mode                  PortMode
-	ConnectionsLocker     xsync.Mutex
-	ConnectionsPublishers map[net.Addr]*ConnectionProxiedPublisher
-	ConnectionsConsumers  map[net.Addr]*ConnectionProxiedConsumer
-	Config                ListenConfig
-	CancelFn              context.CancelFunc
+	Server            *Server
+	Listener          net.Listener
+	Protocol          Protocol
+	Mode              PortMode
+	ConnectionsLocker xsync.Mutex
+	Connections       map[net.Addr]*ConnectionProxied
+	Config            ListenConfig
+	CancelFn          context.CancelFunc
 }
 
 func (s *Server) ListenProxied(
@@ -41,13 +40,12 @@ func (s *Server) ListenProxied(
 
 	cfg := ListenOptions(opts).Config()
 	result := &ListeningPortProxied{
-		Server:                s,
-		Listener:              listener,
-		Protocol:              protocol,
-		Mode:                  mode,
-		Config:                cfg,
-		ConnectionsPublishers: make(map[net.Addr]*ConnectionProxiedPublisher),
-		ConnectionsConsumers:  make(map[net.Addr]*ConnectionProxiedConsumer),
+		Server:      s,
+		Listener:    listener,
+		Protocol:    protocol,
+		Mode:        mode,
+		Config:      cfg,
+		Connections: make(map[net.Addr]*ConnectionProxied),
 	}
 
 	err := result.startListening(ctx)
@@ -73,18 +71,8 @@ func (p *ListeningPortProxied) startListening(
 	logger.Debugf(ctx, "startListening")
 	defer func() { logger.Debugf(ctx, "/startListening: %v", _err) }()
 
-	var addNewConnFunc func(context.Context, net.Conn) error
-	switch p.Mode {
-	case PortModePublishers:
-		addNewConnFunc = p.addInputConnection
-	case PortModeConsumers:
-		addNewConnFunc = p.addOutputConnection
-	default:
-		return fmt.Errorf("unknown port mode '%s'", p.Mode)
-	}
-
 	observability.Go(ctx, func() {
-		err := p.listen(ctx, addNewConnFunc)
+		err := p.listen(ctx)
 		if err == nil {
 			return
 		}
@@ -117,15 +105,10 @@ func (p *ListeningPortProxied) Close(ctx context.Context) (_err error) {
 	err := p.Listener.Close()
 	logger.Debugf(ctx, "p.Listener.Close() result: %v", err)
 	p.ConnectionsLocker.Do(ctx, func() {
-		for addr, conn := range p.ConnectionsPublishers {
+		for addr, conn := range p.Connections {
 			err := conn.Close(ctx)
 			logger.Debugf(ctx, "conn[%s].Close(ctx) result: %v", addr, err)
-			delete(p.ConnectionsPublishers, addr)
-		}
-		for addr, conn := range p.ConnectionsConsumers {
-			err := conn.Close(ctx)
-			logger.Debugf(ctx, "conn[%s].Close(ctx) result: %v", addr, err)
-			delete(p.ConnectionsConsumers, addr)
+			delete(p.Connections, addr)
 		}
 	})
 	return nil
@@ -146,7 +129,6 @@ func (p *ListeningPortProxied) GetURLForRoute(
 
 func (p *ListeningPortProxied) listen(
 	ctx context.Context,
-	addConnectionFunc func(context.Context, net.Conn) error,
 ) (_err error) {
 	logger.Debugf(ctx, "listen")
 	defer func() { logger.Debugf(ctx, "/listen: %v", _err) }()
@@ -167,7 +149,7 @@ func (p *ListeningPortProxied) listen(
 		}
 
 		observability.Go(ctx, func() {
-			err := addConnectionFunc(ctx, netConn)
+			err := p.addConnection(ctx, netConn)
 			if err != nil {
 				logger.Errorf(ctx, "unable to handle a new connection: %v", err)
 			}
@@ -175,51 +157,23 @@ func (p *ListeningPortProxied) listen(
 	}
 }
 
-func (p *ListeningPortProxied) addInputConnection(
+func (p *ListeningPortProxied) addConnection(
 	ctx context.Context,
 	netConn net.Conn,
 ) error {
-	conn, err := newConnectionProxiedPublisher(ctx, p, netConn)
+	conn, err := newConnectionProxied(ctx, p, netConn)
 	if err != nil {
 		return fmt.Errorf("unable to initialize a connection for '%s': %w", netConn.RemoteAddr(), err)
 	}
 
 	if err := xsync.DoR1(ctx, &p.ConnectionsLocker, func() error {
-		if oldConn, ok := p.ConnectionsPublishers[netConn.RemoteAddr()]; ok {
+		if oldConn, ok := p.Connections[netConn.RemoteAddr()]; ok {
 			logger.Errorf(ctx, "there is already a connection from '%s', closing the old one", netConn.RemoteAddr())
 			if err := oldConn.Close(ctx); err != nil {
 				logger.Errorf(ctx, "unable to close the old connection from '%s': %v", netConn.RemoteAddr(), err)
 			}
 		}
-		p.ConnectionsPublishers[netConn.RemoteAddr()] = conn
-		return nil
-	}); err != nil {
-		if err := conn.Close(ctx); err != nil {
-			logger.Errorf(ctx, "unable to close the connection from '%s': %v", netConn.RemoteAddr(), err)
-		}
-		return fmt.Errorf("unable to store the new connection: %w", err)
-	}
-
-	return nil
-}
-
-func (p *ListeningPortProxied) addOutputConnection(
-	ctx context.Context,
-	netConn net.Conn,
-) error {
-	conn, err := newConnectionProxiedConsumer(ctx, p, netConn)
-	if err != nil {
-		return fmt.Errorf("unable to initialize a connection for '%s': %w", netConn.RemoteAddr(), err)
-	}
-
-	if err := xsync.DoR1(ctx, &p.ConnectionsLocker, func() error {
-		if oldConn, ok := p.ConnectionsConsumers[netConn.RemoteAddr()]; ok {
-			logger.Errorf(ctx, "there is already a connection from '%s', closing the old one", netConn.RemoteAddr())
-			if err := oldConn.Close(ctx); err != nil {
-				logger.Errorf(ctx, "unable to close the old connection from '%s': %v", netConn.RemoteAddr(), err)
-			}
-		}
-		p.ConnectionsConsumers[netConn.RemoteAddr()] = conn
+		p.Connections[netConn.RemoteAddr()] = conn
 		return nil
 	}); err != nil {
 		if err := conn.Close(ctx); err != nil {
