@@ -387,25 +387,32 @@ func (c *ConnectionProxied[N]) onInitFinished(
 ) {
 	logger.Debugf(ctx, "onInitFinished")
 	defer func() { logger.Debugf(ctx, "/onInitFinished") }()
-	switch c.Port.Protocol {
-	case ProtocolRTMP:
-		c.onInitFinishedRTMP(ctx)
-	case ProtocolRTSP:
-		c.onInitFinishedRTSP(ctx)
-	default:
-		logger.Errorf(ctx, "onInitFinished is not implemented for protocol '%s' (yet?)", c.Port.Protocol)
-	}
-	c.AVInputURL.Path = c.GetURLPath()
-	switch c.Mode() {
-	case PortModePublishers:
-		n := any(c.Node).(*NodeInput)
-		n.Processor.Kernel.URL = c.AVInputURL.String()
-	case PortModeConsumers:
-		n := any(c.Node).(*NodeOutput)
-		n.Processor.Kernel.URL = c.AVInputURL.String()
-		n.Processor.Kernel.URLParsed = c.AVInputURL
-	}
-	close(c.InitFinished)
+	c.Locker.Do(ctx, func() {
+		if c.Node == nil {
+			logger.Debugf(ctx, "the connection was already closed")
+			return
+		}
+
+		switch c.Port.Protocol {
+		case ProtocolRTMP:
+			c.onInitFinishedRTMP(ctx)
+		case ProtocolRTSP:
+			c.onInitFinishedRTSP(ctx)
+		default:
+			logger.Errorf(ctx, "onInitFinished is not implemented for protocol '%s' (yet?)", c.Port.Protocol)
+		}
+		c.AVInputURL.Path = c.GetURLPath()
+		switch c.Mode() {
+		case PortModePublishers:
+			n := any(c.Node).(*NodeInput)
+			n.Processor.Kernel.URL = c.AVInputURL.String()
+		case PortModeConsumers:
+			n := any(c.Node).(*NodeOutput)
+			n.Processor.Kernel.URL = c.AVInputURL.String()
+			n.Processor.Kernel.URLParsed = c.AVInputURL
+		}
+		close(c.InitFinished)
+	})
 }
 
 func (c *ConnectionProxied[N]) negotiate(
