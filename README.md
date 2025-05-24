@@ -46,63 +46,41 @@ ports:
   publish_mode: exclusive-takeover
   protocol_handler:
     rtmp: {}
-  custom_options: []
   default_route_path: ""
   on_end: "close_consumers"
-  wait_until:
-    video_track_count: 0
-    audio_track_count: 0
 - address: tcp:0.0.0.0:1935
   mode: "consumers"
   publish_mode: exclusive-takeover
   protocol_handler:
     rtmp: {}
-  custom_options: []
   default_route_path: ""
   on_end: "close_consumers"
-  wait_until:
-    video_track_count: 0
-    audio_track_count: 0
 - address: tcp:0.0.0.0:1937
   mode: "consumers"
   publish_mode: exclusive-takeover
   protocol_handler:
     rtmp: {}
-  custom_options: []
   default_route_path: ""
   on_end: "wait_for_new_publisher"
-  wait_until:
-    video_track_count: 0
-    audio_track_count: 0
 - address: tcp:127.0.0.1:8555
   mode: "publishers"
   publish_mode: exclusive-takeover
   protocol_handler:
     rtsp:
       transport_protocol: ""
-  custom_options: []
   default_route_path: ""
   on_end: "close_consumers"
-  wait_until:
-    video_track_count: 0
-    audio_track_count: 0
 - address: udp:127.0.0.1:4445
   mode: "publishers"
   publish_mode: exclusive-takeover
   protocol_handler:
     mpegts: {}
-  custom_options: []
   default_route_path: mystream
   on_end: "close_consumers"
-  wait_until:
-    video_track_count: 0
-    audio_track_count: 0
 endpoints:
   mystream:
     forwardings:
-    - destination:
-        url: null
-        local: null
+    - destination: {}
       recoding:
         audio_track_configs:
         - input_track_ids:

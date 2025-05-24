@@ -16,8 +16,8 @@ type DestinationLocal struct {
 }
 
 type Destination struct {
-	URL   *string           `yaml:"url"`
-	Local *DestinationLocal `yaml:"local"`
+	URL   *string           `yaml:"url,omitempty"`
+	Local *DestinationLocal `yaml:"local,omitempty"`
 }
 
 type ForwardConfig struct {
@@ -76,10 +76,10 @@ type PortConfig struct {
 	Mode             PortMode              `yaml:"mode"`
 	PublishMode      PublishMode           `yaml:"publish_mode"`
 	ProtocolHandler  ProtocolHandlerConfig `yaml:"protocol_handler"`
-	CustomOptions    DictionaryItems       `yaml:"custom_options"`
+	CustomOptions    DictionaryItems       `yaml:"custom_options,omitempty"`
 	DefaultRoutePath string                `yaml:"default_route_path"`
 	OnEnd            OnEndAction           `yaml:"on_end"`
-	WaitUntil        WaitUntilConfig       `yaml:"wait_until"`
+	WaitUntil        WaitUntilConfig       `yaml:"wait_until,omitempty"`
 }
 
 func (cfg PortConfig) ListenOptions() []types.ListenOption {
