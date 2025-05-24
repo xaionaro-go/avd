@@ -42,18 +42,104 @@ $ avd --generate-config | tee ~/.avd.conf
 ```yaml
 ports:
 - address: tcp:127.0.0.1:1936
-  rtmp:
-    mode: "publishers"
+  mode: "publishers"
+  publish_mode: exclusive-takeover
+  protocol_handler:
+    rtmp: {}
+  custom_options: []
+  default_route_path: ""
+  on_end: "close_consumers"
+  wait_until:
+    video_track_count: 0
+    audio_track_count: 0
 - address: tcp:0.0.0.0:1935
-  rtmp:
-    mode: "consumers"
+  mode: "consumers"
+  publish_mode: exclusive-takeover
+  protocol_handler:
+    rtmp: {}
+  custom_options: []
+  default_route_path: ""
+  on_end: "close_consumers"
+  wait_until:
+    video_track_count: 0
+    audio_track_count: 0
+- address: tcp:0.0.0.0:1937
+  mode: "consumers"
+  publish_mode: exclusive-takeover
+  protocol_handler:
+    rtmp: {}
+  custom_options: []
+  default_route_path: ""
+  on_end: "wait_for_new_publisher"
+  wait_until:
+    video_track_count: 0
+    audio_track_count: 0
+- address: tcp:127.0.0.1:8555
+  mode: "publishers"
+  publish_mode: exclusive-takeover
+  protocol_handler:
+    rtsp:
+      transport_protocol: ""
+  custom_options: []
+  default_route_path: ""
+  on_end: "close_consumers"
+  wait_until:
+    video_track_count: 0
+    audio_track_count: 0
+- address: udp:127.0.0.1:4445
+  mode: "publishers"
+  publish_mode: exclusive-takeover
+  protocol_handler:
+    mpegts: {}
+  custom_options: []
+  default_route_path: mystream
+  on_end: "close_consumers"
+  wait_until:
+    video_track_count: 0
+    audio_track_count: 0
 endpoints:
   mystream:
     forwardings:
     - destination:
-        url: ""
-        route: ""
-      recoding: {}
+        url: null
+        local: null
+      recoding:
+        audio_track_configs:
+        - input_track_ids:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          output_track_ids:
+          - 0
+          codec_name: copy
+          averaging_period: 0s
+          average_bit_rate: 0
+          custom_options: []
+          hardware_device_type: 0
+          hardware_device_name: ""
+        video_track_configs:
+        - input_track_ids:
+          - 0
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          output_track_ids:
+          - 1
+          codec_name: copy
+          averaging_period: 0s
+          average_bit_rate: 0
+          custom_options: []
+          hardware_device_type: 0
+          hardware_device_name: ""
 ```
 
 ```sh
