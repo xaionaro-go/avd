@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/facebookincubator/go-belt/tool/experimental/errmon"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
@@ -22,6 +21,7 @@ type ConnectionProxiedHandlerPublisher struct {
 	Locker        xsync.Mutex
 	Node          *NodeInputProxied
 	AsRouteSource *RouteSource[*ConnectionProxiedHandlerPublisher]
+	IsForwarding  bool
 }
 
 var _ ConnectionProxiedHandler = (*ConnectionProxiedHandlerPublisher)(nil)
@@ -93,6 +93,9 @@ func (c *ConnectionProxiedHandlerPublisher) GetNode() node.Abstract {
 func (c *ConnectionProxiedHandlerPublisher) GetOutputRoute(
 	context.Context,
 ) *router.Route[RouteCustomData] {
+	if c.AsRouteSource == nil {
+		return nil
+	}
 	return c.AsRouteSource.Output
 }
 
@@ -113,13 +116,7 @@ func (c *ConnectionProxiedHandlerPublisher) StartForwarding(
 	if err != nil {
 		return fmt.Errorf("unable to add a source to route '%s': %w", routePath, err)
 	}
-
 	c.AsRouteSource = routeSource
-	err = routeSource.Start(ctx)
-	if err != nil {
-		errmon.ObserveErrorCtx(ctx, routeSource.Close(ctx))
-		return fmt.Errorf("unable to start sourcing data to the route '%s': %w", routePath, err)
-	}
 
 	return nil
 }
@@ -130,6 +127,7 @@ func (c *ConnectionProxiedHandlerPublisher) onRouteSourceStart(
 ) {
 	logger.Debugf(ctx, "onRouteSourceStart")
 	defer func() { logger.Debugf(ctx, "/onRouteSourceStart") }()
+	c.IsForwarding = true
 }
 
 func (c *ConnectionProxiedHandlerPublisher) onRouteSourceStop(
@@ -138,6 +136,10 @@ func (c *ConnectionProxiedHandlerPublisher) onRouteSourceStop(
 ) {
 	logger.Debugf(ctx, "onRouteSourceStop")
 	defer func() { logger.Debugf(ctx, "/onRouteSourceStop") }()
+	if !c.IsForwarding {
+		return
+	}
+	c.IsForwarding = false
 	err := PublisherClose(ctx, c, c.Parent.Port.Config.OnEndAction)
 	if err != nil {
 		logger.Errorf(ctx, "unable to close the publisher: %v", err)

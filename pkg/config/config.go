@@ -12,7 +12,7 @@ import (
 
 type DestinationLocal struct {
 	Route       types.RoutePath
-	PublishMode PublishMode
+	PublishMode PublishMode `yaml:"publish_mode"`
 }
 
 type Destination struct {
