@@ -1,6 +1,7 @@
 package avd
 
 import (
+	"context"
 	"net"
 	"testing"
 
@@ -13,39 +14,40 @@ func TestConnectionProxied(t *testing.T) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
 	t.Run("Input", func(t *testing.T) {
-		testConnectionProxiedInputOrOutput[*NodeInput](t)
+		testConnectionProxiedInputOrOutput(t, newConnectionProxiedPublisher)
 	})
 	t.Run("Output", func(t *testing.T) {
-		testConnectionProxiedInputOrOutput[*NodeOutput](t)
+		testConnectionProxiedInputOrOutput(t, newConnectionProxiedConsumer)
 	})
 }
 
-func testConnectionProxiedInputOrOutput[N AbstractNodeIO](t *testing.T) {
+func testConnectionProxiedInputOrOutput[T any](
+	t *testing.T,
+	newConnectionProxied func(
+		ctx context.Context,
+		p *ListeningPortProxied,
+		conn net.Conn,
+	) (T, error),
+) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
 
 	for _, proto := range SupportedProtocols() {
-		var zeroNodeValue N
-		_, isOutput := any(zeroNodeValue).(*NodeOutput)
-		if proto == ProtocolRTSP && isOutput {
-			// this case is not supported
-			continue
-		}
 		t.Run(proto.String(), func(t *testing.T) {
 			defer belt.Flush(ctx)
 
 			myEnd, mockConn := net.Pipe()
 			defer myEnd.Close()
 
-			c, err := newConnectionProxied[N](
+			c, err := newConnectionProxied(
 				ctx,
 				&ListeningPortProxied{
 					Server: &Server{
-						Router: router.New(ctx),
+						Router: router.New[RouteCustomData](ctx),
 					},
 					Protocol:              proto,
-					ConnectionsPublishers: map[net.Addr]*ConnectionProxied[*NodeInput]{},
-					ConnectionsConsumers:  map[net.Addr]*ConnectionProxied[*NodeOutput]{},
+					ConnectionsPublishers: map[net.Addr]*ConnectionProxiedPublisher{},
+					ConnectionsConsumers:  map[net.Addr]*ConnectionProxiedConsumer{},
 				},
 				mockConn,
 			)

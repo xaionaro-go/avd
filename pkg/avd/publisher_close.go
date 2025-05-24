@@ -10,6 +10,7 @@ import (
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline"
 	"github.com/xaionaro-go/avpipeline/node"
+	"github.com/xaionaro-go/avpipeline/router"
 )
 
 func PublisherClose(
@@ -19,7 +20,7 @@ func PublisherClose(
 ) error {
 	route := publisher.GetOutputRoute(ctx)
 	var errs []error
-	if _, err := route.RemovePublisher(ctx, publisher); err != nil {
+	if _, err := route.RemovePublisher(ctx, publisher); err != nil && !errors.As(err, &router.ErrPublisherNotFound{}) {
 		errs = append(errs, fmt.Errorf("unable to remove myself as a publisher at '%s': %w", route.Path, err))
 	}
 

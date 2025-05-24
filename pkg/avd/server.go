@@ -8,14 +8,14 @@ import (
 )
 
 type Server struct {
-	*router.Router
+	*router.Router[RouteCustomData]
 }
 
 func NewServer(
 	ctx context.Context,
 ) *Server {
 	s := &Server{
-		Router: router.New(ctx),
+		Router: router.New[RouteCustomData](ctx),
 	}
 	s.Router.OnRouteCreated = s.OnRouteCreated
 	s.Router.OnRouteRemoved = s.OnRouteRemoved

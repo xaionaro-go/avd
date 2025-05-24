@@ -41,19 +41,30 @@ func ApplyConfig(
 			idx, fwd := idx, fwd
 			observability.Go(ctx, func() {
 				switch {
-				case fwd.Destination.Route != "":
+				case fwd.Destination.Local != nil:
 					_, err := srv.AddRouteForwardingLocal(
-						ctx, path, fwd.Destination.Route, fwd.Recoding,
+						ctx,
+						path,
+						fwd.Destination.Local.Route,
+						router.PublishMode(fwd.Destination.Local.PublishMode),
+						fwd.Recoding,
 					)
 					if err != nil {
-						logger.Errorf(ctx, "unable to create forwarding from '%s' to a local stream '%s': %v", path, fwd.Destination.Route, err)
+						logger.Errorf(
+							ctx,
+							"unable to create forwarding from '%s' to a local stream '%s': %v",
+							path,
+							fwd.Destination.Local.Route,
+							fwd.Destination.Local.PublishMode,
+							err,
+						)
 						return
 					}
-				case fwd.Destination.URL != "":
+				case fwd.Destination.URL != nil:
 					_, err := srv.AddRouteForwardingToRemote(
 						ctx,
 						path,
-						fwd.Destination.URL, secret.New(""),
+						*fwd.Destination.URL, secret.New(""),
 						fwd.Recoding,
 					)
 					if err != nil {

@@ -10,11 +10,11 @@ import (
 	"github.com/xaionaro-go/avcommon"
 )
 
-func (c *ConnectionProxied[N]) AVRTMPContext() *avcommon.RTMPContext {
+func (c *ConnectionProxiedCommons) AVRTMPContext() *avcommon.RTMPContext {
 	return avcommon.WrapRTMPContext(c.AVURLContext().PrivData())
 }
 
-func (c *ConnectionProxied[N]) onInitFinishedRTMP(
+func (c *ConnectionProxiedCommons) onInitFinishedRTMP(
 	ctx context.Context,
 ) {
 	routePath := c.GetRoutePath()
@@ -23,7 +23,7 @@ func (c *ConnectionProxied[N]) onInitFinishedRTMP(
 	rtmpCtx.SetApp(string(routePath))
 }
 
-func (c *ConnectionProxied[N]) tryExtractRouteStringRTMP(
+func (c *ConnectionProxiedCommons) tryExtractRouteStringRTMP(
 	ctx context.Context,
 	msg []byte,
 ) (*RoutePath, error) {

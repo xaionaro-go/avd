@@ -12,14 +12,16 @@ import (
 	"github.com/xaionaro-go/secret"
 )
 
-type NodeInput = node.NodeWithCustomData[Publisher, *processor.FromKernel[*kernel.Input]]
+type ProcessorInput = processor.FromKernel[*kernel.Input]
+type NodeInputProxied = node.NodeWithCustomData[*ConnectionProxiedPublisher, *ProcessorInput]
+type NodeInputDirect = node.NodeWithCustomData[*ListeningPortDirectPublishers, *ProcessorInput]
 
-func newInputNode(
+func newProxiedInputNode(
 	ctx context.Context,
-	publisher Publisher,
+	publisher *ConnectionProxiedPublisher,
 	input *kernel.Input,
-) *NodeInput {
-	n := node.NewWithCustomDataFromKernel[Publisher](
+) *NodeInputProxied {
+	n := node.NewWithCustomDataFromKernel[*ConnectionProxiedPublisher](
 		ctx, input, processor.DefaultOptionsInput()...,
 	)
 	n.CustomData = publisher
@@ -27,18 +29,20 @@ func newInputNode(
 }
 
 type Sender = router.Sender
-type NodeOutput = node.NodeWithCustomData[Sender, *processor.FromKernel[*kernel.Output]]
+type ProcessorOutput = processor.FromKernel[*kernel.Output]
+type NodeOutputProxied = node.NodeWithCustomData[*ConnectionProxiedConsumer, *ProcessorOutput]
+type NodeOutputDirect = node.NodeWithCustomData[*ListeningPortDirectConsumers, *ProcessorOutput]
 
-func newOutputNode(
+func newProxiedOutputNode(
 	ctx context.Context,
-	sender Sender,
+	sender *ConnectionProxiedConsumer,
 	waitForInputFunc func(context.Context) error,
 	dstURL string,
 	streamKey secret.String,
 	cfg kernel.OutputConfig,
-) (*NodeOutput, error) {
-	logger.Tracef(ctx, "newOutputNode")
-	defer func() { logger.Tracef(ctx, "/newOutputNode") }()
+) (*NodeOutputProxied, error) {
+	logger.Tracef(ctx, "newProxiedOutputNode")
+	defer func() { logger.Tracef(ctx, "/newProxiedOutputNode") }()
 
 	if waitForInputFunc != nil {
 		err := waitForInputFunc(ctx)
@@ -52,22 +56,25 @@ func newOutputNode(
 		return nil, fmt.Errorf("unable to open the output: %w", err)
 	}
 
-	n := node.NewWithCustomDataFromKernel[Sender](
+	n := node.NewWithCustomDataFromKernel[*ConnectionProxiedConsumer](
 		ctx, outputKernel, processor.DefaultOptionsOutput()...,
 	)
 	n.CustomData = sender
 	return n, nil
 }
 
-type NodeRouting = router.NodeRouting
-type NodeRetryOutput = router.NodeRetryOutput
+type NodeRouting = router.NodeRouting[RouteCustomData]
+
+type AbstractNodeInput interface {
+	*NodeInputDirect | *NodeInputProxied
+}
 
 type AbstractNodeOutput interface {
-	*NodeOutput | *NodeRetryOutput
+	*NodeOutputDirect | *NodeOutputProxied
 }
 
 type AbstractNodeIO interface {
-	*NodeInput | AbstractNodeOutput
+	AbstractNodeInput | AbstractNodeOutput
 	node.Abstract
 	DotString(bool) string
 }

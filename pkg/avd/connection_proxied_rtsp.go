@@ -15,11 +15,11 @@ const (
 	connectionProxiedCorrectRTSPURL = false
 )
 
-func (c *ConnectionProxied[N]) AVRTSPState() *avcommon.RTSPState {
+func (c *ConnectionProxiedCommons) AVRTSPState() *avcommon.RTSPState {
 	return avcommon.WrapRTSPState(c.AVFormatContext().PrivData())
 }
 
-func (c *ConnectionProxied[N]) onInitFinishedRTSP(
+func (c *ConnectionProxiedCommons) onInitFinishedRTSP(
 	ctx context.Context,
 ) {
 	logger.Debugf(ctx, "onInitFinishedRTSP")
@@ -36,7 +36,7 @@ func (c *ConnectionProxied[N]) onInitFinishedRTSP(
 	}
 }
 
-func (c *ConnectionProxied[N]) tryExtractRouteStringRTSP(
+func (c *ConnectionProxiedCommons) tryExtractRouteStringRTSP(
 	_ context.Context,
 	msg []byte,
 ) (*RoutePath, error) {

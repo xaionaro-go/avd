@@ -17,10 +17,9 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
-	"github.com/xaionaro-go/avpipeline/processor"
-	"github.com/xaionaro-go/avpipeline/router"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
 	"github.com/xaionaro-go/xsync"
@@ -30,7 +29,22 @@ const (
 	ConnectionEnableRoutePathUpdaterHack = true
 )
 
-type ConnectionProxied[N AbstractNodeIO] struct {
+type ConnectionProxied interface {
+	InitAVHandler(
+		ctx context.Context,
+		url *url.URL,
+		secretKey secret.String,
+		customOpts ...types.DictionaryItem,
+	) error
+	GetNode() node.Abstract
+	GetKernel() kernel.Abstract
+	StartForwarding(context.Context) error
+	SetURL(context.Context, *url.URL)
+	Close(context.Context) error
+}
+
+type ConnectionProxiedCommons struct {
+	ConnectionProxied
 	Locker xsync.Mutex
 
 	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
@@ -40,30 +54,25 @@ type ConnectionProxied[N AbstractNodeIO] struct {
 	AVInputURL   *url.URL
 	AVInputKey   secret.String
 	AVConn       *net.TCPConn
-	Node         N
 	InitError    error
 	InitFinished chan struct{}
 	RoutePath    *RoutePath
-	Route        *router.Route
-
-	PublisherForwarder *router.StreamForwarderCopy[Publisher, *processor.FromKernel[*kernel.Input]]
-	ConsumerForwarder  *router.StreamForwarderCopy[*router.Route, *router.ProcessorRouting]
 }
 
-var _ = (*ConnectionProxied[*NodeInput])(nil)
-
-func newConnectionProxied[N AbstractNodeIO](
+func newConnectionProxiedCommons(
 	ctx context.Context,
 	p *ListeningPortProxied,
 	conn net.Conn,
-) (_ret *ConnectionProxied[N], _err error) {
+	parent ConnectionProxied,
+) (_ret *ConnectionProxiedCommons, _err error) {
 	ctx, cancelFn := context.WithCancel(ctx)
 	ctx = belt.WithField(ctx, "remote_addr", conn.RemoteAddr())
-	c := &ConnectionProxied[N]{
-		Port:         p,
-		Conn:         conn,
-		CancelFunc:   cancelFn,
-		InitFinished: make(chan struct{}),
+	c := &ConnectionProxiedCommons{
+		ConnectionProxied: parent,
+		Port:              p,
+		Conn:              conn,
+		CancelFunc:        cancelFn,
+		InitFinished:      make(chan struct{}),
 	}
 	logger.Debugf(ctx, "newConnection[%s]", c.Mode())
 	defer func() { logger.Debugf(ctx, "/newConnection[%s]: %v %v", c.Mode(), _ret, _err) }()
@@ -112,7 +121,7 @@ func newConnectionProxied[N AbstractNodeIO](
 	return c, nil
 }
 
-func (c *ConnectionProxied[N]) String() string {
+func (c *ConnectionProxiedCommons) String() string {
 	ctx := context.TODO()
 	if !c.Locker.ManualTryLock(ctx) {
 		return fmt.Sprintf(
@@ -136,80 +145,42 @@ func (c *ConnectionProxied[N]) String() string {
 	)
 }
 
-func (c *ConnectionProxied[N]) GetInputNode(
-	context.Context,
-) node.Abstract {
-	return c.Node
-}
-
-func (c *ConnectionProxied[N]) GetOutputRoute(
-	context.Context,
-) *router.Route {
-	return c.Route
-}
-
-func (c *ConnectionProxied[N]) Mode() PortMode {
+func (c *ConnectionProxiedCommons) Mode() PortMode {
 	if c == nil {
 		return UndefinedPortMode
 	}
-	var nodeZeroValue N
-	switch any(nodeZeroValue).(type) {
-	case *NodeInput:
-		return PortModePublishers
-	case *NodeOutput:
-		return PortModeConsumers
-	default:
-		panic(fmt.Errorf("unexpected type: '%T'", nodeZeroValue))
+	return c.Port.Mode
+}
+
+func (c *ConnectionProxiedCommons) Close(ctx context.Context) (_err error) {
+	if c.ConnectionProxied == nil {
+		return
 	}
+	return c.ConnectionProxied.Close(ctx)
 }
 
-func (c *ConnectionProxied[N]) Close(ctx context.Context) (_err error) {
-	logger.Debugf(ctx, "Close()")
-	defer logger.Debugf(ctx, "/Close(): %v", _err)
+func (c *ConnectionProxiedCommons) closeCommonsLocked(ctx context.Context) (_err error) {
+	logger.Debugf(ctx, "closeCommonsLocked()")
+	defer func() { logger.Debugf(ctx, "/closeCommonsLocked(): %v", _err) }()
 	c.CancelFunc()
-	return xsync.DoR1(ctx, &c.Locker, func() error {
-		var errs []error
-		if c.PublisherForwarder != nil {
-			if err := c.PublisherForwarder.Stop(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("unable to stop stream forwarding (publisher): %w", err))
-			}
-			c.PublisherForwarder = nil
+	var errs []error
+	if c.AVConn != nil {
+		if err := c.AVConn.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("unable to close the AVConn: %w", err))
 		}
-		if c.ConsumerForwarder != nil {
-			if err := c.ConsumerForwarder.Stop(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("unable to stop stream forwarding (consumer): %w", err))
-			}
-			c.ConsumerForwarder = nil
+		c.AVConn = nil
+	}
+	if c.Conn != nil {
+		c.Conn.Close()
+		if err := c.AVConn.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("unable to close the Conn: %w", err))
 		}
-		if c.Route != nil {
-			switch c.Mode() {
-			case PortModePublishers:
-				err := PublisherClose(ctx, c, c.Port.Config.OnEndAction)
-				if err != nil {
-					errs = append(errs, fmt.Errorf("unable to close the publisher: %w", err))
-				}
-			}
-			c.Route = nil
-		}
-		if c.AVConn != nil {
-			c.AVConn.Close()
-			c.AVConn = nil
-		}
-		if c.Conn != nil {
-			c.Conn.Close()
-			c.Conn = nil
-		}
-		if c.Node != nil {
-			if err := c.Node.GetProcessor().Close(ctx); err != nil {
-				errs = append(errs, fmt.Errorf("unable to close the node processor: %w", err))
-			}
-			c.Node = nil
-		}
-		return errors.Join(errs...)
-	})
+		c.Conn = nil
+	}
+	return errors.Join(errs...)
 }
 
-func (c *ConnectionProxied[N]) builtAVListenURL(
+func (c *ConnectionProxiedCommons) builtAVListenURL(
 	ctx context.Context,
 ) (*url.URL, secret.String, error) {
 	if !c.Port.Protocol.IsValid() {
@@ -246,7 +217,8 @@ func (c *ConnectionProxied[N]) builtAVListenURL(
 	return url, secretKey, nil
 
 }
-func (c *ConnectionProxied[N]) isAsyncOpen(
+
+func (c *ConnectionProxiedCommons) isAsyncOpen(
 	ctx context.Context,
 ) (_ret bool) {
 	logger.Debugf(ctx, "isAsyncOpen")
@@ -255,14 +227,14 @@ func (c *ConnectionProxied[N]) isAsyncOpen(
 	case ProtocolRTMP:
 		return true
 	}
-	switch any(c.Node).(type) {
-	case *NodeInput:
+	switch c.ConnectionProxied.(type) {
+	case *ConnectionProxiedPublisher:
 		return true
 	}
 	return false
 }
 
-func (c *ConnectionProxied[N]) initAVHandler(
+func (c *ConnectionProxiedCommons) initAVHandler(
 	ctx context.Context,
 ) (_err error) {
 	logger.Debugf(ctx, "initAVHandler")
@@ -292,65 +264,9 @@ func (c *ConnectionProxied[N]) initAVHandler(
 	customOpts := c.Port.Config.DictionaryItems(c.Port.Protocol, c.Mode())
 
 	logger.Debugf(ctx, "attempting to listen by libav at '%s'...", url)
-	switch c.Mode() {
-	case PortModePublishers:
-		input, err := kernel.NewInputFromURL(
-			ctx,
-			url.String(),
-			secretKey,
-			kernel.InputConfig{
-				CustomOptions: customOpts,
-				AsyncOpen:     c.isAsyncOpen(ctx),
-				OnOpened: func(ctx context.Context, i *kernel.Input) error {
-					if !c.isAsyncOpen(ctx) {
-						return nil
-					}
-					c.onInitFinished(ctx)
-					return nil
-				},
-			},
-		)
-		if err != nil {
-			err = fmt.Errorf("unable to start listening '%s' using libav: %w", url.String(), err)
-			logger.Errorf(ctx, "%v", err)
-			c.InitError = err
-			close(c.InitFinished)
-			observability.Go(ctx, func() {
-				c.Close(ctx)
-			})
-			return err
-		}
-		c.Node = any(newInputNode(ctx, c, input)).(N)
-	case PortModeConsumers:
-		node, err := newOutputNode(
-			ctx,
-			c,
-			nil,
-			url.String(),
-			secretKey,
-			kernel.OutputConfig{
-				CustomOptions: customOpts,
-				AsyncOpen:     c.isAsyncOpen(ctx),
-				OnOpened: func(ctx context.Context, i *kernel.Output) error {
-					if !c.isAsyncOpen(ctx) {
-						return nil
-					}
-					c.onInitFinished(ctx)
-					return nil
-				},
-			},
-		)
-		if err != nil {
-			err = fmt.Errorf("unable to start listening '%s' using libav: %w", url.String(), err)
-			logger.Errorf(ctx, "%v", err)
-			c.InitError = err
-			close(c.InitFinished)
-			observability.Go(ctx, func() {
-				c.Close(ctx)
-			})
-			return err
-		}
-		c.Node = any(node).(N)
+	err = c.ConnectionProxied.InitAVHandler(ctx, url, secretKey, customOpts...)
+	if err != nil {
+		return fmt.Errorf("unable to initialize the AV handler at %s: %w", url, err)
 	}
 
 	t := time.NewTicker(50 * time.Millisecond)
@@ -382,13 +298,13 @@ func (c *ConnectionProxied[N]) initAVHandler(
 	}
 }
 
-func (c *ConnectionProxied[N]) onInitFinished(
+func (c *ConnectionProxiedCommons) onInitFinished(
 	ctx context.Context,
 ) {
 	logger.Debugf(ctx, "onInitFinished")
 	defer func() { logger.Debugf(ctx, "/onInitFinished") }()
 	c.Locker.Do(ctx, func() {
-		if c.Node == nil {
+		if c.ConnectionProxied == nil {
 			logger.Debugf(ctx, "the connection was already closed")
 			return
 		}
@@ -402,20 +318,12 @@ func (c *ConnectionProxied[N]) onInitFinished(
 			logger.Errorf(ctx, "onInitFinished is not implemented for protocol '%s' (yet?)", c.Port.Protocol)
 		}
 		c.AVInputURL.Path = c.GetURLPath()
-		switch c.Mode() {
-		case PortModePublishers:
-			n := any(c.Node).(*NodeInput)
-			n.Processor.Kernel.URL = c.AVInputURL.String()
-		case PortModeConsumers:
-			n := any(c.Node).(*NodeOutput)
-			n.Processor.Kernel.URL = c.AVInputURL.String()
-			n.Processor.Kernel.URLParsed = c.AVInputURL
-		}
+		c.ConnectionProxied.SetURL(ctx, c.AVInputURL)
 		close(c.InitFinished)
 	})
 }
 
-func (c *ConnectionProxied[N]) negotiate(
+func (c *ConnectionProxiedCommons) negotiate(
 	origCtx context.Context,
 ) (_err error) {
 	logger.Debugf(origCtx, "negotiate")
@@ -564,22 +472,19 @@ func (c *ConnectionProxied[N]) negotiate(
 	}
 }
 
-func (c *ConnectionProxied[N]) serve(
+func (c *ConnectionProxiedCommons) serve(
 	ctx context.Context,
 ) {
 	logger.Debugf(ctx, "serve")
 	defer logger.Debugf(ctx, "/serve")
-	var err error
-	switch c.Mode() {
-	case PortModePublishers:
-		err = c.setPublishingRouteAndStartPublishing(ctx)
-	case PortModeConsumers:
-		err = c.setConsumingRoute(ctx)
-	}
-	if err != nil {
-		logger.Errorf(ctx, "unable to handle the routing: %v", err)
-		c.Close(ctx)
-		return
+	switch c := c.ConnectionProxied.(type) {
+	case *ConnectionProxiedPublisher:
+		err := c.StartForwarding(ctx)
+		if err != nil {
+			logger.Errorf(ctx, "unable to start forwarding: %v", err)
+			c.Close(ctx)
+			return
+		}
 	}
 
 	errCh := make(chan node.Error, 100)
@@ -603,21 +508,22 @@ func (c *ConnectionProxied[N]) serve(
 		return
 	}
 	if logger.FromCtx(ctx).Level() >= logger.LevelDebug {
-		logger.Debugf(ctx, "resulting graph: %s", c.Node.DotString(false))
+		logger.Debugf(ctx, "resulting graph: %s", c.GetNode().(interface{ DotString(bool) string }).DotString(false))
 	}
-	switch c.Mode() {
-	case PortModeConsumers:
-		err := c.startStreamForwardConsumer(ctx, c.Route.Node, c.Node)
+
+	switch c := c.ConnectionProxied.(type) {
+	case *ConnectionProxiedConsumer:
+		err := c.StartForwarding(ctx)
 		if err != nil {
-			logger.Errorf(ctx, "unable to forward the stream: %v", err)
+			logger.Errorf(ctx, "unable to start forwarding: %v", err)
 			c.Close(ctx)
 			return
 		}
 	}
-	c.Node.Serve(ctx, node.ServeConfig{}, errCh)
+	c.GetNode().Serve(ctx, node.ServeConfig{}, errCh)
 }
 
-func (c *ConnectionProxied[N]) tryExtractRouteString(
+func (c *ConnectionProxiedCommons) tryExtractRouteString(
 	ctx context.Context,
 	msg []byte,
 ) (*RoutePath, error) {
@@ -631,18 +537,11 @@ func (c *ConnectionProxied[N]) tryExtractRouteString(
 	}
 }
 
-func (c *ConnectionProxied[N]) getKernel() kernel.Abstract {
-	switch p := c.Node.GetProcessor().(type) {
-	case *processor.FromKernel[*kernel.Input]:
-		return p.Kernel
-	case *processor.FromKernel[*kernel.Output]:
-		return p.Kernel
-	default:
-		panic(fmt.Errorf("unexpected type: %T", p))
-	}
+func (c *ConnectionProxiedCommons) getKernel() kernel.Abstract {
+	return c.ConnectionProxied.GetKernel()
 }
 
-func (c *ConnectionProxied[N]) getFormatContext() *astiav.FormatContext {
+func (c *ConnectionProxiedCommons) getFormatContext() *astiav.FormatContext {
 	switch k := c.getKernel().(type) {
 	case *kernel.Input:
 		return k.FormatContext
@@ -653,7 +552,7 @@ func (c *ConnectionProxied[N]) getFormatContext() *astiav.FormatContext {
 	}
 }
 
-func (c *ConnectionProxied[N]) AVFormatContext() *avcommon.AVFormatContext {
+func (c *ConnectionProxiedCommons) AVFormatContext() *avcommon.AVFormatContext {
 	return avcommon.WrapAVFormatContext(
 		xastiav.CFromAVFormatContext(
 			c.getFormatContext(),
@@ -661,7 +560,7 @@ func (c *ConnectionProxied[N]) AVFormatContext() *avcommon.AVFormatContext {
 	)
 }
 
-func (c *ConnectionProxied[N]) AVURLContext() *avcommon.URLContext {
+func (c *ConnectionProxiedCommons) AVURLContext() *avcommon.URLContext {
 	fmtCtx := c.AVFormatContext()
 	avioCtx := fmtCtx.Pb()
 	if avioCtx == nil {
@@ -670,7 +569,7 @@ func (c *ConnectionProxied[N]) AVURLContext() *avcommon.URLContext {
 	return avcommon.WrapURLContext(avioCtx.Opaque())
 }
 
-func (c *ConnectionProxied[N]) GetRoutePath() RoutePath {
+func (c *ConnectionProxiedCommons) GetRoutePath() RoutePath {
 	if c.RoutePath != nil {
 		return *c.RoutePath
 	}
@@ -682,7 +581,7 @@ func (c *ConnectionProxied[N]) GetRoutePath() RoutePath {
 	return "avd-input"
 }
 
-func (c *ConnectionProxied[N]) GetURLPath() string {
+func (c *ConnectionProxiedCommons) GetURLPath() string {
 	routePath := c.GetRoutePath()
 	switch c.Port.Protocol {
 	case ProtocolRTMP:
@@ -694,7 +593,7 @@ func (c *ConnectionProxied[N]) GetURLPath() string {
 	}
 }
 
-func (c *ConnectionProxied[N]) forward(
+func (c *ConnectionProxiedCommons) forward(
 	ctx context.Context,
 ) (_err error) {
 	logger.Debugf(ctx, "forward")

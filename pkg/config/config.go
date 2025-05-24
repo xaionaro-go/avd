@@ -10,9 +10,14 @@ import (
 	transcodertypes "github.com/xaionaro-go/avpipeline/preset/transcoderwithpassthrough/types"
 )
 
+type DestinationLocal struct {
+	Route       types.RoutePath
+	PublishMode PublishMode
+}
+
 type Destination struct {
-	URL   string          `yaml:"url"`
-	Route types.RoutePath `yaml:"route"`
+	URL   *string           `yaml:"url"`
+	Local *DestinationLocal `yaml:"local"`
 }
 
 type ForwardConfig struct {
@@ -62,12 +67,14 @@ func (cfg ProtocolHandlerConfig) Protocol() (Protocol, error) {
 }
 
 type PortMode = types.PortMode
+type PublishMode = types.PublishMode
 type DictionaryItem = types.DictionaryItem
 type DictionaryItems = types.DictionaryItems
 type OnEndAction = types.OnEndAction
 type PortConfig struct {
 	Address          PortAddress           `yaml:"address"`
 	Mode             PortMode              `yaml:"mode"`
+	PublishMode      PublishMode           `yaml:"publish_mode"`
 	ProtocolHandler  ProtocolHandlerConfig `yaml:"protocol_handler"`
 	CustomOptions    DictionaryItems       `yaml:"custom_options"`
 	DefaultRoutePath string                `yaml:"default_route_path"`
@@ -78,6 +85,7 @@ type PortConfig struct {
 func (cfg PortConfig) ListenOptions() []types.ListenOption {
 	opts := types.ListenOptions{
 		types.ListenOptionOnEndAction(cfg.OnEnd),
+		types.ListenOptionPublishMode(cfg.PublishMode),
 	}
 	if cfg.DefaultRoutePath != "" {
 		opts = append(opts, types.ListenOptionDefaultRoutePath(cfg.DefaultRoutePath))

@@ -4,5 +4,7 @@ import (
 	"github.com/xaionaro-go/avpipeline/router"
 )
 
-type Publisher = router.Publisher
-type Publishers = router.Publishers
+type Publisher interface {
+	router.Publisher[RouteCustomData]
+}
+type Publishers []Publisher

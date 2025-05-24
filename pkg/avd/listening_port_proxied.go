@@ -20,8 +20,8 @@ type ListeningPortProxied struct {
 	Protocol              Protocol
 	Mode                  PortMode
 	ConnectionsLocker     xsync.Mutex
-	ConnectionsPublishers map[net.Addr]*ConnectionProxied[*NodeInput]
-	ConnectionsConsumers  map[net.Addr]*ConnectionProxied[*NodeOutput]
+	ConnectionsPublishers map[net.Addr]*ConnectionProxiedPublisher
+	ConnectionsConsumers  map[net.Addr]*ConnectionProxiedConsumer
 	Config                ListenConfig
 	CancelFn              context.CancelFunc
 }
@@ -46,8 +46,8 @@ func (s *Server) ListenProxied(
 		Protocol:              protocol,
 		Mode:                  mode,
 		Config:                cfg,
-		ConnectionsPublishers: make(map[net.Addr]*ConnectionProxied[*NodeInput]),
-		ConnectionsConsumers:  make(map[net.Addr]*ConnectionProxied[*NodeOutput]),
+		ConnectionsPublishers: make(map[net.Addr]*ConnectionProxiedPublisher),
+		ConnectionsConsumers:  make(map[net.Addr]*ConnectionProxiedConsumer),
 	}
 
 	err := result.startListening(ctx)
@@ -179,7 +179,7 @@ func (p *ListeningPortProxied) addInputConnection(
 	ctx context.Context,
 	netConn net.Conn,
 ) error {
-	conn, err := newConnectionProxied[*NodeInput](ctx, p, netConn)
+	conn, err := newConnectionProxiedPublisher(ctx, p, netConn)
 	if err != nil {
 		return fmt.Errorf("unable to initialize a connection for '%s': %w", netConn.RemoteAddr(), err)
 	}
@@ -207,7 +207,7 @@ func (p *ListeningPortProxied) addOutputConnection(
 	ctx context.Context,
 	netConn net.Conn,
 ) error {
-	conn, err := newConnectionProxied[*NodeOutput](ctx, p, netConn)
+	conn, err := newConnectionProxiedConsumer(ctx, p, netConn)
 	if err != nil {
 		return fmt.Errorf("unable to initialize a connection for '%s': %w", netConn.RemoteAddr(), err)
 	}

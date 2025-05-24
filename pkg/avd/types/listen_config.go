@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/xaionaro-go/avpipeline/router"
 	routertypes "github.com/xaionaro-go/avpipeline/router/types"
 )
 
@@ -12,6 +13,7 @@ type RoutePath = routertypes.RoutePath
 type ListenConfig struct {
 	DefaultRoutePath          RoutePath
 	OnEndAction               OnEndAction
+	PublishMode               router.PublishMode
 	WaitUntilVideoTracksCount uint
 	WaitUntilAudioTracksCount uint
 	CustomOptions             DictionaryItems
@@ -133,6 +135,12 @@ type ListenOptionOnEndAction OnEndAction
 
 func (opt ListenOptionOnEndAction) apply(cfg *ListenConfig) {
 	cfg.OnEndAction = OnEndAction(opt)
+}
+
+type ListenOptionPublishMode router.PublishMode
+
+func (opt ListenOptionPublishMode) apply(cfg *ListenConfig) {
+	cfg.PublishMode = router.PublishMode(opt)
 }
 
 type ListenOptionWaitUntilVideoTracksCount uint
