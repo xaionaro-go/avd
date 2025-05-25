@@ -17,6 +17,12 @@ func ApplyConfig(
 	cfg config.Config,
 	srv *avd.Server,
 ) error {
+	logger.Debugf(ctx, "configuring the command handler...")
+	commandHandler := newCommandHandler[avd.RouteCustomData](ctx, cfg)
+	srv.Router.OnRoutePublisherAdded = commandHandler.OnRoutePublisherAdded
+	srv.Router.OnRoutePublisherRemoved = commandHandler.OnRoutePublisherRemoved
+
+	logger.Debugf(ctx, "configuring listening ports...")
 	for _, port := range cfg.Ports {
 		protocol, err := port.ProtocolHandler.Protocol()
 		if err != nil {
@@ -29,14 +35,12 @@ func ApplyConfig(
 		}
 	}
 
-	for path := range cfg.Endpoints {
+	logger.Debugf(ctx, "configuring the endpoints...")
+	for path, endpoint := range cfg.Endpoints {
 		_, err := srv.Router.GetRoute(ctx, path, router.GetRouteModeCreateIfNotFound)
 		if err != nil {
-			return fmt.Errorf("unable to create route '%s': %w", path, err)
+			return fmt.Errorf("unable get-or-create route '%s': %w", path, err)
 		}
-	}
-
-	for path, endpoint := range cfg.Endpoints {
 		for idx, fwd := range endpoint.Forwardings {
 			idx, fwd := idx, fwd
 			observability.Go(ctx, func(ctx context.Context) {

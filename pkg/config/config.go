@@ -25,8 +25,17 @@ type ForwardConfig struct {
 	Recoding    *transcodertypes.RecoderConfig `yaml:"recoding"`
 }
 
+type Command struct {
+	Command []string      `yaml:"command"`
+	Restart RestartPolicy `yaml:"restart"`
+}
+
 type EndpointConfig struct {
-	Forwardings []ForwardConfig `yaml:"forwardings"`
+	Forwardings        []ForwardConfig `yaml:"forwardings"`
+	OnPublisherAdded   *Command        `yaml:"on_publisher_added,omitempty"`
+	OnPublisherRemoved *Command        `yaml:"on_publisher_removed,omitempty"`
+	OnConsumerAdded    *Command        `yaml:"on_consumer_added,omitempty"`
+	OnConsumerRemoved  *Command        `yaml:"on_consumer_removed,omitempty"`
 }
 
 type ProtocolHandlerConfig struct {

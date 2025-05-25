@@ -54,6 +54,10 @@ func Default() Config {
 		},
 		Endpoints: map[types.RoutePath]EndpointConfig{
 			"mystream": {
+				OnPublisherAdded: &Command{
+					Command: []string{"date", "+%s"},
+					Restart: RestartPolicyNever,
+				},
 				Forwardings: []ForwardConfig{{
 					Recoding: &transcodertypes.RecoderConfig{
 						AudioTrackConfigs: []transcodertypes.TrackConfig{{
