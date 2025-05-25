@@ -68,7 +68,9 @@ func (p *process) runLoop(
 			err := cmd.Start()
 			if err != nil {
 				logger.Errorf(ctx, "unable to execute command %#+v: %v", p.Config, err)
-				cmd.Process.Kill()
+				if cmd.Process != nil {
+					cmd.Process.Kill()
+				}
 				return
 			}
 			p.Cmd = cmd
