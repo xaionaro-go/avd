@@ -39,7 +39,7 @@ func ApplyConfig(
 	for path, endpoint := range cfg.Endpoints {
 		for idx, fwd := range endpoint.Forwardings {
 			idx, fwd := idx, fwd
-			observability.Go(ctx, func() {
+			observability.Go(ctx, func(ctx context.Context) {
 				switch {
 				case fwd.Destination.Local != nil:
 					_, err := srv.AddRouteForwardingLocal(

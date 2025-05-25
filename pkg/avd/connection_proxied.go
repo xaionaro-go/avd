@@ -81,7 +81,7 @@ func newConnectionProxied(
 		return nil, fmt.Errorf("unable to handle connection from %s: %w", conn.RemoteAddr(), err)
 	}
 
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		defer func() {
 			logger.Debugf(ctx, "the end")
 			c.Close(ctx)
@@ -363,7 +363,7 @@ func (c *ConnectionProxied) negotiate(
 	}
 
 	wg.Add(1)
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		defer wg.Done()
 		var buf [SizeBuffer]byte
 		for {
@@ -391,7 +391,7 @@ func (c *ConnectionProxied) negotiate(
 	})
 
 	wg.Add(1)
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		defer wg.Done()
 		var buf [SizeBuffer]byte
 		for {
@@ -431,7 +431,7 @@ func (c *ConnectionProxied) negotiate(
 			}
 
 			ctx = belt.WithField(ctx, "path", *routePath)
-			observability.Go(ctx, func() {
+			observability.Go(ctx, func(ctx context.Context) {
 				c.serve(origCtx)
 			})
 
@@ -487,7 +487,7 @@ func (c *ConnectionProxied) serve(
 
 	errCh := make(chan node.Error, 100)
 	defer close(errCh)
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		for err := range errCh {
 			switch {
 			case errors.Is(err, context.Canceled):
@@ -637,7 +637,7 @@ func (c *ConnectionProxied) forward(
 	}
 
 	wg.Add(1)
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		defer wg.Done()
 		var buf [SizeBuffer]byte
 		for {
@@ -665,7 +665,7 @@ func (c *ConnectionProxied) forward(
 	})
 
 	wg.Add(1)
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		defer wg.Done()
 		var buf [SizeBuffer]byte
 		for {

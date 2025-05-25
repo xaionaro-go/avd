@@ -14,7 +14,7 @@ require (
 	github.com/xaionaro-go/avcommon v0.0.0-20250510235605-840f8210b727
 	github.com/xaionaro-go/avpipeline v0.0.0-20250525005811-edc4186a8621
 	github.com/xaionaro-go/datacounter v1.0.4
-	github.com/xaionaro-go/observability v0.0.0-20250420133500-5c4d2e045932
+	github.com/xaionaro-go/observability v0.0.0-20250525145134-da72421b86a8
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
 	github.com/xaionaro-go/xpath v0.0.0-20250111145115-55f5728f643f
 	github.com/xaionaro-go/xsync v0.0.0-20250511184922-deec5fb01a0f
@@ -42,7 +42,7 @@ require (
 	github.com/xaionaro-go/logrustash v0.0.0-20240804141650-d48034780a5f // indirect
 	github.com/xaionaro-go/ndk v0.0.0-20250420195304-361bb98583bf // indirect
 	github.com/xaionaro-go/object v0.0.0-20241026212449-753ce10ec94c // indirect
-	github.com/xaionaro-go/proxy v0.0.0-20250111150848-1f0e7b262638 // indirect
+	github.com/xaionaro-go/proxy v0.0.0-20250525144747-579f5a891c15 // indirect
 	github.com/xaionaro-go/spinlock v0.0.0-20200518175509-30e6d1ce68a1 // indirect
 	github.com/xaionaro-go/typing v0.0.0-20221123235249-2229101d38ba // indirect
 	github.com/xaionaro-go/unsafetools v0.0.0-20241024014258-a46e1ce3763e // indirect

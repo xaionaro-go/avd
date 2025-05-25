@@ -77,7 +77,7 @@ func pushTestFileTo(
 	errCh := make(chan node.Error, 100)
 
 	wg.Add(1)
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		defer wg.Done()
 		defer close(errCh)
 		avpipeline.Serve(ctx, avpipeline.ServeConfig{}, errCh, inputNode)

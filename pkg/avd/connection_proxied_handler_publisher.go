@@ -65,7 +65,7 @@ func (c *ConnectionProxiedHandlerPublisher) InitAVHandler(
 		logger.Errorf(ctx, "%v", err)
 		c.Parent.InitError = err
 		close(c.Parent.InitFinished)
-		observability.Go(ctx, func() {
+		observability.Go(ctx, func(ctx context.Context) {
 			c.Close(ctx)
 		})
 		return err

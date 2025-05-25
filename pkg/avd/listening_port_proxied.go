@@ -71,7 +71,7 @@ func (p *ListeningPortProxied) startListening(
 	logger.Debugf(ctx, "startListening")
 	defer func() { logger.Debugf(ctx, "/startListening: %v", _err) }()
 
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		err := p.listen(ctx)
 		if err == nil {
 			return
@@ -135,7 +135,7 @@ func (p *ListeningPortProxied) listen(
 
 	ctx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		<-ctx.Done()
 		err := p.Listener.Close()
 		if err != nil {
@@ -148,7 +148,7 @@ func (p *ListeningPortProxied) listen(
 			return fmt.Errorf("unable to accept a connection: %w", err)
 		}
 
-		observability.Go(ctx, func() {
+		observability.Go(ctx, func(ctx context.Context) {
 			err := p.addConnection(ctx, netConn)
 			if err != nil {
 				logger.Errorf(ctx, "unable to handle a new connection: %v", err)

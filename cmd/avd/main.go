@@ -45,7 +45,7 @@ func main() {
 	ctx := withLogger(context.Background(), loggerLevel)
 
 	if *netPprofAddr != "" {
-		observability.Go(ctx, func() {
+		observability.Go(ctx, func(ctx context.Context) {
 			logger.Infof(ctx, "starting to listen for net/pprof requests at '%s'", *netPprofAddr)
 			logger.Error(ctx, http.ListenAndServe(*netPprofAddr, nil))
 		})

@@ -114,7 +114,7 @@ func (p *ListeningPortDirectConsumers) startListening(
 
 	errCh := make(chan node.Error, 100)
 	p.WaitGroup.Add(1)
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		defer p.WaitGroup.Done()
 		defer func() {
 			err := node.RemovePushPacketsTo(ctx, route.Node, p.Node)
@@ -128,7 +128,7 @@ func (p *ListeningPortDirectConsumers) startListening(
 		p.Node.Serve(ctx, node.ServeConfig{}, errCh)
 	})
 	p.WaitGroup.Add(1)
-	observability.Go(ctx, func() {
+	observability.Go(ctx, func(ctx context.Context) {
 		defer p.WaitGroup.Done()
 		for err := range errCh {
 			switch {
