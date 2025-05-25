@@ -47,8 +47,9 @@ func (c *ConnectionProxiedHandlerConsumer) InitAVHandler(
 		url.String(),
 		secretKey,
 		kernel.OutputConfig{
-			CustomOptions: customOpts,
-			AsyncOpen:     c.Parent.isAsyncOpen(ctx),
+			ErrorOnNSequentialInvalidDTS: 100,
+			CustomOptions:                customOpts,
+			AsyncOpen:                    c.Parent.isAsyncOpen(ctx),
 			OnOpened: func(ctx context.Context, i *kernel.Output) error {
 				if !c.Parent.isAsyncOpen(ctx) {
 					return nil

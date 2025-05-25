@@ -97,8 +97,9 @@ func (p *ListeningPortDirectConsumers) startListening(
 	proc, err := processor.NewOutputFromURL(
 		ctx, url, secret.New(""),
 		kernel.OutputConfig{
-			CustomOptions: customOptions,
-			AsyncOpen:     true,
+			ErrorOnNSequentialInvalidDTS: 100,
+			CustomOptions:                customOptions,
+			AsyncOpen:                    true,
 			OnOpened: func(ctx context.Context, k *kernel.Output) error {
 				return nil
 			},

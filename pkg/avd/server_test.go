@@ -68,7 +68,9 @@ func pushTestFileTo(
 
 	inputNode := node.NewFromKernel(ctx, inputKernel, processor.DefaultOptionsInput()...)
 
-	outputKernel, err := kernel.NewOutputFromURL(ctx, dstAddr, secret.New(""), kernel.OutputConfig{})
+	outputKernel, err := kernel.NewOutputFromURL(ctx, dstAddr, secret.New(""), kernel.OutputConfig{
+		ErrorOnNSequentialInvalidDTS: 100,
+	})
 	require.NoError(t, err)
 
 	outputNode := node.NewFromKernel(ctx, outputKernel, processor.DefaultOptionsOutput()...)
