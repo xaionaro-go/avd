@@ -11,10 +11,10 @@ require (
 	github.com/goccy/go-yaml v1.17.1
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
-	github.com/xaionaro-go/avcommon v0.0.0-20250510235605-840f8210b727
-	github.com/xaionaro-go/avpipeline v0.0.0-20250525204026-17104bc4baca
+	github.com/xaionaro-go/avcommon v0.0.0-20250629220425-ad846e62efb6
+	github.com/xaionaro-go/avpipeline v0.0.0-20250714000757-694315ab880b
 	github.com/xaionaro-go/datacounter v1.0.4
-	github.com/xaionaro-go/observability v0.0.0-20250525153415-e6c2d935ab34
+	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
 	github.com/xaionaro-go/xpath v0.0.0-20250111145115-55f5728f643f
 	github.com/xaionaro-go/xsync v0.0.0-20250511184922-deec5fb01a0f
@@ -43,10 +43,12 @@ require (
 	github.com/xaionaro-go/ndk v0.0.0-20250420195304-361bb98583bf // indirect
 	github.com/xaionaro-go/object v0.0.0-20241026212449-753ce10ec94c // indirect
 	github.com/xaionaro-go/proxy v0.0.0-20250525144747-579f5a891c15 // indirect
+	github.com/xaionaro-go/sockopt v0.0.0-20250526214909-e15e1e4bc738 // indirect
 	github.com/xaionaro-go/spinlock v0.0.0-20200518175509-30e6d1ce68a1 // indirect
 	github.com/xaionaro-go/typing v0.0.0-20221123235249-2229101d38ba // indirect
 	github.com/xaionaro-go/unsafetools v0.0.0-20241024014258-a46e1ce3763e // indirect
 	github.com/xaionaro-go/xcontext v0.0.0-20250111150717-e70e1f5b299c // indirect
+	gocv.io/x/gocv v0.41.0 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
 	golang.org/x/oauth2 v0.26.0 // indirect
