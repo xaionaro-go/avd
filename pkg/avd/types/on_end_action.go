@@ -9,8 +9,8 @@ import (
 type OnEndAction int
 
 const (
-	OnEndActionCloseConsumers = OnEndAction(iota)
-	OnEndActionWaitForNewPublisher
+	OnEndActionWaitForNewPublisher = OnEndAction(iota)
+	OnEndActionCloseConsumers
 	EndOfOnEndAction
 )
 

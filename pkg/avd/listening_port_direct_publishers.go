@@ -104,8 +104,9 @@ func (p *ListeningPortDirectPublishers) startListening(
 						routePath,
 						p.Config.PublishMode,
 						nil,
-						p.onRouteSourceStart,
-						p.onRouteSourceStop,
+						p.onRouteSourcePostStart,
+						p.onRouteSourcePreStop,
+						p.onRouteSourcePostStop,
 					)
 					if err != nil {
 						return fmt.Errorf("unable to add a source to route '%s': %w", routePath, err)
@@ -163,24 +164,32 @@ func (p *ListeningPortDirectPublishers) startListening(
 	return nil
 }
 
-func (p *ListeningPortDirectPublishers) onRouteSourceStart(
+func (p *ListeningPortDirectPublishers) onRouteSourcePostStart(
 	ctx context.Context,
 	rs *RouteSource[*ListeningPortDirectPublishers],
 ) {
-	logger.Debugf(ctx, "onRouteSourceStart")
-	defer func() { logger.Debugf(ctx, "/onRouteSourceStart") }()
+	logger.Debugf(ctx, "onRouteSourcePostStart")
+	defer func() { logger.Debugf(ctx, "/onRouteSourcePostStart") }()
 }
 
-func (p *ListeningPortDirectPublishers) onRouteSourceStop(
+func (p *ListeningPortDirectPublishers) onRouteSourcePreStop(
 	ctx context.Context,
 	rs *RouteSource[*ListeningPortDirectPublishers],
 ) {
-	logger.Debugf(ctx, "onRouteSourceStop")
-	defer func() { logger.Debugf(ctx, "/onRouteSourceStop") }()
+	logger.Debugf(ctx, "onRouteSourcePreStop")
+	defer func() { logger.Debugf(ctx, "/onRouteSourcePreStop") }()
 	err := PublisherClose(ctx, p, p.Config.OnEndAction)
 	if err != nil {
 		logger.Errorf(ctx, "unable to close the publisher: %v", err)
 	}
+}
+
+func (p *ListeningPortDirectPublishers) onRouteSourcePostStop(
+	ctx context.Context,
+	rs *RouteSource[*ListeningPortDirectPublishers],
+) {
+	logger.Debugf(ctx, "onRouteSourcePostStop")
+	defer func() { logger.Debugf(ctx, "/onRouteSourcePostStop") }()
 }
 
 func (p *ListeningPortDirectPublishers) GetServer() *Server {

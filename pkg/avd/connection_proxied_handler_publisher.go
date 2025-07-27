@@ -110,8 +110,9 @@ func (c *ConnectionProxiedHandlerPublisher) StartForwarding(
 		routePath,
 		c.Parent.Port.Config.PublishMode,
 		nil,
-		c.onRouteSourceStart,
-		c.onRouteSourceStop,
+		c.onRouteSourcePostStart,
+		c.onRouteSourcePreStop,
+		c.onRouteSourcePostStop,
 	)
 	if err != nil {
 		return fmt.Errorf("unable to add a source to route '%s': %w", routePath, err)
@@ -121,21 +122,25 @@ func (c *ConnectionProxiedHandlerPublisher) StartForwarding(
 	return nil
 }
 
-func (c *ConnectionProxiedHandlerPublisher) onRouteSourceStart(
+func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePostStart(
 	ctx context.Context,
 	rs *RouteSource[*ConnectionProxiedHandlerPublisher],
 ) {
-	logger.Debugf(ctx, "onRouteSourceStart")
-	defer func() { logger.Debugf(ctx, "/onRouteSourceStart") }()
+	logger.Debugf(ctx, "onRouteSourcePostStart")
+	defer func() { logger.Debugf(ctx, "/onRouteSourcePostStart") }()
 	c.IsForwarding = true
+	observability.Go(ctx, func(ctx context.Context) {
+		s := c.Node.DotString(false)
+		logger.Debugf(ctx, "onRouteSourcePostStart: pipeline: %s", s)
+	})
 }
 
-func (c *ConnectionProxiedHandlerPublisher) onRouteSourceStop(
+func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePreStop(
 	ctx context.Context,
 	rs *RouteSource[*ConnectionProxiedHandlerPublisher],
 ) {
-	logger.Debugf(ctx, "onRouteSourceStop")
-	defer func() { logger.Debugf(ctx, "/onRouteSourceStop") }()
+	logger.Debugf(ctx, "onRouteSourcePreStop")
+	defer func() { logger.Debugf(ctx, "/onRouteSourcePreStop") }()
 	if !c.IsForwarding {
 		return
 	}
@@ -144,6 +149,18 @@ func (c *ConnectionProxiedHandlerPublisher) onRouteSourceStop(
 	if err != nil {
 		logger.Errorf(ctx, "unable to close the publisher: %v", err)
 	}
+}
+
+func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePostStop(
+	ctx context.Context,
+	rs *RouteSource[*ConnectionProxiedHandlerPublisher],
+) {
+	logger.Debugf(ctx, "onRouteSourcePostStop")
+	defer func() { logger.Debugf(ctx, "/onRouteSourcePostStop") }()
+	observability.Go(ctx, func(ctx context.Context) {
+		s := c.Node.DotString(false)
+		logger.Debugf(ctx, "onRouteSourcePostStop: pipeline: %s", s)
+	})
 }
 
 func (c *ConnectionProxiedHandlerPublisher) GetKernel() kernel.Abstract {
@@ -157,6 +174,8 @@ func (c *ConnectionProxiedHandlerPublisher) Close(ctx context.Context) (_err err
 }
 
 func (c *ConnectionProxiedHandlerPublisher) closeLocked(ctx context.Context) (_err error) {
+	logger.Debugf(ctx, "closeLocked")
+	defer func() { logger.Debugf(ctx, "/closeLocked: %v", _err) }()
 	var errs []error
 	if c.AsRouteSource != nil {
 		if err := c.AsRouteSource.Stop(ctx); err != nil {

@@ -17,7 +17,6 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
-	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/observability"
@@ -66,7 +65,7 @@ func newConnectionProxied(
 	switch p.Mode {
 	case PortModePublishers:
 		c.Handler = newConnectionProxiedPublisher(c)
-	case types.PortModeConsumers:
+	case PortModeConsumers:
 		c.Handler = newConnectionProxiedConsumer(c)
 	}
 	defer func() {
