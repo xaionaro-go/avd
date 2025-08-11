@@ -137,6 +137,13 @@ func (c *ConnectionProxied) String() string {
 	)
 }
 
+func (c *ConnectionProxied) GetRawConn(context.Context) net.Conn {
+	if c == nil {
+		return nil
+	}
+	return c.Conn
+}
+
 func (c *ConnectionProxied) Mode() PortMode {
 	if c == nil {
 		return UndefinedPortMode
@@ -505,7 +512,7 @@ func (c *ConnectionProxied) serve(
 		return
 	}
 	if logger.FromCtx(ctx).Level() >= logger.LevelDebug {
-		logger.Debugf(ctx, "resulting graph: %s", c.GetNode().(interface{ DotString(bool) string }).DotString(false))
+		logger.Debugf(ctx, "resulting graph: %s", c.GetNode(ctx).(interface{ DotString(bool) string }).DotString(false))
 	}
 
 	switch c := c.Handler.(type) {
@@ -517,7 +524,7 @@ func (c *ConnectionProxied) serve(
 			return
 		}
 	}
-	c.GetNode().Serve(ctx, node.ServeConfig{}, errCh)
+	c.GetNode(ctx).Serve(ctx, node.ServeConfig{}, errCh)
 }
 
 func (c *ConnectionProxied) tryExtractRouteString(
@@ -534,7 +541,7 @@ func (c *ConnectionProxied) tryExtractRouteString(
 	}
 }
 
-func (c *ConnectionProxied) GetNode() node.Abstract {
+func (c *ConnectionProxied) GetNode(ctx context.Context) node.Abstract {
 	return c.Handler.GetNode()
 }
 

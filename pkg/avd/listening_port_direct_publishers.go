@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"sync"
 
 	"github.com/facebookincubator/go-belt"
@@ -41,6 +42,12 @@ func (s *Server) ListenDirectPublishers(
 	logger.Debugf(ctx, "ListenDirectPublishers(ctx, '%s')", portAddr)
 	defer func() { logger.Debugf(ctx, "/ListenDirectPublishers(ctx, '%s'): %v %v", portAddr, _ret, _err) }()
 
+	defer func() {
+		if _ret != nil {
+			s.addListeningPort(ctx, _ret)
+		}
+	}()
+
 	cfg := ListenOptions(opts).Config()
 	result := &ListeningPortDirectPublishers{
 		Server:      s,
@@ -65,6 +72,10 @@ func (p *ListeningPortDirectPublishers) GetPublishMode(
 
 func (p *ListeningPortDirectPublishers) String() string {
 	return fmt.Sprintf("%s[Publishers](%s)", p.Protocol, p.PortAddress)
+}
+
+func (p *ListeningPortDirectPublishers) GetMode() PortMode {
+	return PortModePublishers
 }
 
 func (p *ListeningPortDirectPublishers) startListening(
@@ -212,10 +223,23 @@ func (p *ListeningPortDirectPublishers) GetOutputRoute(
 	return p.AsRouteSource.Output
 }
 
+func (p *ListeningPortDirectPublishers) GetConnections(context.Context) Connections {
+	return Connections{p}
+}
+
+func (p *ListeningPortDirectPublishers) GetNode(ctx context.Context) node.Abstract {
+	return p.GetInputNode(ctx)
+}
+
+func (p *ListeningPortDirectPublishers) GetRawConn(ctx context.Context) net.Conn {
+	return nil
+}
+
 func (p *ListeningPortDirectPublishers) Close(ctx context.Context) (_err error) {
 	logger.Debugf(ctx, "Close")
 	defer func() { logger.Debugf(ctx, "/Close: %v", _err) }()
 	p.CancelFn()
+	p.Server.removeListeningPort(ctx, p)
 	p.WaitGroup.Wait()
 	return nil
 }

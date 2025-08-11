@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/url"
+	"slices"
 
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
@@ -38,6 +40,12 @@ func (s *Server) ListenProxied(
 	ctx = belt.WithField(ctx, "proto", protocol)
 	ctx = belt.WithField(ctx, "port_mode", mode)
 
+	defer func() {
+		if _ret != nil {
+			s.addListeningPort(ctx, _ret)
+		}
+	}()
+
 	cfg := ListenOptions(opts).Config()
 	result := &ListeningPortProxied{
 		Server:      s,
@@ -58,6 +66,26 @@ func (s *Server) ListenProxied(
 
 func (p *ListeningPortProxied) String() string {
 	return fmt.Sprintf("%s[%s](%s)", p.Protocol, p.Mode, p.Listener.Addr())
+}
+
+func (p *ListeningPortProxied) GetMode() PortMode {
+	return p.Mode
+}
+
+func (p *ListeningPortProxied) GetConnections(ctx context.Context) Connections {
+	var result Connections
+	for _, conn := range p.getConnections(ctx) {
+		result = append(result, conn)
+	}
+	return result
+}
+
+func (p *ListeningPortProxied) getConnections(ctx context.Context) []*ConnectionProxied {
+	return xsync.DoA1R1(ctx, &p.ConnectionsLocker, p.getConnectionsNoLock, ctx)
+}
+
+func (p *ListeningPortProxied) getConnectionsNoLock(ctx context.Context) []*ConnectionProxied {
+	return slices.Collect(maps.Values(p.Connections))
 }
 
 func (p *ListeningPortProxied) startListening(
@@ -111,6 +139,7 @@ func (p *ListeningPortProxied) Close(ctx context.Context) (_err error) {
 			delete(p.Connections, addr)
 		}
 	})
+	p.Server.removeListeningPort(ctx, p)
 	return nil
 }
 

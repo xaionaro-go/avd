@@ -5,10 +5,14 @@ import (
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline/router"
+	"github.com/xaionaro-go/xsync"
 )
 
 type Server struct {
 	*router.Router[RouteCustomData]
+
+	ListeningPortsLocker xsync.RWMutex
+	ListeningPorts       []ListeningPort
 }
 
 func NewServer(

@@ -21,7 +21,6 @@ const _ = grpc.SupportPackageIsVersion8
 const (
 	AvdService_ListPublishers_FullMethodName = "/AvdService/ListPublishers"
 	AvdService_ListConsumers_FullMethodName  = "/AvdService/ListConsumers"
-	AvdService_ListEndpoints_FullMethodName  = "/AvdService/ListEndpoints"
 )
 
 // AvdServiceClient is the client API for AvdService service.
@@ -30,7 +29,6 @@ const (
 type AvdServiceClient interface {
 	ListPublishers(ctx context.Context, in *ListPublishersRequest, opts ...grpc.CallOption) (*ListPublisherResponse, error)
 	ListConsumers(ctx context.Context, in *ListConsumersRequest, opts ...grpc.CallOption) (*ListConsumersResponse, error)
-	ListEndpoints(ctx context.Context, in *ListEndpointsRequest, opts ...grpc.CallOption) (*ListEndpointResponse, error)
 }
 
 type avdServiceClient struct {
@@ -61,23 +59,12 @@ func (c *avdServiceClient) ListConsumers(ctx context.Context, in *ListConsumersR
 	return out, nil
 }
 
-func (c *avdServiceClient) ListEndpoints(ctx context.Context, in *ListEndpointsRequest, opts ...grpc.CallOption) (*ListEndpointResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListEndpointResponse)
-	err := c.cc.Invoke(ctx, AvdService_ListEndpoints_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AvdServiceServer is the server API for AvdService service.
 // All implementations must embed UnimplementedAvdServiceServer
 // for forward compatibility
 type AvdServiceServer interface {
 	ListPublishers(context.Context, *ListPublishersRequest) (*ListPublisherResponse, error)
 	ListConsumers(context.Context, *ListConsumersRequest) (*ListConsumersResponse, error)
-	ListEndpoints(context.Context, *ListEndpointsRequest) (*ListEndpointResponse, error)
 	mustEmbedUnimplementedAvdServiceServer()
 }
 
@@ -90,9 +77,6 @@ func (UnimplementedAvdServiceServer) ListPublishers(context.Context, *ListPublis
 }
 func (UnimplementedAvdServiceServer) ListConsumers(context.Context, *ListConsumersRequest) (*ListConsumersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListConsumers not implemented")
-}
-func (UnimplementedAvdServiceServer) ListEndpoints(context.Context, *ListEndpointsRequest) (*ListEndpointResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListEndpoints not implemented")
 }
 func (UnimplementedAvdServiceServer) mustEmbedUnimplementedAvdServiceServer() {}
 
@@ -143,24 +127,6 @@ func _AvdService_ListConsumers_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AvdService_ListEndpoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListEndpointsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AvdServiceServer).ListEndpoints(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AvdService_ListEndpoints_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AvdServiceServer).ListEndpoints(ctx, req.(*ListEndpointsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AvdService_ServiceDesc is the grpc.ServiceDesc for AvdService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -175,10 +141,6 @@ var AvdService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListConsumers",
 			Handler:    _AvdService_ListConsumers_Handler,
-		},
-		{
-			MethodName: "ListEndpoints",
-			Handler:    _AvdService_ListEndpoints_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
