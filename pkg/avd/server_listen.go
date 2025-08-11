@@ -13,7 +13,7 @@ func (s *Server) Listen(
 	ctx context.Context,
 	portAddr PortAddress,
 	protocol Protocol,
-	mode types.PortMode,
+	mode types.StreamingPortMode,
 	opts ...ListenOption,
 ) (_ret ListeningPort, _err error) {
 	logger.Debugf(ctx, "Listen(ctx, '%s')", portAddr)

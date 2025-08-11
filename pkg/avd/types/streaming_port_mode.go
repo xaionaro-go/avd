@@ -6,16 +6,16 @@ import (
 	"strings"
 )
 
-type PortMode int
+type StreamingPortMode int
 
 const (
-	UndefinedPortMode = PortMode(iota)
+	UndefinedPortMode = StreamingPortMode(iota)
 	PortModeConsumers
 	PortModePublishers
 	EndOfPortMode
 )
 
-func (c PortMode) String() string {
+func (c StreamingPortMode) String() string {
 	switch c {
 	case PortModeConsumers:
 		return "consumers"
@@ -26,14 +26,14 @@ func (c PortMode) String() string {
 	}
 }
 
-func (c *PortMode) UnmarshalYAML(b []byte) error {
+func (c *StreamingPortMode) UnmarshalYAML(b []byte) error {
 	var modeString string
 	if err := json.Unmarshal(b, &modeString); err != nil {
 		return err
 	}
 
 	modeString = strings.Trim(strings.ToLower(modeString), " ")
-	for candidate := PortMode(0); candidate < EndOfPortMode; candidate++ {
+	for candidate := StreamingPortMode(0); candidate < EndOfPortMode; candidate++ {
 		if candidate.String() == modeString {
 			*c = candidate
 			return nil
@@ -43,6 +43,6 @@ func (c *PortMode) UnmarshalYAML(b []byte) error {
 	return fmt.Errorf("unknown port mode: '%s'", modeString)
 }
 
-func (c PortMode) MarshalYAML() ([]byte, error) {
+func (c StreamingPortMode) MarshalYAML() ([]byte, error) {
 	return json.Marshal(c.String())
 }

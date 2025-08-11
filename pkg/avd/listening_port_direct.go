@@ -16,7 +16,7 @@ func (s *Server) ListenDirect(
 	ctx context.Context,
 	portAddr PortAddress,
 	protocol Protocol,
-	mode types.PortMode,
+	mode types.StreamingPortMode,
 	opts ...ListenOption,
 ) (_ret ListeningPortDirect, _err error) {
 	logger.Debugf(ctx, "ListenDirect(ctx, '%s')", portAddr)

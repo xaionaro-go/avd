@@ -19,7 +19,7 @@ func (mode *PublishMode) UnmarshalYAML(b []byte) error {
 	}
 	ctx := context.TODO()
 	logger.Tracef(ctx, "PublishMode string: '%s'", s)
-	for publishMode := router.PublishMode(0); publishMode < router.EndOfPublishMode; publishMode++ {
+	for publishMode := range router.EndOfPublishMode {
 		if publishMode.String() == s {
 			logger.Tracef(ctx, "PublishMode result: '%s'", publishMode)
 			*mode = PublishMode(publishMode)

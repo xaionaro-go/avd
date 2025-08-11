@@ -29,7 +29,7 @@ func (s *Server) ListenProxied(
 	ctx context.Context,
 	listener net.Listener,
 	protocol Protocol,
-	mode types.PortMode,
+	mode types.StreamingPortMode,
 	opts ...ListenOption,
 ) (_ret *ListeningPortProxied, _err error) {
 	logger.Debugf(ctx, "ListenProxied(ctx, '%s')", listener.Addr())

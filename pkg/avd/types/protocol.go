@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-type Protocol int
+type StreamingProtocol int
 
 const (
-	UndefinedProtocol = Protocol(iota)
+	UndefinedProtocol = StreamingProtocol(iota)
 	ProtocolRTMP
 	ProtocolRTSP
 	ProtocolSRT
@@ -17,7 +17,7 @@ const (
 	EndOfProtocol
 )
 
-func (c Protocol) IsValid() bool {
+func (c StreamingProtocol) IsValid() bool {
 	switch c {
 	case ProtocolRTMP:
 		return true
@@ -31,7 +31,7 @@ func (c Protocol) IsValid() bool {
 	return false
 }
 
-func (c Protocol) String() string {
+func (c StreamingProtocol) String() string {
 	switch c {
 	case ProtocolRTMP:
 		return "rtmp"
@@ -46,7 +46,7 @@ func (c Protocol) String() string {
 	}
 }
 
-func (c Protocol) FormatName() string {
+func (c StreamingProtocol) FormatName() string {
 	switch c {
 	case ProtocolRTMP:
 		return "flv"
@@ -61,14 +61,14 @@ func (c Protocol) FormatName() string {
 	}
 }
 
-func (c *Protocol) UnmarshalYAML(b []byte) error {
+func (c *StreamingProtocol) UnmarshalYAML(b []byte) error {
 	var modeString string
 	if err := json.Unmarshal(b, &modeString); err != nil {
 		return err
 	}
 
 	modeString = strings.Trim(strings.ToLower(modeString), " ")
-	for candidate := Protocol(0); candidate < EndOfProtocol; candidate++ {
+	for candidate := StreamingProtocol(0); candidate < EndOfProtocol; candidate++ {
 		if candidate.String() == modeString {
 			*c = candidate
 			return nil
@@ -78,10 +78,10 @@ func (c *Protocol) UnmarshalYAML(b []byte) error {
 	return fmt.Errorf("unknown protocol: '%s'", modeString)
 }
 
-func (c Protocol) MarshalYAML() ([]byte, error) {
+func (c StreamingProtocol) MarshalYAML() ([]byte, error) {
 	return json.Marshal(c.String())
 }
 
-func SupportedProtocols() []Protocol {
-	return []Protocol{ProtocolRTMP, ProtocolRTSP}
+func SupportedProtocols() []StreamingProtocol {
+	return []StreamingProtocol{ProtocolRTMP, ProtocolRTSP}
 }

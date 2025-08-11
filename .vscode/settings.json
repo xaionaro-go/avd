@@ -1,7 +1,7 @@
 {
-    "cSpell.words": [
-        "compati",
-        "configfile",
-        "nonpriva"
-    ]
+    "protoc": {
+        "options": [
+            "-I./pkg/management/grpc/proto"
+        ]
+    },
 }

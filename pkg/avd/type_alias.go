@@ -4,7 +4,7 @@ import (
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 )
 
-type PortMode = types.PortMode
+type PortMode = types.StreamingPortMode
 
 const (
 	UndefinedPortMode  = types.UndefinedPortMode
@@ -12,7 +12,7 @@ const (
 	PortModeConsumers  = types.PortModeConsumers
 )
 
-type Protocol = types.Protocol
+type Protocol = types.StreamingProtocol
 
 const (
 	UndefinedProtocol = types.UndefinedProtocol

@@ -23,7 +23,7 @@ func ApplyConfig(
 	srv.Router.OnRoutePublisherRemoved = commandHandler.OnRoutePublisherRemoved
 
 	logger.Debugf(ctx, "configuring listening ports...")
-	for _, port := range cfg.Ports {
+	for _, port := range cfg.StreamingPorts {
 		protocol, err := port.ProtocolHandler.Protocol()
 		if err != nil {
 			return fmt.Errorf("unable to identify which protocol to use on '%s': %w", port.Address, err)

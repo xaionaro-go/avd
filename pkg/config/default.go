@@ -8,11 +8,21 @@ import (
 
 func Default() Config {
 	return Config{
-		Ports: []PortConfig{
+		ServicePorts: []ServicePortConfig{
+			{
+				Address: "tcp:127.0.0.1:1722",
+				Service: ServiceConfig{
+					Management: &ManagementServiceConfig{
+						ServiceProtocol: ServiceProtocolGRPC,
+					},
+				},
+			},
+		},
+		StreamingPorts: []StreamingPortConfig{
 			{
 				Address: "tcp:127.0.0.1:1936",
 				Mode:    types.PortModePublishers,
-				ProtocolHandler: ProtocolHandlerConfig{
+				ProtocolHandler: StreamingProtocolHandlerConfig{
 					RTMP: &RTMPConfig{},
 				},
 				CustomOptions: DictionaryItems{},
@@ -20,7 +30,7 @@ func Default() Config {
 			{
 				Address: "tcp:0.0.0.0:1935",
 				Mode:    types.PortModeConsumers,
-				ProtocolHandler: ProtocolHandlerConfig{
+				ProtocolHandler: StreamingProtocolHandlerConfig{
 					RTMP: &RTMPConfig{},
 				},
 				CustomOptions: DictionaryItems{},
@@ -29,7 +39,7 @@ func Default() Config {
 			{
 				Address: "tcp:0.0.0.0:1937",
 				Mode:    types.PortModeConsumers,
-				ProtocolHandler: ProtocolHandlerConfig{
+				ProtocolHandler: StreamingProtocolHandlerConfig{
 					RTMP: &RTMPConfig{},
 				},
 				CustomOptions: DictionaryItems{},
@@ -38,7 +48,7 @@ func Default() Config {
 			{
 				Address: "tcp:127.0.0.1:8555",
 				Mode:    types.PortModePublishers,
-				ProtocolHandler: ProtocolHandlerConfig{
+				ProtocolHandler: StreamingProtocolHandlerConfig{
 					RTSP: &RTSPConfig{},
 				},
 				CustomOptions: DictionaryItems{},
@@ -47,7 +57,7 @@ func Default() Config {
 				Address:          "udp:127.0.0.1:4445",
 				Mode:             types.PortModePublishers,
 				DefaultRoutePath: "mystream",
-				ProtocolHandler: ProtocolHandlerConfig{
+				ProtocolHandler: StreamingProtocolHandlerConfig{
 					MPEGTS: &MPEGTSConfig{},
 				},
 				CustomOptions: DictionaryItems{},

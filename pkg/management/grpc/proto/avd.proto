@@ -1,0 +1,25 @@
+syntax = "proto3";
+import "imports/avpipeline/protobuf/avpipeline.proto";
+
+option go_package = "github.com/xaionaro-go/avd/pkg/management/grpc/proto;avdmanagementgrpc";
+
+service AvdService {
+    rpc ListPublishers (ListPublishersRequest) returns (ListPublisherResponse);
+    rpc ListConsumers (ListConsumersRequest) returns (ListConsumersResponse);
+    rpc ListEndpoints (ListEndpointsRequest) returns (ListEndpointResponse);
+}
+
+message ListPublishersRequest {}
+message ListPublisherResponse {
+    repeated avpipeline.Node nodes = 1;
+}
+
+message ListConsumersRequest {}
+message ListConsumersResponse {
+    repeated avpipeline.Node nodes = 1;
+}
+
+message ListEndpointsRequest {}
+message ListEndpointResponse {
+    repeated avpipeline.Node nodes = 1;
+}

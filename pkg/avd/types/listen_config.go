@@ -36,8 +36,8 @@ func (cfg ListenConfig) GetBufferDuration() time.Duration {
 }
 
 func (cfg ListenConfig) DictionaryItems(
-	protocol Protocol,
-	mode PortMode,
+	protocol StreamingProtocol,
+	mode StreamingPortMode,
 ) DictionaryItems {
 	customOpts := DictionaryItems{
 		{Key: "listen", Value: "1"},

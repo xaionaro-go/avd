@@ -12,12 +12,14 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250629220425-ad846e62efb6
-	github.com/xaionaro-go/avpipeline v0.0.0-20250714000757-694315ab880b
+	github.com/xaionaro-go/avpipeline v0.0.0-20250811144701-18c6489fb674
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
 	github.com/xaionaro-go/xpath v0.0.0-20250111145115-55f5728f643f
 	github.com/xaionaro-go/xsync v0.0.0-20250511184922-deec5fb01a0f
+	google.golang.org/grpc v1.72.1
+	google.golang.org/protobuf v1.36.5
 )
 
 require (
@@ -51,8 +53,11 @@ require (
 	gocv.io/x/gocv v0.41.0 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
+	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
