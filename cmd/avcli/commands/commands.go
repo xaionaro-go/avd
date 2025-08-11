@@ -55,12 +55,25 @@ var (
 		Run:  publishersList,
 	}
 
+	Consumers = &cobra.Command{
+		Use: "consumers",
+	}
+
+	ConsumersList = &cobra.Command{
+		Use:  "list",
+		Args: cobra.ExactArgs(0),
+		Run:  consumersList,
+	}
+
 	LoggerLevel = logger.LevelWarning
 )
 
 func init() {
 	Root.AddCommand(Publishers)
 	Publishers.AddCommand(PublishersList)
+
+	Root.AddCommand(Consumers)
+	Consumers.AddCommand(ConsumersList)
 
 	Root.PersistentFlags().Var(&LoggerLevel, "log-level", "")
 	Root.PersistentFlags().String("remote-addr", "localhost:3594", "the path to the config file")
@@ -82,6 +95,23 @@ func publishersList(cmd *cobra.Command, args []string) {
 	assertNoError(ctx, err)
 
 	resp, err := avdClient.ListPublishers(ctx)
+	assertNoError(ctx, err)
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	err = enc.Encode(resp)
+	assertNoError(ctx, err)
+}
+
+func consumersList(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	resp, err := avdClient.ListConsumers(ctx)
 	assertNoError(ctx, err)
 
 	enc := json.NewEncoder(os.Stdout)
