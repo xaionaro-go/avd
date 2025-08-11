@@ -163,6 +163,18 @@ func (c *ConnectionProxied) closeLocked(ctx context.Context) (_err error) {
 		c.CancelFunc = nil
 	}
 	var errs []error
+	if c.Handler != nil {
+		if err := c.Handler.Close(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("unable to close the Handler: %w", err))
+		}
+		c.Handler = nil
+	}
+	if c.Port != nil {
+		if err := c.Port.removeConnection(ctx, c); err != nil {
+			errs = append(errs, fmt.Errorf("unable to remove myself from the listening port: %w", err))
+		}
+		c.Port = nil
+	}
 	if c.AVConn != nil {
 		if err := c.AVConn.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("unable to close the AVConn: %w", err))
@@ -174,12 +186,6 @@ func (c *ConnectionProxied) closeLocked(ctx context.Context) (_err error) {
 			errs = append(errs, fmt.Errorf("unable to close the Conn: %w", err))
 		}
 		c.Conn = nil
-	}
-	if c.Handler != nil {
-		if err := c.Handler.Close(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("unable to close the Handler: %w", err))
-		}
-		c.Handler = nil
 	}
 	return errors.Join(errs...)
 }
@@ -542,10 +548,16 @@ func (c *ConnectionProxied) tryExtractRouteString(
 }
 
 func (c *ConnectionProxied) GetNode(ctx context.Context) node.Abstract {
+	if c == nil || c.Handler == nil {
+		return nil
+	}
 	return c.Handler.GetNode()
 }
 
 func (c *ConnectionProxied) GetKernel() kernel.Abstract {
+	if c == nil || c.Handler == nil {
+		return nil
+	}
 	return c.Handler.GetKernel()
 }
 

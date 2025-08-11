@@ -189,7 +189,10 @@ func (p *ListeningPortProxied) listen(
 func (p *ListeningPortProxied) addConnection(
 	ctx context.Context,
 	netConn net.Conn,
-) error {
+) (_err error) {
+	logger.Debugf(ctx, "addConnection(ctx, %s)", netConn.RemoteAddr())
+	defer func() { logger.Debugf(ctx, "/addConnection(ctx, %s): %v", netConn.RemoteAddr(), _err) }()
+
 	conn, err := newConnectionProxied(ctx, p, netConn)
 	if err != nil {
 		return fmt.Errorf("unable to initialize a connection for '%s': %w", netConn.RemoteAddr(), err)
@@ -211,5 +214,31 @@ func (p *ListeningPortProxied) addConnection(
 		return fmt.Errorf("unable to store the new connection: %w", err)
 	}
 
+	return nil
+}
+
+func (p *ListeningPortProxied) removeConnection(
+	ctx context.Context,
+	conn *ConnectionProxied,
+) (_err error) {
+	logger.Debugf(ctx, "removeConnection(ctx, %s)", conn.String())
+	defer func() { logger.Debugf(ctx, "/removeConnection(ctx, %s): %v", conn.String(), _err) }()
+
+	if conn == nil {
+		return fmt.Errorf("the connection is nil")
+	}
+
+	netConn := conn.GetRawConn(ctx)
+	if netConn == nil {
+		return fmt.Errorf("GetRawConn is nil for the connection '%s'", conn.String())
+	}
+
+	remoteAddr := netConn.RemoteAddr()
+	p.ConnectionsLocker.Do(ctx, func() {
+		oldConn := p.Connections[remoteAddr]
+		if oldConn == conn {
+			delete(p.Connections, remoteAddr)
+		}
+	})
 	return nil
 }
