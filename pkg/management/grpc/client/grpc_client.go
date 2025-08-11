@@ -14,8 +14,14 @@ type GRPCClient struct {
 	client avdmanagementgrpc.AvdServiceClient
 }
 
-func NewGRPCClient(address string) (*GRPCClient, error) {
-	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func New(
+	ctx context.Context,
+	address string,
+) (*GRPCClient, error) {
+	conn, err := grpc.NewClient(
+		address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -29,14 +35,12 @@ func (c *GRPCClient) Close() error {
 
 func (c *GRPCClient) ListPublishers(
 	ctx context.Context,
-	req *avdmanagementgrpc.ListPublishersRequest,
 ) (*avdmanagementgrpc.ListPublishersResponse, error) {
-	return c.client.ListPublishers(ctx, req)
+	return c.client.ListPublishers(ctx, &avdmanagementgrpc.ListPublishersRequest{})
 }
 
 func (c *GRPCClient) ListConsumers(
 	ctx context.Context,
-	req *avdmanagementgrpc.ListConsumersRequest,
 ) (*avdmanagementgrpc.ListConsumersResponse, error) {
-	return c.client.ListConsumers(ctx, req)
+	return c.client.ListConsumers(ctx, &avdmanagementgrpc.ListConsumersRequest{})
 }
