@@ -2,23 +2,64 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"net"
 
 	"github.com/xaionaro-go/avd/pkg/avd"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/proto/avdmanagementgrpc"
 	avpipelinegrpc "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	"github.com/xaionaro-go/avpipeline/protobuf/goconv"
+	"google.golang.org/grpc"
 )
 
 type GRPCServer struct {
 	avdmanagementgrpc.AvdServiceServer
-	Backend *avd.Server
+	Backend    Backend
+	Listener   net.Listener
+	GRPCServer *grpc.Server
 }
 
-func NewGRPCServer(
-	backend *avd.Server,
+type Backend interface {
+	GetListeningPorts(ctx context.Context) []avd.ListeningPort
+}
+
+func New(
+	backend Backend,
+	listener net.Listener,
 ) *GRPCServer {
-	return &GRPCServer{
-		Backend: backend,
+	srv := &GRPCServer{
+		Backend:    backend,
+		Listener:   listener,
+		GRPCServer: grpc.NewServer(),
+	}
+	avdmanagementgrpc.RegisterAvdServiceServer(srv.GRPCServer, srv)
+	return srv
+}
+
+func (srv *GRPCServer) Serve() error {
+	if srv.GRPCServer == nil {
+		return fmt.Errorf("GRPCServer is not initialized")
+	}
+	return srv.GRPCServer.Serve(srv.Listener)
+}
+
+func (srv *GRPCServer) ServeContext(ctx context.Context) error {
+	if srv.GRPCServer == nil {
+		return fmt.Errorf("GRPCServer is not initialized")
+	}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.GRPCServer.Serve(srv.Listener)
+	}()
+	select {
+	case <-ctx.Done():
+		srv.GRPCServer.GracefulStop()
+		return ctx.Err()
+	case err := <-errCh:
+		if err != nil {
+			return fmt.Errorf("failed to serve gRPC: %w", err)
+		}
+		return nil
 	}
 }
 
