@@ -4,12 +4,12 @@ import "imports/avpipeline/protobuf/avpipeline.proto";
 option go_package = "github.com/xaionaro-go/avd/pkg/management/grpc/proto;avdmanagementgrpc";
 
 service AvdService {
-    rpc ListPublishers (ListPublishersRequest) returns (ListPublisherResponse);
+    rpc ListPublishers (ListPublishersRequest) returns (ListPublishersResponse);
     rpc ListConsumers (ListConsumersRequest) returns (ListConsumersResponse);
 }
 
 message ListPublishersRequest {}
-message ListPublisherResponse {
+message ListPublishersResponse {
     repeated avpipeline.Node nodes = 1;
 }
 

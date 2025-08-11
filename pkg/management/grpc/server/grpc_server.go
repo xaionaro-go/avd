@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net"
 
+	"google.golang.org/grpc"
+
 	"github.com/xaionaro-go/avd/pkg/avd"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/proto/avdmanagementgrpc"
 	avpipelinegrpc "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	"github.com/xaionaro-go/avpipeline/protobuf/goconv"
-	"google.golang.org/grpc"
 )
 
 type GRPCServer struct {
@@ -66,7 +67,7 @@ func (srv *GRPCServer) ServeContext(ctx context.Context) error {
 func (srv *GRPCServer) ListPublishers(
 	ctx context.Context,
 	req *avdmanagementgrpc.ListPublishersRequest,
-) (*avdmanagementgrpc.ListPublisherResponse, error) {
+) (*avdmanagementgrpc.ListPublishersResponse, error) {
 	var result []*avpipelinegrpc.Node
 	ports := srv.Backend.GetListeningPorts(ctx)
 	for _, port := range ports {
@@ -77,7 +78,7 @@ func (srv *GRPCServer) ListPublishers(
 			}
 		}
 	}
-	return &avdmanagementgrpc.ListPublisherResponse{
+	return &avdmanagementgrpc.ListPublishersResponse{
 		Nodes: result,
 	}, nil
 }

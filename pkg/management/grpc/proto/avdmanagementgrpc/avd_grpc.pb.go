@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AvdServiceClient interface {
-	ListPublishers(ctx context.Context, in *ListPublishersRequest, opts ...grpc.CallOption) (*ListPublisherResponse, error)
+	ListPublishers(ctx context.Context, in *ListPublishersRequest, opts ...grpc.CallOption) (*ListPublishersResponse, error)
 	ListConsumers(ctx context.Context, in *ListConsumersRequest, opts ...grpc.CallOption) (*ListConsumersResponse, error)
 }
 
@@ -39,9 +39,9 @@ func NewAvdServiceClient(cc grpc.ClientConnInterface) AvdServiceClient {
 	return &avdServiceClient{cc}
 }
 
-func (c *avdServiceClient) ListPublishers(ctx context.Context, in *ListPublishersRequest, opts ...grpc.CallOption) (*ListPublisherResponse, error) {
+func (c *avdServiceClient) ListPublishers(ctx context.Context, in *ListPublishersRequest, opts ...grpc.CallOption) (*ListPublishersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListPublisherResponse)
+	out := new(ListPublishersResponse)
 	err := c.cc.Invoke(ctx, AvdService_ListPublishers_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (c *avdServiceClient) ListConsumers(ctx context.Context, in *ListConsumersR
 // All implementations must embed UnimplementedAvdServiceServer
 // for forward compatibility
 type AvdServiceServer interface {
-	ListPublishers(context.Context, *ListPublishersRequest) (*ListPublisherResponse, error)
+	ListPublishers(context.Context, *ListPublishersRequest) (*ListPublishersResponse, error)
 	ListConsumers(context.Context, *ListConsumersRequest) (*ListConsumersResponse, error)
 	mustEmbedUnimplementedAvdServiceServer()
 }
@@ -72,7 +72,7 @@ type AvdServiceServer interface {
 type UnimplementedAvdServiceServer struct {
 }
 
-func (UnimplementedAvdServiceServer) ListPublishers(context.Context, *ListPublishersRequest) (*ListPublisherResponse, error) {
+func (UnimplementedAvdServiceServer) ListPublishers(context.Context, *ListPublishersRequest) (*ListPublishersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListPublishers not implemented")
 }
 func (UnimplementedAvdServiceServer) ListConsumers(context.Context, *ListConsumersRequest) (*ListConsumersResponse, error) {
