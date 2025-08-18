@@ -5,11 +5,17 @@ option go_package = "github.com/xaionaro-go/avd/pkg/management/grpc/proto;avdman
 
 service AvdService {
     rpc ListPublishers (ListPublishersRequest) returns (ListPublishersResponse);
+    rpc ListRoutes (ListRoutesRequest) returns (ListRoutesResponse);
     rpc ListConsumers (ListConsumersRequest) returns (ListConsumersResponse);
 }
 
 message ListPublishersRequest {}
 message ListPublishersResponse {
+    repeated avpipeline.Node nodes = 1;
+}
+
+message ListRoutesRequest {}
+message ListRoutesResponse {
     repeated avpipeline.Node nodes = 1;
 }
 

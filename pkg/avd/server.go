@@ -40,3 +40,7 @@ func (s *Server) Wait(ctx context.Context) error {
 
 	return s.Router.Wait(ctx)
 }
+
+func (s *Server) GetRouter() *router.Router[RouteCustomData] {
+	return s.Router
+}

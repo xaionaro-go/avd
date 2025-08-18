@@ -44,3 +44,9 @@ func (c *GRPCClient) ListConsumers(
 ) (*avdmanagementgrpc.ListConsumersResponse, error) {
 	return c.client.ListConsumers(ctx, &avdmanagementgrpc.ListConsumersRequest{})
 }
+
+func (c *GRPCClient) ListRoutes(
+	ctx context.Context,
+) (*avdmanagementgrpc.ListRoutesResponse, error) {
+	return c.client.ListRoutes(ctx, &avdmanagementgrpc.ListRoutesRequest{})
+}

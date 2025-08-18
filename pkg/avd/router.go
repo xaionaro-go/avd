@@ -4,10 +4,11 @@ import (
 	"context"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/router"
 )
 
-type RouteCustomData struct{}
+type RouteCustomData = types.RouteCustomData
 type RouteSource[T Publisher] = router.RouteSource[RouteCustomData, T, *ProcessorInput]
 
 func (s *Server) OnRouteCreated(

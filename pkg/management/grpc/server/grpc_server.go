@@ -8,9 +8,11 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/xaionaro-go/avd/pkg/avd"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/proto/avdmanagementgrpc"
 	avpipelinegrpc "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	"github.com/xaionaro-go/avpipeline/protobuf/goconv"
+	"github.com/xaionaro-go/avpipeline/router"
 )
 
 type GRPCServer struct {
@@ -22,6 +24,7 @@ type GRPCServer struct {
 
 type Backend interface {
 	GetListeningPorts(ctx context.Context) []avd.ListeningPort
+	GetRouter() *router.Router[types.RouteCustomData]
 }
 
 func New(
@@ -79,6 +82,28 @@ func (srv *GRPCServer) ListPublishers(
 		}
 	}
 	return &avdmanagementgrpc.ListPublishersResponse{
+		Nodes: result,
+	}, nil
+}
+
+func (srv *GRPCServer) ListRoutes(
+	ctx context.Context,
+	req *avdmanagementgrpc.ListRoutesRequest,
+) (*avdmanagementgrpc.ListRoutesResponse, error) {
+	var result []*avpipelinegrpc.Node
+	router := srv.Backend.GetRouter()
+	router.Locker.Do(ctx, func() {
+		for _, route := range router.RoutesByPath {
+			if route == nil {
+				continue
+			}
+			node := goconv.NodeToGRPC(route.Node)
+			if node != nil {
+				result = append(result, node)
+			}
+		}
+	})
+	return &avdmanagementgrpc.ListRoutesResponse{
 		Nodes: result,
 	}, nil
 }

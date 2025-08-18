@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion8
 
 const (
 	AvdService_ListPublishers_FullMethodName = "/AvdService/ListPublishers"
+	AvdService_ListRoutes_FullMethodName     = "/AvdService/ListRoutes"
 	AvdService_ListConsumers_FullMethodName  = "/AvdService/ListConsumers"
 )
 
@@ -28,6 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AvdServiceClient interface {
 	ListPublishers(ctx context.Context, in *ListPublishersRequest, opts ...grpc.CallOption) (*ListPublishersResponse, error)
+	ListRoutes(ctx context.Context, in *ListRoutesRequest, opts ...grpc.CallOption) (*ListRoutesResponse, error)
 	ListConsumers(ctx context.Context, in *ListConsumersRequest, opts ...grpc.CallOption) (*ListConsumersResponse, error)
 }
 
@@ -49,6 +51,16 @@ func (c *avdServiceClient) ListPublishers(ctx context.Context, in *ListPublisher
 	return out, nil
 }
 
+func (c *avdServiceClient) ListRoutes(ctx context.Context, in *ListRoutesRequest, opts ...grpc.CallOption) (*ListRoutesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRoutesResponse)
+	err := c.cc.Invoke(ctx, AvdService_ListRoutes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *avdServiceClient) ListConsumers(ctx context.Context, in *ListConsumersRequest, opts ...grpc.CallOption) (*ListConsumersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListConsumersResponse)
@@ -64,6 +76,7 @@ func (c *avdServiceClient) ListConsumers(ctx context.Context, in *ListConsumersR
 // for forward compatibility
 type AvdServiceServer interface {
 	ListPublishers(context.Context, *ListPublishersRequest) (*ListPublishersResponse, error)
+	ListRoutes(context.Context, *ListRoutesRequest) (*ListRoutesResponse, error)
 	ListConsumers(context.Context, *ListConsumersRequest) (*ListConsumersResponse, error)
 	mustEmbedUnimplementedAvdServiceServer()
 }
@@ -74,6 +87,9 @@ type UnimplementedAvdServiceServer struct {
 
 func (UnimplementedAvdServiceServer) ListPublishers(context.Context, *ListPublishersRequest) (*ListPublishersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListPublishers not implemented")
+}
+func (UnimplementedAvdServiceServer) ListRoutes(context.Context, *ListRoutesRequest) (*ListRoutesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRoutes not implemented")
 }
 func (UnimplementedAvdServiceServer) ListConsumers(context.Context, *ListConsumersRequest) (*ListConsumersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListConsumers not implemented")
@@ -109,6 +125,24 @@ func _AvdService_ListPublishers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AvdService_ListRoutes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRoutesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AvdServiceServer).ListRoutes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AvdService_ListRoutes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AvdServiceServer).ListRoutes(ctx, req.(*ListRoutesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AvdService_ListConsumers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListConsumersRequest)
 	if err := dec(in); err != nil {
@@ -137,6 +171,10 @@ var AvdService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListPublishers",
 			Handler:    _AvdService_ListPublishers_Handler,
+		},
+		{
+			MethodName: "ListRoutes",
+			Handler:    _AvdService_ListRoutes_Handler,
 		},
 		{
 			MethodName: "ListConsumers",
