@@ -15,6 +15,7 @@ import (
 	"github.com/asticode/go-astiav"
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/go-ng/xatomic"
 	"github.com/xaionaro-go/avcommon"
 	xastiav "github.com/xaionaro-go/avcommon/astiav"
 	"github.com/xaionaro-go/avpipeline/kernel"
@@ -29,12 +30,12 @@ const (
 )
 
 type ConnectionProxied struct {
-	Handler ConnectionProxiedHandler
+	Handler *ConnectionProxiedHandler
 	Locker  xsync.Mutex
 
 	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
 	Port         *ListeningPortProxied
-	Conn         net.Conn
+	Conn         *net.Conn
 	CancelFunc   context.CancelFunc
 	AVInputURL   *url.URL
 	AVInputKey   secret.String
@@ -58,15 +59,15 @@ func newConnectionProxied(
 	ctx = belt.WithField(ctx, "protocol", p.Protocol.String())
 	c := &ConnectionProxied{
 		Port:         p,
-		Conn:         conn,
 		CancelFunc:   cancelFn,
 		InitFinished: make(chan struct{}),
 	}
+	c.SetConn(conn)
 	switch p.Mode {
 	case PortModePublishers:
-		c.Handler = newConnectionProxiedPublisher(c)
+		c.SetHandler(newConnectionProxiedPublisher(c))
 	case PortModeConsumers:
-		c.Handler = newConnectionProxiedConsumer(c)
+		c.SetHandler(newConnectionProxiedConsumer(c))
 	}
 	defer func() {
 		if _ret == nil {
@@ -94,12 +95,14 @@ func newConnectionProxied(
 				logger.Errorf(ctx, "negotiation for protocol '%s' is not implemented (yet?)", p.Protocol)
 				return
 			}
-			if err := negotiate(ctx); err != nil {
+			err = negotiate(ctx)
+			if err != nil {
 				logger.Errorf(ctx, "unable to negotiate the connection with %s: %v", conn.RemoteAddr(), err)
 				return
 			}
 		}
-		if err := c.forward(ctx); err != nil {
+		err = c.forward(ctx)
+		if err != nil {
 			switch {
 			case errors.Is(err, io.EOF):
 				logger.Debugf(ctx, "EOF: finished the forward the connection with %s: %v", conn.RemoteAddr(), err)
@@ -111,6 +114,23 @@ func newConnectionProxied(
 	})
 
 	return c, nil
+}
+
+func (c *ConnectionProxied) SetHandler(
+	handler ConnectionProxiedHandler,
+) {
+	xatomic.StorePointer(&c.Handler, &handler)
+}
+
+func (c *ConnectionProxied) GetHandler() ConnectionProxiedHandler {
+	if c == nil {
+		return nil
+	}
+	handler := xatomic.LoadPointer(&c.Handler)
+	if handler == nil {
+		return nil
+	}
+	return *handler
 }
 
 func (c *ConnectionProxied) String() string {
@@ -130,18 +150,17 @@ func (c *ConnectionProxied) String() string {
 		)
 	}
 
+	conn := c.GetConn()
+	avConn := c.GetAVConn()
 	return fmt.Sprintf(
 		"%s[%s](%s->%s->%s->%s)",
 		strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
-		c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.AVConn.LocalAddr(), c.AVConn.RemoteAddr(),
+		conn.RemoteAddr(), conn.LocalAddr(), avConn.LocalAddr(), avConn.RemoteAddr(),
 	)
 }
 
 func (c *ConnectionProxied) GetRawConn(context.Context) net.Conn {
-	if c == nil {
-		return nil
-	}
-	return c.Conn
+	return c.GetConn()
 }
 
 func (c *ConnectionProxied) Mode() PortMode {
@@ -163,31 +182,64 @@ func (c *ConnectionProxied) closeLocked(ctx context.Context) (_err error) {
 		c.CancelFunc = nil
 	}
 	var errs []error
-	if c.Handler != nil {
-		if err := c.Handler.Close(ctx); err != nil {
+	if handler := c.GetHandler(); handler != nil {
+		if err := handler.Close(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("unable to close the Handler: %w", err))
 		}
-		c.Handler = nil
+		c.SetHandler(nil)
 	}
-	if c.Port != nil {
-		if err := c.Port.removeConnection(ctx, c); err != nil {
+	if port := c.GetPort(); port != nil {
+		if err := port.removeConnection(ctx, c); err != nil {
 			errs = append(errs, fmt.Errorf("unable to remove myself from the listening port: %w", err))
 		}
-		c.Port = nil
+		c.SetPort(nil)
 	}
-	if c.AVConn != nil {
-		if err := c.AVConn.Close(); err != nil {
+	if avConn := c.GetAVConn(); avConn != nil {
+		if err := avConn.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("unable to close the AVConn: %w", err))
 		}
-		c.AVConn = nil
+		c.SetAVConn(nil)
 	}
-	if c.Conn != nil {
-		if err := c.Conn.Close(); err != nil {
+	if conn := c.GetConn(); conn != nil {
+		if err := conn.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("unable to close the Conn: %w", err))
 		}
-		c.Conn = nil
+		c.SetConn(nil)
 	}
 	return errors.Join(errs...)
+}
+
+func (c *ConnectionProxied) GetPort() *ListeningPortProxied {
+	if c == nil {
+		return nil
+	}
+	return xatomic.LoadPointer(&c.Port)
+}
+
+func (c *ConnectionProxied) SetPort(port *ListeningPortProxied) {
+	xatomic.StorePointer(&c.Port, port)
+}
+
+func (c *ConnectionProxied) GetAVConn() *net.TCPConn {
+	if c == nil {
+		return nil
+	}
+	return xatomic.LoadPointer(&c.AVConn)
+}
+
+func (c *ConnectionProxied) SetAVConn(avConn *net.TCPConn) {
+	xatomic.StorePointer(&c.AVConn, avConn)
+}
+
+func (c *ConnectionProxied) GetConn() net.Conn {
+	if c == nil {
+		return nil
+	}
+	return *xatomic.LoadPointer(&c.Conn)
+}
+
+func (c *ConnectionProxied) SetConn(conn net.Conn) {
+	xatomic.StorePointer(&c.Conn, &conn)
 }
 
 func (c *ConnectionProxied) builtAVListenURL(
@@ -233,11 +285,21 @@ func (c *ConnectionProxied) isAsyncOpen(
 ) (_ret bool) {
 	logger.Debugf(ctx, "isAsyncOpen")
 	defer func() { logger.Debugf(ctx, "/isAsyncOpen: %v", _ret) }()
-	switch c.Port.Protocol {
+	port := c.GetPort()
+	if port == nil {
+		logger.Debugf(ctx, "isAsyncOpen: Port is nil")
+		return false
+	}
+	switch port.Protocol {
 	case ProtocolRTMP:
 		return true
 	}
-	switch c.Handler.(type) {
+	handler := c.GetHandler()
+	if handler == nil {
+		logger.Debugf(ctx, "isAsyncOpen: Handler is nil")
+		return false
+	}
+	switch handler.(type) {
 	case *ConnectionProxiedHandlerPublisher:
 		return true
 	}
@@ -274,7 +336,8 @@ func (c *ConnectionProxied) initAVHandler(
 	customOpts := c.Port.Config.DictionaryItems(c.Port.Protocol, c.Mode())
 
 	logger.Debugf(ctx, "attempting to listen by libav at '%s'...", url)
-	err = c.Handler.InitAVHandler(ctx, url, secretKey, customOpts...)
+	handler := c.GetHandler()
+	err = handler.InitAVHandler(ctx, url, secretKey, customOpts...)
 	if err != nil {
 		return fmt.Errorf("unable to initialize the AV handler at %s: %w", url, err)
 	}
@@ -313,24 +376,28 @@ func (c *ConnectionProxied) onInitFinished(
 ) {
 	logger.Debugf(ctx, "onInitFinished")
 	defer func() { logger.Debugf(ctx, "/onInitFinished") }()
-	c.Locker.Do(ctx, func() {
-		if c.Handler == nil {
-			logger.Debugf(ctx, "the connection was already closed")
-			return
-		}
+	handler := c.GetHandler()
+	if handler == nil {
+		logger.Debugf(ctx, "the connection was already closed")
+		return
+	}
+	port := c.GetPort()
+	if port == nil {
+		logger.Debugf(ctx, "the port was already closed")
+		return
+	}
 
-		switch c.Port.Protocol {
-		case ProtocolRTMP:
-			c.onInitFinishedRTMP(ctx)
-		case ProtocolRTSP:
-			c.onInitFinishedRTSP(ctx)
-		default:
-			logger.Errorf(ctx, "onInitFinished is not implemented for protocol '%s' (yet?)", c.Port.Protocol)
-		}
-		c.AVInputURL.Path = c.GetURLPath()
-		c.Handler.SetURL(ctx, c.AVInputURL)
-		close(c.InitFinished)
-	})
+	switch port.Protocol {
+	case ProtocolRTMP:
+		c.onInitFinishedRTMP(ctx)
+	case ProtocolRTSP:
+		c.onInitFinishedRTSP(ctx)
+	default:
+		logger.Errorf(ctx, "onInitFinished is not implemented for protocol '%s' (yet?)", port.Protocol)
+	}
+	c.AVInputURL.Path = c.GetURLPath()
+	c.GetHandler().SetURL(ctx, c.AVInputURL)
+	close(c.InitFinished)
 }
 
 func (c *ConnectionProxied) negotiate(
@@ -339,7 +406,13 @@ func (c *ConnectionProxied) negotiate(
 	logger.Debugf(origCtx, "negotiate")
 	defer func() { logger.Debugf(origCtx, "/negotiate: %v", _err) }()
 
-	avConn, conn := c.AVConn, c.Conn
+	avConn, conn := c.GetAVConn(), c.GetConn()
+	if avConn == nil {
+		return fmt.Errorf("AVConn is nil")
+	}
+	if conn == nil {
+		return fmt.Errorf("Conn is nil")
+	}
 
 	defer func() {
 		if err := avConn.SetDeadline(time.Time{}); err != nil {
@@ -487,7 +560,12 @@ func (c *ConnectionProxied) serve(
 ) {
 	logger.Debugf(ctx, "serve")
 	defer logger.Debugf(ctx, "/serve")
-	switch c := c.Handler.(type) {
+	handler := c.GetHandler()
+	if handler == nil {
+		logger.Debugf(ctx, "not running Serve, because Handler == nil")
+		return
+	}
+	switch c := handler.(type) {
 	case *ConnectionProxiedHandlerPublisher:
 		err := c.StartForwarding(ctx)
 		if err != nil {
@@ -517,11 +595,18 @@ func (c *ConnectionProxied) serve(
 		logger.Debugf(ctx, "not running Serve, because of InitError: %v", c.InitError)
 		return
 	}
-	if logger.FromCtx(ctx).Level() >= logger.LevelDebug {
-		logger.Debugf(ctx, "resulting graph: %s", c.GetNode(ctx).(interface{ DotString(bool) string }).DotString(false))
+
+	n := handler.GetNode()
+	if n == nil {
+		logger.Debugf(ctx, "not running Serve, because Node == nil")
+		return
 	}
 
-	switch c := c.Handler.(type) {
+	if logger.FromCtx(ctx).Level() >= logger.LevelDebug {
+		logger.Debugf(ctx, "resulting graph: %s", n.(interface{ DotString(bool) string }).DotString(false))
+	}
+
+	switch c := handler.(type) {
 	case *ConnectionProxiedHandlerConsumer:
 		err := c.StartForwarding(ctx)
 		if err != nil {
@@ -530,7 +615,7 @@ func (c *ConnectionProxied) serve(
 			return
 		}
 	}
-	c.GetNode(ctx).Serve(ctx, node.ServeConfig{}, errCh)
+	n.Serve(ctx, node.ServeConfig{}, errCh)
 }
 
 func (c *ConnectionProxied) tryExtractRouteString(
@@ -548,17 +633,19 @@ func (c *ConnectionProxied) tryExtractRouteString(
 }
 
 func (c *ConnectionProxied) GetNode(ctx context.Context) node.Abstract {
-	if c == nil || c.Handler == nil {
+	handler := c.GetHandler()
+	if handler == nil {
 		return nil
 	}
-	return c.Handler.GetNode()
+	return handler.GetNode()
 }
 
 func (c *ConnectionProxied) GetKernel() kernel.Abstract {
-	if c == nil || c.Handler == nil {
+	handler := c.GetHandler()
+	if handler == nil {
 		return nil
 	}
-	return c.Handler.GetKernel()
+	return handler.GetKernel()
 }
 
 func (c *ConnectionProxied) getFormatContext() *astiav.FormatContext {
@@ -619,7 +706,13 @@ func (c *ConnectionProxied) forward(
 	logger.Debugf(ctx, "forward")
 	defer func() { logger.Debugf(ctx, "/forward: %v", _err) }()
 
-	avConn, conn := c.AVConn, c.Conn
+	avConn, conn := c.GetAVConn(), c.GetConn()
+	if avConn == nil {
+		return fmt.Errorf("AVConn is nil")
+	}
+	if conn == nil {
+		return fmt.Errorf("Conn is nil")
+	}
 
 	defer func() {
 		if err := avConn.SetDeadline(time.Time{}); err != nil {

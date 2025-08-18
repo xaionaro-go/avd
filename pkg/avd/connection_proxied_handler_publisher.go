@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sync/atomic"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/go-ng/xatomic"
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
@@ -21,7 +23,7 @@ type ConnectionProxiedHandlerPublisher struct {
 	Locker        xsync.Mutex
 	Node          *NodeInputProxied
 	AsRouteSource *RouteSource[*ConnectionProxiedHandlerPublisher]
-	IsForwarding  bool
+	IsForwarding  atomic.Bool
 }
 
 var _ ConnectionProxiedHandler = (*ConnectionProxiedHandlerPublisher)(nil)
@@ -70,45 +72,70 @@ func (c *ConnectionProxiedHandlerPublisher) InitAVHandler(
 		})
 		return err
 	}
-	c.Node = newProxiedInputNode(ctx, c, input)
+	c.SetNodeTyped(newProxiedInputNode(ctx, c, input))
 	return nil
 }
 
 func (c *ConnectionProxiedHandlerPublisher) GetPublishMode(
 	ctx context.Context,
 ) router.PublishMode {
-	return c.Parent.Port.Config.PublishMode
+	port := c.Parent.GetPort()
+	if port == nil {
+		return router.UndefinedPublishMode
+	}
+	return port.Config.PublishMode
 }
 
 func (c *ConnectionProxiedHandlerPublisher) GetInputNode(
 	context.Context,
 ) node.Abstract {
-	return c.Node
+	return c.GetNode()
 }
 
 func (c *ConnectionProxiedHandlerPublisher) GetNode() node.Abstract {
-	return c.Node
+	n := c.GetNodeTyped()
+	if n == nil {
+		return nil
+	}
+	return n
+}
+
+func (c *ConnectionProxiedHandlerPublisher) GetNodeTyped() *NodeInputProxied {
+	return xatomic.LoadPointer(&c.Node)
+}
+
+func (c *ConnectionProxiedHandlerPublisher) SetNodeTyped(n *NodeInputProxied) {
+	xatomic.StorePointer(&c.Node, n)
 }
 
 func (c *ConnectionProxiedHandlerPublisher) GetOutputRoute(
 	context.Context,
 ) *router.Route[RouteCustomData] {
-	if c.AsRouteSource == nil {
+	asRouteSource := c.GetAsRouteSource()
+	if asRouteSource == nil {
 		return nil
 	}
-	return c.AsRouteSource.Output
+	return asRouteSource.Output
 }
 
 func (c *ConnectionProxiedHandlerPublisher) StartForwarding(
 	ctx context.Context,
 ) error {
 	routePath := *c.Parent.RoutePath
+	port := c.Parent.GetPort()
+	if port == nil {
+		return fmt.Errorf("port is nil, unable to start forwarding")
+	}
+	n := c.GetNodeTyped()
+	if n == nil {
+		return fmt.Errorf("node is nil, unable to start forwarding")
+	}
 	routeSource, err := router.AddRouteSource(
 		ctx,
-		c.Parent.Port.Server.Router,
-		c.Node,
+		port.Server.Router,
+		n,
 		routePath,
-		c.Parent.Port.Config.PublishMode,
+		port.Config.PublishMode,
 		nil,
 		c.onRouteSourcePostStart,
 		c.onRouteSourcePreStop,
@@ -117,9 +144,35 @@ func (c *ConnectionProxiedHandlerPublisher) StartForwarding(
 	if err != nil {
 		return fmt.Errorf("unable to add a source to route '%s': %w", routePath, err)
 	}
-	c.AsRouteSource = routeSource
+	c.SetAsRouteSource(routeSource)
 
 	return nil
+}
+
+func (c *ConnectionProxiedHandlerPublisher) SetAsRouteSource(
+	rs *RouteSource[*ConnectionProxiedHandlerPublisher],
+) {
+	if c == nil {
+		return
+	}
+	xatomic.StorePointer(&c.AsRouteSource, rs)
+}
+
+func (c *ConnectionProxiedHandlerPublisher) GetAsRouteSource() *RouteSource[*ConnectionProxiedHandlerPublisher] {
+	if c == nil {
+		return nil
+	}
+	return xatomic.LoadPointer(&c.AsRouteSource)
+}
+
+func (c *ConnectionProxiedHandlerPublisher) SetIsForwarding(
+	isForwarding bool,
+) bool {
+	if c == nil {
+		return false
+	}
+
+	return c.IsForwarding.Swap(isForwarding) != isForwarding
 }
 
 func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePostStart(
@@ -128,9 +181,9 @@ func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePostStart(
 ) {
 	logger.Debugf(ctx, "onRouteSourcePostStart")
 	defer func() { logger.Debugf(ctx, "/onRouteSourcePostStart") }()
-	c.IsForwarding = true
+	c.SetIsForwarding(true)
 	observability.Go(ctx, func(ctx context.Context) {
-		s := c.Node.DotString(false)
+		s := c.GetNodeTyped().DotString(false)
 		logger.Debugf(ctx, "onRouteSourcePostStart: pipeline: %s", s)
 	})
 }
@@ -141,11 +194,15 @@ func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePreStop(
 ) {
 	logger.Debugf(ctx, "onRouteSourcePreStop")
 	defer func() { logger.Debugf(ctx, "/onRouteSourcePreStop") }()
-	if !c.IsForwarding {
+	if !c.SetIsForwarding(false) {
 		return
 	}
-	c.IsForwarding = false
-	err := PublisherClose(ctx, c, c.Parent.Port.Config.OnEndAction)
+	port := c.Parent.GetPort()
+	if port == nil {
+		logger.Debugf(ctx, "onRouteSourcePreStop: port is nil, skipping closing the publisher")
+		return
+	}
+	err := PublisherClose(ctx, c, port.Config.OnEndAction)
 	if err != nil {
 		logger.Errorf(ctx, "unable to close the publisher: %v", err)
 	}
@@ -158,13 +215,17 @@ func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePostStop(
 	logger.Debugf(ctx, "onRouteSourcePostStop")
 	defer func() { logger.Debugf(ctx, "/onRouteSourcePostStop") }()
 	observability.Go(ctx, func(ctx context.Context) {
-		s := c.Node.DotString(false)
+		s := c.GetNodeTyped().DotString(false)
 		logger.Debugf(ctx, "onRouteSourcePostStop: pipeline: %s", s)
 	})
 }
 
 func (c *ConnectionProxiedHandlerPublisher) GetKernel() kernel.Abstract {
-	return c.Node.Processor.Kernel
+	n := c.GetNodeTyped()
+	if n == nil {
+		return nil
+	}
+	return n.Processor.Kernel
 }
 
 func (c *ConnectionProxiedHandlerPublisher) Close(ctx context.Context) (_err error) {
@@ -177,17 +238,18 @@ func (c *ConnectionProxiedHandlerPublisher) closeLocked(ctx context.Context) (_e
 	logger.Debugf(ctx, "closeLocked")
 	defer func() { logger.Debugf(ctx, "/closeLocked: %v", _err) }()
 	var errs []error
-	if c.AsRouteSource != nil {
-		if err := c.AsRouteSource.Stop(ctx); err != nil {
+
+	if asRouteSource := c.GetAsRouteSource(); asRouteSource != nil {
+		if err := asRouteSource.Stop(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("unable to stop stream forwarding (publisher): %w", err))
 		}
-		c.AsRouteSource = nil
+		c.SetAsRouteSource(nil)
 	}
-	if c.Node != nil {
-		if err := c.Node.GetProcessor().Close(ctx); err != nil {
+	if n := c.GetNodeTyped(); n != nil {
+		if err := n.GetProcessor().Close(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("unable to close the node processor: %w", err))
 		}
-		c.Node = nil
+		c.SetNodeTyped(nil)
 	}
 	return errors.Join(errs...)
 }
@@ -196,5 +258,10 @@ func (c *ConnectionProxiedHandlerPublisher) SetURL(
 	ctx context.Context,
 	url *url.URL,
 ) {
-	c.Node.Processor.Kernel.URL = url.String()
+	n := c.GetNodeTyped()
+	if n == nil {
+		logger.Errorf(ctx, "SetURL: node is nil, unable to set URL")
+		return
+	}
+	n.Processor.Kernel.URL = url.String()
 }
