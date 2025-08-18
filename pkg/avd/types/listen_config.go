@@ -28,6 +28,13 @@ type ListenConfig struct {
 	RTSP ListenConfigRTSP
 }
 
+func (cfg ListenConfig) GetPublishMode() router.PublishMode {
+	if cfg.PublishMode == router.UndefinedPublishMode {
+		return router.PublishModeSharedTakeover
+	}
+	return cfg.PublishMode
+}
+
 func (cfg ListenConfig) GetBufferDuration() time.Duration {
 	if cfg.BufferDuration == 0 {
 		return time.Second

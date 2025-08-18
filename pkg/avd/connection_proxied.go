@@ -649,7 +649,12 @@ func (c *ConnectionProxied) GetKernel() kernel.Abstract {
 }
 
 func (c *ConnectionProxied) getFormatContext() *astiav.FormatContext {
-	switch k := c.GetKernel().(type) {
+	k := c.GetKernel()
+	if k == nil {
+		logger.Errorf(context.TODO(), "getFormatContext: Kernel is nil, unable to get FormatContext")
+		return nil
+	}
+	switch k := k.(type) {
 	case *kernel.Input:
 		return k.FormatContext
 	case *kernel.Output:
@@ -660,15 +665,23 @@ func (c *ConnectionProxied) getFormatContext() *astiav.FormatContext {
 }
 
 func (c *ConnectionProxied) AVFormatContext() *avcommon.AVFormatContext {
+	fmtCtx := c.getFormatContext()
+	if fmtCtx == nil {
+		logger.Errorf(context.TODO(), "AVFormatContext is nil, unable to wrap it")
+		return nil
+	}
 	return avcommon.WrapAVFormatContext(
 		xastiav.CFromAVFormatContext(
-			c.getFormatContext(),
+			fmtCtx,
 		),
 	)
 }
 
 func (c *ConnectionProxied) AVURLContext() *avcommon.URLContext {
 	fmtCtx := c.AVFormatContext()
+	if fmtCtx == nil {
+		return nil
+	}
 	avioCtx := fmtCtx.Pb()
 	if avioCtx == nil {
 		panic("internal error: avioCtx == nil")

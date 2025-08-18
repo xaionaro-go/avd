@@ -83,7 +83,7 @@ func (c *ConnectionProxiedHandlerPublisher) GetPublishMode(
 	if port == nil {
 		return router.UndefinedPublishMode
 	}
-	return port.Config.PublishMode
+	return port.Config.GetPublishMode()
 }
 
 func (c *ConnectionProxiedHandlerPublisher) GetInputNode(
@@ -130,12 +130,16 @@ func (c *ConnectionProxiedHandlerPublisher) StartForwarding(
 	if n == nil {
 		return fmt.Errorf("node is nil, unable to start forwarding")
 	}
+	publishMode := c.GetPublishMode(ctx)
+	if publishMode == router.UndefinedPublishMode {
+		return fmt.Errorf("publish mode is undefined, unable to start forwarding")
+	}
 	routeSource, err := router.AddRouteSource(
 		ctx,
 		port.Server.Router,
 		n,
 		routePath,
-		port.Config.PublishMode,
+		publishMode,
 		nil,
 		c.onRouteSourcePostStart,
 		c.onRouteSourcePreStop,

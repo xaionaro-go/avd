@@ -65,7 +65,7 @@ func (s *Server) ListenDirectConsumers(
 func (p *ListeningPortDirectConsumers) GetPublishMode(
 	ctx context.Context,
 ) router.PublishMode {
-	return router.PublishMode(p.Config.PublishMode)
+	return p.Config.GetPublishMode()
 }
 
 func (p *ListeningPortDirectConsumers) String() string {

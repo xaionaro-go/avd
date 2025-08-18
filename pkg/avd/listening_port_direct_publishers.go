@@ -67,7 +67,7 @@ func (s *Server) ListenDirectPublishers(
 func (p *ListeningPortDirectPublishers) GetPublishMode(
 	ctx context.Context,
 ) router.PublishMode {
-	return router.PublishMode(p.Config.PublishMode)
+	return p.Config.GetPublishMode()
 }
 
 func (p *ListeningPortDirectPublishers) String() string {
@@ -113,7 +113,7 @@ func (p *ListeningPortDirectPublishers) startListening(
 						p.Server.Router,
 						n,
 						routePath,
-						p.Config.PublishMode,
+						p.GetPublishMode(ctx),
 						nil,
 						p.onRouteSourcePostStart,
 						p.onRouteSourcePreStop,

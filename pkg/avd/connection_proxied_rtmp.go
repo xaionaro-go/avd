@@ -11,7 +11,12 @@ import (
 )
 
 func (c *ConnectionProxied) AVRTMPContext() *avcommon.RTMPContext {
-	return avcommon.WrapRTMPContext(c.AVURLContext().PrivData())
+	urlCtx := c.AVURLContext()
+	if urlCtx == nil {
+		logger.Errorf(context.Background(), "AVRTMPContext: urlCtx == nil")
+		return nil
+	}
+	return avcommon.WrapRTMPContext(urlCtx.PrivData())
 }
 
 func (c *ConnectionProxied) onInitFinishedRTMP(
@@ -19,6 +24,10 @@ func (c *ConnectionProxied) onInitFinishedRTMP(
 ) {
 	routePath := c.GetRoutePath()
 	rtmpCtx := c.AVRTMPContext()
+	if rtmpCtx == nil {
+		logger.Errorf(ctx, "onInitFinishedRTMP: rtmpCtx == nil")
+		return
+	}
 	logger.Debugf(ctx, "updating the app name: '%s' -> '%s'", rtmpCtx.App(), routePath)
 	rtmpCtx.SetApp(string(routePath))
 }
