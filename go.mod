@@ -8,6 +8,7 @@ require (
 	github.com/asticode/go-astiav v0.36.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f
+	github.com/go-ng/xatomic v0.0.0-20230519181013-85c0ec87e55f
 	github.com/goccy/go-yaml v1.17.1
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
@@ -29,7 +30,6 @@ require (
 	github.com/go-ng/container v0.0.0-20220615121757-4740bf4bbc52 // indirect
 	github.com/go-ng/slices v0.0.0-20230703171042-6195d35636a2 // indirect
 	github.com/go-ng/sort v0.0.0-20220617173827-2cc7cd04f7c7 // indirect
-	github.com/go-ng/xatomic v0.0.0-20230519181013-85c0ec87e55f // indirect
 	github.com/go-ng/xsort v0.0.0-20250330112557-d2ee7f01661c // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -47,6 +47,7 @@ require (
 	github.com/xaionaro-go/ndk v0.0.0-20250420195304-361bb98583bf // indirect
 	github.com/xaionaro-go/object v0.0.0-20241026212449-753ce10ec94c // indirect
 	github.com/xaionaro-go/proxy v0.0.0-20250525144747-579f5a891c15 // indirect
+	github.com/xaionaro-go/rpn v0.0.0-20250818130635-1419b5218722 // indirect
 	github.com/xaionaro-go/sockopt v0.0.0-20250526214909-e15e1e4bc738 // indirect
 	github.com/xaionaro-go/spinlock v0.0.0-20200518175509-30e6d1ce68a1 // indirect
 	github.com/xaionaro-go/typing v0.0.0-20221123235249-2229101d38ba // indirect
