@@ -8,13 +8,13 @@ require (
 	github.com/asticode/go-astiav v0.36.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f
-	github.com/go-ng/xatomic v0.0.0-20230519181013-85c0ec87e55f
+	github.com/go-ng/xatomic v0.0.0-20250819203610-2369a3becc10
 	github.com/goccy/go-yaml v1.17.1
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250629220425-ad846e62efb6
-	github.com/xaionaro-go/avpipeline v0.0.0-20250818235118-eb2402c035f0
+	github.com/xaionaro-go/avpipeline v0.0.0-20250821184454-29f8144108bf
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2

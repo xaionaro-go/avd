@@ -74,13 +74,13 @@ func Default() Config {
 						AudioTrackConfigs: []transcodertypes.AudioTrackConfig{{
 							InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 							OutputTrackIDs: []int{0},
-							CodecName:      codec.CodecNameCopy,
+							CodecName:      codec.NameCopy,
 							CustomOptions:  transcodertypes.DictionaryItems{},
 						}},
 						VideoTrackConfigs: []transcodertypes.VideoTrackConfig{{
 							InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 							OutputTrackIDs: []int{1},
-							CodecName:      codec.CodecNameCopy,
+							CodecName:      codec.NameCopy,
 							CustomOptions:  transcodertypes.DictionaryItems{},
 						}},
 					},
