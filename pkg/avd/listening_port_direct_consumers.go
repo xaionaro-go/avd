@@ -114,7 +114,7 @@ func (p *ListeningPortDirectConsumers) startListening(
 	url := fmt.Sprintf("%s://%s", proto, hostPort)
 	customOptions := p.Config.DictionaryItems(p.Protocol, PortModeConsumers)
 
-	route, err := p.Server.GetRoute(ctx, routePath, router.GetRouteModeCreateIfNotFound)
+	route, err := p.Server.GetRoute(ctx, routePath, router.GetRouteModeCreateTemporaryIfNotFound)
 	if err != nil {
 		return fmt.Errorf("unable to get route '%s': %w", routePath, err)
 	}

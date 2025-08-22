@@ -118,7 +118,7 @@ func ApplyConfig(
 
 	logger.Debugf(ctx, "configuring the endpoints...")
 	for path, endpoint := range cfg.Endpoints {
-		_, err := srv.Router.GetRoute(ctx, path, router.GetRouteModeCreateIfNotFound)
+		_, err := srv.Router.GetRoute(ctx, path, router.GetRouteModeCreatePersistentIfNotFound)
 		if err != nil {
 			return fmt.Errorf("unable get-or-create route '%s': %w", path, err)
 		}
