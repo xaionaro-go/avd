@@ -2,7 +2,7 @@ module github.com/xaionaro-go/avd
 
 go 1.24.2
 
-replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20250521203320-7402f3e25a7c
+replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20250822190616-666bb00322f2
 
 require (
 	github.com/asticode/go-astiav v0.36.0
@@ -14,7 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250629220425-ad846e62efb6
-	github.com/xaionaro-go/avpipeline v0.0.0-20250822013502-028d5007afa4
+	github.com/xaionaro-go/avpipeline v0.0.0-20250822214154-36d699115e57
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
