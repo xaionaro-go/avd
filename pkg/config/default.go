@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/codec"
+	codectypes "github.com/xaionaro-go/avpipeline/codec/types"
 	transcodertypes "github.com/xaionaro-go/avpipeline/preset/transcoderwithpassthrough/types"
 )
 
@@ -74,13 +75,13 @@ func Default() Config {
 						AudioTrackConfigs: []transcodertypes.AudioTrackConfig{{
 							InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 							OutputTrackIDs: []int{0},
-							CodecName:      codec.NameCopy,
+							CodecName:      codectypes.Name(codec.NameCopy),
 							CustomOptions:  transcodertypes.DictionaryItems{},
 						}},
 						VideoTrackConfigs: []transcodertypes.VideoTrackConfig{{
 							InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 							OutputTrackIDs: []int{1},
-							CodecName:      codec.NameCopy,
+							CodecName:      codectypes.Name(codec.NameCopy),
 							CustomOptions:  transcodertypes.DictionaryItems{},
 						}},
 					},
