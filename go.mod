@@ -14,7 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250823173020-6a2bb1e1f59d
-	github.com/xaionaro-go/avpipeline v0.0.0-20250824025255-e27931bfbc95
+	github.com/xaionaro-go/avpipeline v0.0.0-20250824200535-7380a3579461
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
@@ -27,6 +27,7 @@ require (
 require (
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/asticode/go-astikit v0.55.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ng/container v0.0.0-20220615121757-4740bf4bbc52 // indirect
 	github.com/go-ng/slices v0.0.0-20230703171042-6195d35636a2 // indirect
 	github.com/go-ng/sort v0.0.0-20220617173827-2cc7cd04f7c7 // indirect
@@ -40,6 +41,7 @@ require (
 	github.com/phuslu/goid v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/xaionaro-go/androidetc v0.0.0-20250824193302-b7ecebb3b825 // indirect
 	github.com/xaionaro-go/avmediacodec v0.0.0-20250505012527-c819676502d8 // indirect
 	github.com/xaionaro-go/gorex v0.0.0-20241010205749-bcd59d639c4d // indirect
 	github.com/xaionaro-go/libsrt v0.0.0-20250505013920-61d894a3b7e9 // indirect
