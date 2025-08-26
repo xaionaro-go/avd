@@ -6,6 +6,7 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/config"
 	"github.com/xaionaro-go/avpipeline/router"
+	"github.com/xaionaro-go/xcontext"
 	"github.com/xaionaro-go/xsync"
 )
 
@@ -99,6 +100,8 @@ func (h *commandHandler[T]) onRoutePublisherRemoved(
 	route *router.Route[T],
 	publisher router.Publisher[T],
 ) {
+	ctx = xcontext.DetachDone(ctx)
+
 	key := routePublisherKey[T]{
 		RoutePath: route.Path,
 		Publisher: publisher,
