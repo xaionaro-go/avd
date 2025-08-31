@@ -106,7 +106,7 @@ func (p *ListeningPortDirectPublishers) startListening(
 		kernel.InputConfig{
 			CustomOptions: customOptions,
 			AsyncOpen:     true,
-			OnOpened: func(ctx context.Context, k *kernel.Input) error {
+			OnPostOpen: func(ctx context.Context, k *kernel.Input) error {
 				return xsync.DoR1(ctx, &p.Locker, func() error {
 					routeSource, err := router.AddRouteSource(
 						ctx,

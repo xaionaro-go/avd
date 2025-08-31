@@ -53,7 +53,7 @@ func (c *ConnectionProxiedHandlerPublisher) InitAVHandler(
 		kernel.InputConfig{
 			CustomOptions: customOpts,
 			AsyncOpen:     c.Parent.isAsyncOpen(ctx),
-			OnOpened: func(ctx context.Context, i *kernel.Input) error {
+			OnPostOpen: func(ctx context.Context, i *kernel.Input) error {
 				if !c.Parent.isAsyncOpen(ctx) {
 					return nil
 				}
