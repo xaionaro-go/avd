@@ -72,18 +72,20 @@ func Default() Config {
 				},
 				Forwardings: []ForwardConfig{{
 					Recoding: &transcodertypes.RecoderConfig{
-						AudioTrackConfigs: []transcodertypes.AudioTrackConfig{{
-							InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
-							OutputTrackIDs: []int{0},
-							CodecName:      codectypes.Name(codec.NameCopy),
-							CustomOptions:  transcodertypes.DictionaryItems{},
-						}},
-						VideoTrackConfigs: []transcodertypes.VideoTrackConfig{{
-							InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
-							OutputTrackIDs: []int{1},
-							CodecName:      codectypes.Name(codec.NameCopy),
-							CustomOptions:  transcodertypes.DictionaryItems{},
-						}},
+						Output: transcodertypes.RecoderOutputConfig{
+							AudioTrackConfigs: []transcodertypes.AudioTrackConfig{{
+								InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
+								OutputTrackIDs: []int{0},
+								CodecName:      codectypes.Name(codec.NameCopy),
+								CustomOptions:  transcodertypes.DictionaryItems{},
+							}},
+							VideoTrackConfigs: []transcodertypes.VideoTrackConfig{{
+								InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
+								OutputTrackIDs: []int{1},
+								CodecName:      codectypes.Name(codec.NameCopy),
+								CustomOptions:  transcodertypes.DictionaryItems{},
+							}},
+						},
 					},
 				}},
 			},
