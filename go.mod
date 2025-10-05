@@ -4,7 +4,7 @@ go 1.24.4
 
 toolchain go1.24.7
 
-replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20250920230204-a742340d5485
+replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20250921154926-f1a150c6bf00
 
 require (
 	github.com/asticode/go-astiav v0.36.0
@@ -16,13 +16,13 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250823173020-6a2bb1e1f59d
-	github.com/xaionaro-go/avpipeline v0.0.0-20250921005814-f905e20092a6
+	github.com/xaionaro-go/avpipeline v0.0.0-20251005213452-f28963b8bb4a
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
 	github.com/xaionaro-go/xcontext v0.0.0-20250111150717-e70e1f5b299c
 	github.com/xaionaro-go/xpath v0.0.0-20250111145115-55f5728f643f
-	github.com/xaionaro-go/xsync v0.0.0-20250831015710-98076e2f76ee
+	github.com/xaionaro-go/xsync v0.0.0-20250928140805-f801683b71ba
 	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.5
 )
