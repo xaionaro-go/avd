@@ -9,7 +9,6 @@ import (
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/go-ng/xatomic"
-	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/router"
@@ -42,10 +41,12 @@ func (c *ConnectionProxiedHandlerPublisher) String() string {
 
 func (c *ConnectionProxiedHandlerPublisher) InitAVHandler(
 	ctx context.Context,
+	proto Protocol,
 	url *url.URL,
 	secretKey secret.String,
-	customOpts ...types.DictionaryItem,
+	listenConfig ListenConfig,
 ) error {
+	customOpts := listenConfig.DictionaryItems(proto, PortModePublishers)
 	input, err := kernel.NewInputFromURL(
 		ctx,
 		url.String(),

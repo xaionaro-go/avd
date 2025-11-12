@@ -129,6 +129,10 @@ func (p *ListeningPortDirectConsumers) startListening(
 			OnOpened: func(ctx context.Context, k *kernel.Output) error {
 				return nil
 			},
+			WaitForOutputStreams: &kernel.OutputConfigWaitForOutputStreams{
+				MinStreamsAudio: p.Config.WaitUntilAudioTracksCount,
+				MinStreamsVideo: p.Config.WaitUntilVideoTracksCount,
+			},
 		},
 	)
 	if err != nil {

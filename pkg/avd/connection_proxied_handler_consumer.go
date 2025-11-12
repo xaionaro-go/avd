@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
-	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/router"
@@ -36,10 +35,12 @@ func newConnectionProxiedConsumer(
 
 func (c *ConnectionProxiedHandlerConsumer) InitAVHandler(
 	ctx context.Context,
+	proto Protocol,
 	url *url.URL,
 	secretKey secret.String,
-	customOpts ...types.DictionaryItem,
+	listenConfig ListenConfig,
 ) error {
+	customOpts := listenConfig.DictionaryItems(proto, PortModeConsumers)
 	node, err := newProxiedOutputNode(
 		ctx,
 		c,
@@ -56,6 +57,10 @@ func (c *ConnectionProxiedHandlerConsumer) InitAVHandler(
 				}
 				c.Parent.onInitFinished(ctx)
 				return nil
+			},
+			WaitForOutputStreams: &kernel.OutputConfigWaitForOutputStreams{
+				MinStreamsAudio: listenConfig.WaitUntilAudioTracksCount,
+				MinStreamsVideo: listenConfig.WaitUntilVideoTracksCount,
 			},
 		},
 	)

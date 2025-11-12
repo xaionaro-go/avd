@@ -34,8 +34,10 @@ func (s *Server) ListenProxied(
 	mode types.StreamingPortMode,
 	opts ...ListenOption,
 ) (_ret *ListeningPortProxied, _err error) {
-	logger.Debugf(ctx, "ListenProxied(ctx, '%s')", listener.Addr())
-	defer func() { logger.Debugf(ctx, "/ListenProxied(ctx, '%s'): %v %v", listener.Addr(), _ret, _err) }()
+	logger.Debugf(ctx, "ListenProxied(ctx, '%s', %s, %s, %#+v)", listener.Addr(), protocol, mode, opts)
+	defer func() {
+		logger.Debugf(ctx, "/ListenProxied(ctx, '%s', %s, %s, %#+v): %v %v", listener.Addr(), protocol, mode, opts, _ret, _err)
+	}()
 	ctx = belt.WithField(ctx, "listener", listener.Addr().String())
 	ctx = belt.WithField(ctx, "proto", protocol)
 	ctx = belt.WithField(ctx, "port_mode", mode)
@@ -47,6 +49,7 @@ func (s *Server) ListenProxied(
 	}()
 
 	cfg := ListenOptions(opts).Config()
+	logger.Debugf(ctx, "ListenProxied config: %#+v", cfg)
 	result := &ListeningPortProxied{
 		Server:      s,
 		Listener:    listener,

@@ -333,11 +333,9 @@ func (c *ConnectionProxied) initAVHandler(
 	}
 	logger.Debugf(ctx, "avInputAddr: %#+v", avInputAddr)
 
-	customOpts := c.Port.Config.DictionaryItems(c.Port.Protocol, c.Mode())
-
 	logger.Debugf(ctx, "attempting to listen by libav at '%s'...", url)
 	handler := c.GetHandler()
-	err = handler.InitAVHandler(ctx, url, secretKey, customOpts...)
+	err = handler.InitAVHandler(ctx, c.Port.Protocol, url, secretKey, c.Port.Config)
 	if err != nil {
 		return fmt.Errorf("unable to initialize the AV handler at %s: %w", url, err)
 	}
@@ -408,10 +406,10 @@ func (c *ConnectionProxied) negotiate(
 
 	avConn, conn := c.GetAVConn(), c.GetConn()
 	if avConn == nil {
-		return fmt.Errorf("AVConn is nil")
+		return fmt.Errorf("avConn is nil")
 	}
 	if conn == nil {
-		return fmt.Errorf("Conn is nil")
+		return fmt.Errorf("conn is nil")
 	}
 
 	defer func() {
@@ -721,10 +719,10 @@ func (c *ConnectionProxied) forward(
 
 	avConn, conn := c.GetAVConn(), c.GetConn()
 	if avConn == nil {
-		return fmt.Errorf("AVConn is nil")
+		return fmt.Errorf("avConn is nil")
 	}
 	if conn == nil {
-		return fmt.Errorf("Conn is nil")
+		return fmt.Errorf("conn is nil")
 	}
 
 	defer func() {

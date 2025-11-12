@@ -16,8 +16,10 @@ func (s *Server) Listen(
 	mode types.StreamingPortMode,
 	opts ...ListenOption,
 ) (_ret ListeningPort, _err error) {
-	logger.Debugf(ctx, "Listen(ctx, '%s')", portAddr)
-	defer func() { logger.Debugf(ctx, "/Listen(ctx, '%s'): %v %v", portAddr, _ret, _err) }()
+	logger.Debugf(ctx, "Listen(ctx, '%s', %s, %s, %#+v)", portAddr, protocol, mode, opts)
+	defer func() {
+		logger.Debugf(ctx, "/Listen(ctx, '%s', %s, %s, %#+v): %v %v", portAddr, protocol, mode, opts, _ret, _err)
+	}()
 
 	switch protocol {
 	case ProtocolMPEGTSUDP:
