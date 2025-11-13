@@ -59,8 +59,9 @@ func (c *ConnectionProxiedHandlerConsumer) InitAVHandler(
 				return nil
 			},
 			WaitForOutputStreams: &kernel.OutputConfigWaitForOutputStreams{
-				MinStreamsAudio: listenConfig.WaitUntilAudioTracksCount,
-				MinStreamsVideo: listenConfig.WaitUntilVideoTracksCount,
+				MinStreamsAudio:  listenConfig.WaitUntilAudioTracksCount,
+				MinStreamsVideo:  listenConfig.WaitUntilVideoTracksCount,
+				VideoBeforeAudio: c.Parent.Port.Protocol == ProtocolRTMP,
 			},
 		},
 	)
