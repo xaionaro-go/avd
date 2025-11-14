@@ -6,10 +6,13 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/spf13/cobra"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/client"
+	avpipeline_proto "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	"github.com/xaionaro-go/observability"
 )
 
@@ -75,6 +78,12 @@ var (
 		Run:  routesList,
 	}
 
+	Monitor = &cobra.Command{
+		Use:  "monitor",
+		Args: cobra.RangeArgs(1, 2),
+		Run:  monitor,
+	}
+
 	LoggerLevel = logger.LevelWarning
 )
 
@@ -87,6 +96,11 @@ func init() {
 
 	Root.AddCommand(Routes)
 	Routes.AddCommand(RoutesList)
+
+	Root.AddCommand(Monitor)
+	Monitor.Flags().Bool("include-packet-payload", false, "include packet payloads in monitor events")
+	Monitor.Flags().Bool("include-frame-payload", false, "include frame payloads in monitor events")
+	Monitor.Flags().Bool("do-decode", false, "do decode of packets/frames for monitor events")
 
 	Root.PersistentFlags().Var(&LoggerLevel, "log-level", "")
 	Root.PersistentFlags().String("remote-addr", "localhost:3594", "the path to the config file")
@@ -148,4 +162,47 @@ func routesList(cmd *cobra.Command, args []string) {
 	enc.SetIndent("", "  ")
 	err = enc.Encode(resp)
 	assertNoError(ctx, err)
+}
+
+func monitor(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	objID, err := strconv.ParseUint(args[0], 10, 64)
+	assertNoError(ctx, err)
+
+	evenType := avpipeline_proto.MonitorEventType_EVENT_TYPE_SEND
+	if len(args) >= 2 {
+		switch strings.ToLower(args[1]) {
+		case "send":
+			evenType = avpipeline_proto.MonitorEventType_EVENT_TYPE_SEND
+		case "receive":
+			evenType = avpipeline_proto.MonitorEventType_EVENT_TYPE_RECEIVE
+		case "kernel_output_send":
+			evenType = avpipeline_proto.MonitorEventType_EVENT_TYPE_KERNEL_OUTPUT_SEND
+		default:
+			logger.Panicf(ctx, "unknown event type: %q", args[1])
+		}
+	}
+
+	includePacketPayload, err := cmd.Flags().GetBool("include-packet-payload")
+	assertNoError(ctx, err)
+	includeFramePayload, err := cmd.Flags().GetBool("include-frame-payload")
+	assertNoError(ctx, err)
+	doDecode, err := cmd.Flags().GetBool("do-decode")
+	assertNoError(ctx, err)
+
+	eventsCh, err := avdClient.Monitor(ctx, objID, evenType, includePacketPayload, includeFramePayload, doDecode)
+	assertNoError(ctx, err)
+
+	for event := range eventsCh {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		err = enc.Encode(event)
+		assertNoError(ctx, err)
+	}
 }

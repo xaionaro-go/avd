@@ -4,7 +4,7 @@ go 1.24.4
 
 toolchain go1.24.7
 
-replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20250921154926-f1a150c6bf00
+replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20251114192847-048826e6dc3a
 
 require (
 	github.com/asticode/go-astiav v0.36.0
