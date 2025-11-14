@@ -8,6 +8,7 @@ package avdmanagementgrpc
 
 import (
 	context "context"
+	avpipeline "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -22,6 +23,7 @@ const (
 	AvdService_ListPublishers_FullMethodName = "/AvdService/ListPublishers"
 	AvdService_ListRoutes_FullMethodName     = "/AvdService/ListRoutes"
 	AvdService_ListConsumers_FullMethodName  = "/AvdService/ListConsumers"
+	AvdService_Monitor_FullMethodName        = "/AvdService/Monitor"
 )
 
 // AvdServiceClient is the client API for AvdService service.
@@ -31,6 +33,7 @@ type AvdServiceClient interface {
 	ListPublishers(ctx context.Context, in *ListPublishersRequest, opts ...grpc.CallOption) (*ListPublishersResponse, error)
 	ListRoutes(ctx context.Context, in *ListRoutesRequest, opts ...grpc.CallOption) (*ListRoutesResponse, error)
 	ListConsumers(ctx context.Context, in *ListConsumersRequest, opts ...grpc.CallOption) (*ListConsumersResponse, error)
+	Monitor(ctx context.Context, in *avpipeline.MonitorRequest, opts ...grpc.CallOption) (AvdService_MonitorClient, error)
 }
 
 type avdServiceClient struct {
@@ -71,6 +74,39 @@ func (c *avdServiceClient) ListConsumers(ctx context.Context, in *ListConsumersR
 	return out, nil
 }
 
+func (c *avdServiceClient) Monitor(ctx context.Context, in *avpipeline.MonitorRequest, opts ...grpc.CallOption) (AvdService_MonitorClient, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AvdService_ServiceDesc.Streams[0], AvdService_Monitor_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &avdServiceMonitorClient{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type AvdService_MonitorClient interface {
+	Recv() (*avpipeline.MonitorEvent, error)
+	grpc.ClientStream
+}
+
+type avdServiceMonitorClient struct {
+	grpc.ClientStream
+}
+
+func (x *avdServiceMonitorClient) Recv() (*avpipeline.MonitorEvent, error) {
+	m := new(avpipeline.MonitorEvent)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AvdServiceServer is the server API for AvdService service.
 // All implementations must embed UnimplementedAvdServiceServer
 // for forward compatibility
@@ -78,6 +114,7 @@ type AvdServiceServer interface {
 	ListPublishers(context.Context, *ListPublishersRequest) (*ListPublishersResponse, error)
 	ListRoutes(context.Context, *ListRoutesRequest) (*ListRoutesResponse, error)
 	ListConsumers(context.Context, *ListConsumersRequest) (*ListConsumersResponse, error)
+	Monitor(*avpipeline.MonitorRequest, AvdService_MonitorServer) error
 	mustEmbedUnimplementedAvdServiceServer()
 }
 
@@ -93,6 +130,9 @@ func (UnimplementedAvdServiceServer) ListRoutes(context.Context, *ListRoutesRequ
 }
 func (UnimplementedAvdServiceServer) ListConsumers(context.Context, *ListConsumersRequest) (*ListConsumersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListConsumers not implemented")
+}
+func (UnimplementedAvdServiceServer) Monitor(*avpipeline.MonitorRequest, AvdService_MonitorServer) error {
+	return status.Errorf(codes.Unimplemented, "method Monitor not implemented")
 }
 func (UnimplementedAvdServiceServer) mustEmbedUnimplementedAvdServiceServer() {}
 
@@ -161,6 +201,27 @@ func _AvdService_ListConsumers_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AvdService_Monitor_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(avpipeline.MonitorRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AvdServiceServer).Monitor(m, &avdServiceMonitorServer{ServerStream: stream})
+}
+
+type AvdService_MonitorServer interface {
+	Send(*avpipeline.MonitorEvent) error
+	grpc.ServerStream
+}
+
+type avdServiceMonitorServer struct {
+	grpc.ServerStream
+}
+
+func (x *avdServiceMonitorServer) Send(m *avpipeline.MonitorEvent) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // AvdService_ServiceDesc is the grpc.ServiceDesc for AvdService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -181,6 +242,12 @@ var AvdService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AvdService_ListConsumers_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Monitor",
+			Handler:       _AvdService_Monitor_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "avd.proto",
 }
