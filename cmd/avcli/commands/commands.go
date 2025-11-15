@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -12,7 +13,9 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/spf13/cobra"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/client"
+	"github.com/xaionaro-go/avpipeline/avconv"
 	avpipeline_proto "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
+	"github.com/xaionaro-go/avpipeline/protobuf/goconv"
 	"github.com/xaionaro-go/observability"
 )
 
@@ -101,6 +104,7 @@ func init() {
 	Monitor.Flags().Bool("include-packet-payload", false, "include packet payloads in monitor events")
 	Monitor.Flags().Bool("include-frame-payload", false, "include frame payloads in monitor events")
 	Monitor.Flags().Bool("do-decode", false, "do decode of packets/frames for monitor events")
+	Monitor.Flags().String("format", "plaintext", "output format (plaintext|json)")
 
 	Root.PersistentFlags().Var(&LoggerLevel, "log-level", "")
 	Root.PersistentFlags().String("remote-addr", "localhost:3594", "the path to the config file")
@@ -195,14 +199,59 @@ func monitor(cmd *cobra.Command, args []string) {
 	assertNoError(ctx, err)
 	doDecode, err := cmd.Flags().GetBool("do-decode")
 	assertNoError(ctx, err)
+	format, err := cmd.Flags().GetString("format")
+	assertNoError(ctx, err)
+
+	const eventFormatString = "%-21s %-3s %-10s %-14s %-10s %-14s %-10s %-10s %-10s %-10s\n"
+	switch format {
+	case "plaintext":
+		fmt.Printf(eventFormatString, "TS", "streamIdx", "PTS", "PTS", "DTS", "DTS", "size", "type", "frameFlags", "picType")
+	case "json":
+	default:
+		logger.Panicf(ctx, "unknown format: %q", format)
+	}
 
 	eventsCh, err := avdClient.Monitor(ctx, objID, evenType, includePacketPayload, includeFramePayload, doDecode)
 	assertNoError(ctx, err)
 
-	for event := range eventsCh {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		err = enc.Encode(event)
-		assertNoError(ctx, err)
+	logger.Infof(ctx, "monitoring started for object ID %d, event type %s", objID, evenType.String())
+	for ev := range eventsCh {
+		switch format {
+		case "plaintext":
+			if ev.Packet != nil && len(ev.Frames) == 0 {
+				pkt := ev.Packet
+				fmt.Printf(eventFormatString,
+					fmt.Sprintf("%d", ev.GetTimestampNs()),
+					fmt.Sprintf("%d", ev.Stream.Index),
+					fmt.Sprintf("%d", pkt.Pts),
+					avconv.Duration(pkt.Pts, *goconv.RationalFromProtobuf(ev.Stream.GetTimeBase()).Go()),
+					fmt.Sprintf("%d", pkt.Dts),
+					avconv.Duration(pkt.Dts, *goconv.RationalFromProtobuf(ev.Stream.GetTimeBase()).Go()),
+					fmt.Sprintf("%d", pkt.DataSize),
+					fmt.Sprintf("%d", ev.Stream.CodecParameters.GetCodecType()),
+					"-",
+					"-",
+				)
+			}
+			for _, frame := range ev.Frames {
+				fmt.Printf(eventFormatString,
+					fmt.Sprintf("%d", ev.GetTimestampNs()),
+					fmt.Sprintf("%d", ev.Stream.Index),
+					fmt.Sprintf("%d", frame.Pts),
+					avconv.Duration(frame.Pts, *goconv.RationalFromProtobuf(ev.Stream.GetTimeBase()).Go()),
+					fmt.Sprintf("%d", frame.PktDts),
+					avconv.Duration(frame.PktDts, *goconv.RationalFromProtobuf(ev.Stream.GetTimeBase()).Go()),
+					fmt.Sprintf("%d", frame.DataSize),
+					fmt.Sprintf("%d", ev.Stream.CodecParameters.GetCodecType()),
+					fmt.Sprintf("0x%08X", frame.Flags),
+					fmt.Sprintf("0x%08X", frame.PictType),
+				)
+			}
+		case "json":
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			err = enc.Encode(ev)
+			assertNoError(ctx, err)
+		}
 	}
 }
