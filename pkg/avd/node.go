@@ -29,7 +29,7 @@ func newProxiedInputNode(
 }
 
 type Sender = router.Sender
-type ProcessorOutput = processor.FromKernel[*kernel.Output]
+type ProcessorOutput = processor.FromKernel[*kernel.ChainOfTwo[*kernel.MonotonicDTS, *kernel.Output]]
 type NodeOutputProxied = node.NodeWithCustomData[*ConnectionProxiedHandlerConsumer, *ProcessorOutput]
 type NodeOutputDirect = node.NodeWithCustomData[*ListeningPortDirectConsumers, *ProcessorOutput]
 
@@ -57,7 +57,12 @@ func newProxiedOutputNode(
 	}
 
 	n := node.NewWithCustomDataFromKernel[*ConnectionProxiedHandlerConsumer](
-		ctx, outputKernel, processor.DefaultOptionsOutput()...,
+		ctx,
+		kernel.NewChainOfTwo(
+			kernel.NewMonotonicDTS(ctx, nil, 1000, 100000),
+			outputKernel,
+		),
+		processor.DefaultOptionsOutput()...,
 	)
 	n.CustomData = sender
 	return n, nil

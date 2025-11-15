@@ -153,6 +153,6 @@ func (c *ConnectionProxiedHandlerConsumer) SetURL(
 	ctx context.Context,
 	url *url.URL,
 ) {
-	c.Node.Processor.Kernel.URL = url.String()
-	c.Node.Processor.Kernel.URLParsed = url
+	c.Node.Processor.Kernel.Kernel1.URL = url.String()
+	c.Node.Processor.Kernel.Kernel1.URLParsed = url
 }

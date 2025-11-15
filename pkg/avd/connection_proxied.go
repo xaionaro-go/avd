@@ -657,6 +657,8 @@ func (c *ConnectionProxied) getFormatContext() *astiav.FormatContext {
 		return k.FormatContext
 	case *kernel.Output:
 		return k.FormatContext
+	case *kernel.ChainOfTwo[*kernel.MonotonicDTS, *kernel.Output]:
+		return k.Kernel1.FormatContext
 	default:
 		panic(fmt.Errorf("unexpected type: %T", k))
 	}
