@@ -6,6 +6,7 @@ import (
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline/kernel"
+	kernelcondition "github.com/xaionaro-go/avpipeline/kernel/condition"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/avpipeline/router"
@@ -29,7 +30,7 @@ func newProxiedInputNode(
 }
 
 type Sender = router.Sender
-type ProcessorOutput = processor.FromKernel[*kernel.ChainOfTwo[*kernel.MonotonicDTS, *kernel.Output]]
+type ProcessorOutput = processor.FromKernel[*kernel.ChainOfTwo[*kernel.ReorderMonotonicDTS, *kernel.Output]]
 type NodeOutputProxied = node.NodeWithCustomData[*ConnectionProxiedHandlerConsumer, *ProcessorOutput]
 type NodeOutputDirect = node.NodeWithCustomData[*ListeningPortDirectConsumers, *ProcessorOutput]
 
@@ -51,6 +52,10 @@ func newProxiedOutputNode(
 		}
 	}
 
+	minStreams := uint(0)
+	if w := cfg.WaitForOutputStreams; w != nil {
+		minStreams = max(w.MinStreams, w.MinStreamsAudio+w.MinStreamsVideo)
+	}
 	outputKernel, err := kernel.NewOutputFromURL(ctx, dstURL, streamKey, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to open the output: %w", err)
@@ -59,7 +64,15 @@ func newProxiedOutputNode(
 	n := node.NewWithCustomDataFromKernel[*ConnectionProxiedHandlerConsumer](
 		ctx,
 		kernel.NewChainOfTwo(
-			kernel.NewMonotonicDTS(ctx, nil, 1000, 100000),
+			kernel.NewReorderMonotonicDTS(
+				ctx,
+				kernelcondition.Function[*kernel.ReorderMonotonicDTS](func(
+					ctx context.Context,
+					k *kernel.ReorderMonotonicDTS,
+				) bool {
+					logger.Tracef(ctx, "%d out of %d streams were seen", len(k.StreamsDTSs), minStreams)
+					return len(k.StreamsDTSs) >= int(minStreams)
+				}), 10000, 1000000, true),
 			outputKernel,
 		),
 		processor.DefaultOptionsOutput()...,
