@@ -95,6 +95,7 @@ func (cfg StreamingPortConfig) ListenOptions() []types.ListenOption {
 	opts := types.ListenOptions{
 		types.ListenOptionOnEndAction(cfg.OnEnd),
 		types.ListenOptionPublishMode(cfg.PublishMode),
+		types.ListenOptionCustomOptions(cfg.CustomOptions),
 	}
 	if cfg.DefaultRoutePath != "" {
 		opts = append(opts, types.ListenOptionDefaultRoutePath(cfg.DefaultRoutePath))

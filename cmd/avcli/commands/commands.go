@@ -9,11 +9,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/spf13/cobra"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/client"
-	"github.com/xaionaro-go/avpipeline/avconv"
 	avpipeline_proto "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	"github.com/xaionaro-go/avpipeline/protobuf/goconv"
 	"github.com/xaionaro-go/observability"
@@ -218,15 +218,16 @@ func monitor(cmd *cobra.Command, args []string) {
 	for ev := range eventsCh {
 		switch format {
 		case "plaintext":
+			timeBase := goconv.RationalFromProtobuf(ev.Stream.GetTimeBase())
 			if ev.Packet != nil && len(ev.Frames) == 0 {
 				pkt := ev.Packet
 				fmt.Printf(eventFormatString,
 					fmt.Sprintf("%d", ev.GetTimestampNs()),
 					fmt.Sprintf("%d", ev.Stream.Index),
 					fmt.Sprintf("%d", pkt.Pts),
-					avconv.Duration(pkt.Pts, *goconv.RationalFromProtobuf(ev.Stream.GetTimeBase()).Go()),
+					avconvDuration(pkt.Pts, timeBase),
 					fmt.Sprintf("%d", pkt.Dts),
-					avconv.Duration(pkt.Dts, *goconv.RationalFromProtobuf(ev.Stream.GetTimeBase()).Go()),
+					avconvDuration(pkt.Dts, timeBase),
 					fmt.Sprintf("%d", pkt.DataSize),
 					fmt.Sprintf("%d", ev.Stream.CodecParameters.GetCodecType()),
 					"-",
@@ -238,9 +239,9 @@ func monitor(cmd *cobra.Command, args []string) {
 					fmt.Sprintf("%d", ev.GetTimestampNs()),
 					fmt.Sprintf("%d", ev.Stream.Index),
 					fmt.Sprintf("%d", frame.Pts),
-					avconv.Duration(frame.Pts, *goconv.RationalFromProtobuf(ev.Stream.GetTimeBase()).Go()),
+					avconvDuration(frame.Pts, timeBase),
 					fmt.Sprintf("%d", frame.PktDts),
-					avconv.Duration(frame.PktDts, *goconv.RationalFromProtobuf(ev.Stream.GetTimeBase()).Go()),
+					avconvDuration(frame.PktDts, timeBase),
 					fmt.Sprintf("%d", frame.DataSize),
 					fmt.Sprintf("%d", ev.Stream.CodecParameters.GetCodecType()),
 					fmt.Sprintf("0x%08X", frame.Flags),
@@ -254,4 +255,8 @@ func monitor(cmd *cobra.Command, args []string) {
 			assertNoError(ctx, err)
 		}
 	}
+}
+
+func avconvDuration(pts int64, timeBase *goconv.Rational) time.Duration {
+	return time.Duration(int64(time.Second) * pts * timeBase.N / timeBase.D)
 }

@@ -161,3 +161,9 @@ type ListenOptionWaitUntilAudioTracksCount uint
 func (opt ListenOptionWaitUntilAudioTracksCount) apply(cfg *ListenConfig) {
 	cfg.WaitUntilAudioTracksCount = uint(opt)
 }
+
+type ListenOptionCustomOptions DictionaryItems
+
+func (opt ListenOptionCustomOptions) apply(cfg *ListenConfig) {
+	cfg.CustomOptions = DictionaryItems(opt)
+}

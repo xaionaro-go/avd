@@ -613,7 +613,7 @@ func (c *ConnectionProxied) serve(
 			return
 		}
 	}
-	n.Serve(ctx, node.ServeConfig{}, errCh)
+	n.Serve(ctx, node.ServeConfig{DebugData: c}, errCh)
 }
 
 func (c *ConnectionProxied) tryExtractRouteString(

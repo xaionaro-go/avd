@@ -154,7 +154,7 @@ func (p *ListeningPortDirectPublishers) startListening(
 		defer close(errCh)
 		logger.Debugf(ctx, "started")
 		defer logger.Debugf(ctx, "finished")
-		p.Node.Serve(ctx, node.ServeConfig{}, errCh)
+		p.Node.Serve(ctx, node.ServeConfig{DebugData: p}, errCh)
 	})
 	p.WaitGroup.Add(1)
 	observability.Go(ctx, func(ctx context.Context) {
