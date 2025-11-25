@@ -202,10 +202,10 @@ func monitor(cmd *cobra.Command, args []string) {
 	format, err := cmd.Flags().GetString("format")
 	assertNoError(ctx, err)
 
-	const eventFormatString = "%-21s %-3s %-10s %-14s %-10s %-14s %-10s %-10s %-10s %-10s\n"
+	const eventFormatString = "%-21s %-10s %-10s %-14s %-10s %-14s %-10s %-14s %-10s %-10s %-10s %-10s\n"
 	switch format {
 	case "plaintext":
-		fmt.Printf(eventFormatString, "TS", "streamIdx", "PTS", "PTS", "DTS", "DTS", "size", "type", "frameFlags", "picType")
+		fmt.Printf(eventFormatString, "TS", "streamIdx", "PTS", "PTS", "DTS", "DTS", "dur", "dur", "size", "type", "frameFlags", "picType")
 	case "json":
 	default:
 		logger.Panicf(ctx, "unknown format: %q", format)
@@ -228,6 +228,8 @@ func monitor(cmd *cobra.Command, args []string) {
 					avconvDuration(pkt.Pts, timeBase),
 					fmt.Sprintf("%d", pkt.Dts),
 					avconvDuration(pkt.Dts, timeBase),
+					fmt.Sprintf("%d", pkt.Duration),
+					avconvDuration(pkt.Duration, timeBase),
 					fmt.Sprintf("%d", pkt.DataSize),
 					fmt.Sprintf("%d", ev.Stream.CodecParameters.GetCodecType()),
 					"-",
@@ -242,6 +244,8 @@ func monitor(cmd *cobra.Command, args []string) {
 					avconvDuration(frame.Pts, timeBase),
 					fmt.Sprintf("%d", frame.PktDts),
 					avconvDuration(frame.PktDts, timeBase),
+					fmt.Sprintf("%d", frame.Duration),
+					avconvDuration(frame.Duration, timeBase),
 					fmt.Sprintf("%d", frame.DataSize),
 					fmt.Sprintf("%d", ev.Stream.CodecParameters.GetCodecType()),
 					fmt.Sprintf("0x%08X", frame.Flags),
