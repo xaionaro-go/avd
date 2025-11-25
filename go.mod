@@ -16,7 +16,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.11.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250823173020-6a2bb1e1f59d
-	github.com/xaionaro-go/avpipeline v0.0.0-20251125145346-5c361eefb49e
+	github.com/xaionaro-go/avpipeline v0.0.0-20251125203618-61d56331a192
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
@@ -34,6 +34,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/xaionaro-go/polyjson v0.0.0-20250825191950-a2ce35ee07f0 // indirect
 	github.com/xaionaro-go/rpn v0.0.0-20250818130635-1419b5218722 // indirect
+	tailscale.com v1.86.5 // indirect
 )
 
 require (
@@ -77,7 +78,7 @@ require (
 	github.com/xaionaro-go/typing v0.0.0-20221123235249-2229101d38ba // indirect
 	github.com/xaionaro-go/unsafetools v0.0.0-20241024014258-a46e1ce3763e // indirect
 	github.com/xaionaro-go/xgrpc v0.0.0-20251102160837-04b13583739a
-	go.uber.org/multierr v1.10.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	gocv.io/x/gocv v0.41.0 // indirect
 	golang.org/x/crypto v0.45.0 // indirect

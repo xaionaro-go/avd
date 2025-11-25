@@ -14,7 +14,7 @@ import (
 	"github.com/xaionaro-go/avd/pkg/management/grpc/proto/avdmanagementgrpc"
 	"github.com/xaionaro-go/avpipeline/node"
 	avpipelinegrpc "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
-	"github.com/xaionaro-go/avpipeline/protobuf/goconv"
+	goconvavp "github.com/xaionaro-go/avpipeline/protobuf/goconv/avpipeline"
 	"github.com/xaionaro-go/avpipeline/router"
 )
 
@@ -100,7 +100,7 @@ func (srv *GRPCServer) ListPublishers(
 		switch port.GetMode() {
 		case avd.PortModePublishers:
 			for _, conn := range port.GetConnections(ctx) {
-				result = append(result, goconv.NodeToGRPC(ctx, conn.GetNode(ctx)))
+				result = append(result, goconvavp.NodeToGRPC(ctx, conn.GetNode(ctx)))
 			}
 		}
 	}
@@ -121,7 +121,7 @@ func (srv *GRPCServer) ListRoutes(
 			if route == nil {
 				continue
 			}
-			node := goconv.NodeToGRPC(ctx, route.Node)
+			node := goconvavp.NodeToGRPC(ctx, route.Node)
 			if node != nil {
 				result = append(result, node)
 			}
@@ -143,7 +143,7 @@ func (srv *GRPCServer) ListConsumers(
 		switch port.GetMode() {
 		case avd.PortModeConsumers:
 			for _, conn := range port.GetConnections(ctx) {
-				result = append(result, goconv.NodeToGRPC(ctx, conn.GetNode(ctx)))
+				result = append(result, goconvavp.NodeToGRPC(ctx, conn.GetNode(ctx)))
 			}
 		}
 	}

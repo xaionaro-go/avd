@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/client"
 	avpipeline_proto "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
-	"github.com/xaionaro-go/avpipeline/protobuf/goconv"
+	goconvlibav "github.com/xaionaro-go/avpipeline/protobuf/goconv/libav"
 	"github.com/xaionaro-go/observability"
 )
 
@@ -218,7 +218,7 @@ func monitor(cmd *cobra.Command, args []string) {
 	for ev := range eventsCh {
 		switch format {
 		case "plaintext":
-			timeBase := goconv.RationalFromProtobuf(ev.Stream.GetTimeBase())
+			timeBase := goconvlibav.RationalFromProtobuf(ev.Stream.GetTimeBase())
 			if ev.Packet != nil && len(ev.Frames) == 0 {
 				pkt := ev.Packet
 				fmt.Printf(eventFormatString,
@@ -261,6 +261,6 @@ func monitor(cmd *cobra.Command, args []string) {
 	}
 }
 
-func avconvDuration(pts int64, timeBase *goconv.Rational) time.Duration {
+func avconvDuration(pts int64, timeBase *goconvlibav.Rational) time.Duration {
 	return time.Duration(int64(time.Second) * pts * timeBase.N / timeBase.D)
 }
