@@ -173,7 +173,7 @@ func monitor(cmd *cobra.Command, args []string) {
 
 	remoteAddr, err := cmd.Flags().GetString("remote-addr")
 	assertNoError(ctx, err)
-	avdClient, err := client.New(ctx, remoteAddr)
+	client, err := client.New(ctx, remoteAddr)
 	assertNoError(ctx, err)
 
 	objID, err := strconv.ParseUint(args[0], 10, 64)
@@ -211,11 +211,16 @@ func monitor(cmd *cobra.Command, args []string) {
 		logger.Panicf(ctx, "unknown format: %q", format)
 	}
 
-	eventsCh, err := avdClient.Monitor(ctx, objID, evenType, includePacketPayload, includeFramePayload, doDecode)
+	eventsCh, err := client.Monitor(ctx, objID, evenType, includePacketPayload, includeFramePayload, doDecode)
 	assertNoError(ctx, err)
 
 	logger.Infof(ctx, "monitoring started for object ID %d, event type %s", objID, evenType.String())
+	streamSeen := map[int]struct{}{}
 	for ev := range eventsCh {
+		if _, ok := streamSeen[int(ev.Stream.Index)]; !ok {
+			fmt.Printf("= new stream: %d; codec: 0x%X: time_base: %s\n", ev.Stream.Index, ev.Stream.CodecParameters.CodecID, ev.Stream.TimeBase)
+			streamSeen[int(ev.Stream.Index)] = struct{}{}
+		}
 		switch format {
 		case "plaintext":
 			timeBase := goconvlibav.RationalFromProtobuf(ev.Stream.GetTimeBase())
