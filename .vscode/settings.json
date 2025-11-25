@@ -4,4 +4,5 @@
             "-I./pkg/management/grpc/proto"
         ]
     },
+    "go.buildTags": "with_libav",
 }

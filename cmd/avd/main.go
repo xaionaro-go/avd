@@ -55,7 +55,7 @@ func main() {
 
 	var cfg config.Config
 	for _, configPath := range configPaths {
-		exists, err := configfile.Read(ctx, configPath, &cfg)
+		exists, err := configfile.Read(ctx, configPath, &cfg, getConfigVars())
 		if !exists {
 			continue
 		}
@@ -73,4 +73,18 @@ func main() {
 	logger.Infof(ctx, "started...")
 	srv.Wait(ctx)
 	logger.Errorf(ctx, "the server exited")
+}
+
+func getConfigVars() map[string]any {
+	envs := map[string]string{}
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		envs[parts[0]] = parts[1]
+	}
+	return map[string]any{
+		"env": envs,
+	}
 }

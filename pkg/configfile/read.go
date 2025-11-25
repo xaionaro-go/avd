@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"text/template"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/xpath"
@@ -20,6 +21,7 @@ func Read[CFG Config](
 	ctx context.Context,
 	cfgPath string,
 	cfg CFG,
+	info any,
 ) (_ret bool, _err error) {
 	logger.Debugf(ctx, "Read(ctx, '%s', &cfg)", cfgPath)
 	defer func() { logger.Debugf(ctx, "/Read(ctx, '%s', &cfg): %v %v", cfgPath, _ret, _err) }()
@@ -39,8 +41,20 @@ func Read[CFG Config](
 		return false, fmt.Errorf("unable to read file '%s': %w", cfgPath, err)
 	}
 
-	logger.Tracef(ctx, "unparsed config == %s", b)
-	_, err = cfg.Read(b)
+	tmpl, err := template.New("").Funcs(templateFuncs).Parse(string(b))
+	if err != nil {
+		return false, fmt.Errorf("unable to parse config file '%s' as template: %w", cfgPath, err)
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, info)
+	if err != nil {
+		return false, fmt.Errorf("unable to execute config file '%s' as template: %w", cfgPath, err)
+	}
+
+	unparsed := buf.Bytes()
+	logger.Tracef(ctx, "unparsed config == %s", unparsed)
+	_, err = cfg.Read(unparsed)
 
 	var cfgSerialized bytes.Buffer
 	if _, _err := cfg.WriteTo(&cfgSerialized); _err != nil {
