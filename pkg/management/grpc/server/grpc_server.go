@@ -158,7 +158,7 @@ func (srv *GRPCServer) getPipeline(
 	ports := srv.Backend.GetListeningPorts(ctx)
 	for _, port := range ports {
 		switch port.GetMode() {
-		case avd.PortModeConsumers:
+		case avd.PortModePublishers:
 			for _, conn := range port.GetConnections(ctx) {
 				result = append(result, conn.GetNode(ctx))
 			}

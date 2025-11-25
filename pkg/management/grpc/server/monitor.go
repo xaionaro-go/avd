@@ -29,7 +29,7 @@ func (srv *GRPCServer) Monitor(
 	pipeline := srv.getPipeline(ctx)
 	node, err := avpipeline.FindNodeByObjectID(ctx, obj, pipeline...)
 	if err != nil {
-		return fmt.Errorf("failed to find node by ID %q: %w", obj, err)
+		return fmt.Errorf("failed to find node by ID %v: %w", obj, err)
 	}
 	monitor, err := monitor.New(ctx, node, req.GetEventType(), req.GetIncludePacketPayload(), req.GetIncludeFramePayload(), req.GetDoDecode())
 	if err != nil {
