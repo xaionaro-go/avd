@@ -132,7 +132,7 @@ func (p *ListeningPortDirectPublishers) startListening(
 					return nil
 				})
 			},
-			CorrectZeroDuration: p.Config.GetCorrectZeroDuration(),
+			IgnoreZeroDuration: p.Config.GetIgnoreZeroDuration(),
 		},
 	)
 	if err != nil {

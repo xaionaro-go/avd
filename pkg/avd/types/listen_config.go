@@ -16,7 +16,7 @@ type ListenConfig struct {
 	PublishMode               router.PublishMode
 	WaitUntilVideoTracksCount uint
 	WaitUntilAudioTracksCount uint
-	CorrectZeroDuration       *bool
+	IgnoreZeroDuration        *bool
 	CustomOptions             DictionaryItems
 
 	// not all protocols respects these, but some do:
@@ -43,11 +43,11 @@ func (cfg ListenConfig) GetBufferDuration() time.Duration {
 	return cfg.BufferDuration
 }
 
-func (cfg ListenConfig) GetCorrectZeroDuration() bool {
-	if cfg.CorrectZeroDuration == nil {
+func (cfg ListenConfig) GetIgnoreZeroDuration() bool {
+	if cfg.IgnoreZeroDuration == nil {
 		return true
 	}
-	return *cfg.CorrectZeroDuration
+	return *cfg.IgnoreZeroDuration
 }
 
 func (cfg ListenConfig) DictionaryItems(
@@ -176,8 +176,8 @@ func (opt ListenOptionCustomOptions) apply(cfg *ListenConfig) {
 	cfg.CustomOptions = DictionaryItems(opt)
 }
 
-type ListenOptionCorrectZeroDuration bool
+type ListenOptionIgnoreZeroDuration bool
 
-func (opt ListenOptionCorrectZeroDuration) apply(cfg *ListenConfig) {
-	cfg.CorrectZeroDuration = ptr(bool(opt))
+func (opt ListenOptionIgnoreZeroDuration) apply(cfg *ListenConfig) {
+	cfg.IgnoreZeroDuration = ptr(bool(opt))
 }

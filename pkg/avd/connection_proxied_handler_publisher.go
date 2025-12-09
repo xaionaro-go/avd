@@ -61,7 +61,7 @@ func (c *ConnectionProxiedHandlerPublisher) InitAVHandler(
 				c.Parent.onInitFinished(ctx)
 				return nil
 			},
-			CorrectZeroDuration: listenConfig.GetCorrectZeroDuration(),
+			IgnoreZeroDuration: listenConfig.GetIgnoreZeroDuration(),
 		},
 	)
 	if err != nil {

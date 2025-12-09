@@ -81,15 +81,15 @@ type DictionaryItem = types.DictionaryItem
 type DictionaryItems = types.DictionaryItems
 type OnEndAction = types.OnEndAction
 type StreamingPortConfig struct {
-	Address             PortAddress                    `yaml:"address"`
-	Mode                StreamingPortMode              `yaml:"mode"`
-	PublishMode         PublishMode                    `yaml:"publish_mode"`
-	ProtocolHandler     StreamingProtocolHandlerConfig `yaml:"protocol_handler"`
-	CustomOptions       DictionaryItems                `yaml:"custom_options,omitempty"`
-	DefaultRoutePath    string                         `yaml:"default_route_path"`
-	OnEnd               OnEndAction                    `yaml:"on_end"`
-	WaitUntil           WaitUntilConfig                `yaml:"wait_until,omitempty"`
-	CorrectZeroDuration *bool                          `yaml:"correct_zero_duration,omitempty"`
+	Address            PortAddress                    `yaml:"address"`
+	Mode               StreamingPortMode              `yaml:"mode"`
+	PublishMode        PublishMode                    `yaml:"publish_mode"`
+	ProtocolHandler    StreamingProtocolHandlerConfig `yaml:"protocol_handler"`
+	CustomOptions      DictionaryItems                `yaml:"custom_options,omitempty"`
+	DefaultRoutePath   string                         `yaml:"default_route_path"`
+	OnEnd              OnEndAction                    `yaml:"on_end"`
+	WaitUntil          WaitUntilConfig                `yaml:"wait_until,omitempty"`
+	IgnoreZeroDuration *bool                          `yaml:"ignore_zero_duration,omitempty"`
 }
 
 func (cfg StreamingPortConfig) ListenOptions() []types.ListenOption {
@@ -111,8 +111,8 @@ func (cfg StreamingPortConfig) ListenOptions() []types.ListenOption {
 	if cfg.WaitUntil.AudioTrackCount > 0 {
 		opts = append(opts, types.ListenOptionWaitUntilAudioTracksCount(cfg.WaitUntil.AudioTrackCount))
 	}
-	if cfg.CorrectZeroDuration != nil {
-		opts = append(opts, types.ListenOptionCorrectZeroDuration(*cfg.CorrectZeroDuration))
+	if cfg.IgnoreZeroDuration != nil {
+		opts = append(opts, types.ListenOptionIgnoreZeroDuration(*cfg.IgnoreZeroDuration))
 	}
 	return opts
 }
