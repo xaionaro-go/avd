@@ -11,6 +11,7 @@ import (
 	"github.com/facebookincubator/go-belt"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline/kernel"
+	kerneltypesnolibav "github.com/xaionaro-go/avpipeline/kernel/typesnolibav"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/processor"
 	"github.com/xaionaro-go/avpipeline/router"
@@ -106,7 +107,7 @@ func (p *ListeningPortDirectPublishers) startListening(
 		kernel.InputConfig{
 			CustomOptions: customOptions,
 			AsyncOpen:     true,
-			OnPostOpen: func(ctx context.Context, k *kernel.Input) error {
+			OnPostOpen: kernel.HookFunc(func(ctx context.Context, i kerneltypesnolibav.Abstract) error {
 				return xsync.DoR1(ctx, &p.Locker, func() error {
 					routeSource, err := router.AddRouteSource(
 						ctx,
@@ -131,7 +132,7 @@ func (p *ListeningPortDirectPublishers) startListening(
 					}
 					return nil
 				})
-			},
+			}),
 			IgnoreZeroDuration: p.Config.GetIgnoreZeroDuration(),
 		},
 	)

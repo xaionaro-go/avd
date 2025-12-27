@@ -218,7 +218,7 @@ func monitor(cmd *cobra.Command, args []string) {
 	streamSeen := map[int]struct{}{}
 	for ev := range eventsCh {
 		if _, ok := streamSeen[int(ev.Stream.Index)]; !ok {
-			fmt.Printf("= new stream: %d; codec: 0x%X: time_base: %s\n", ev.Stream.Index, ev.Stream.CodecParameters.CodecID, ev.Stream.TimeBase)
+			fmt.Printf("= new stream: %d; codec: 0x%X: time_base: %s\n", ev.Stream.Index, ev.Stream.CodecParameters.CodecId, ev.Stream.TimeBase)
 			streamSeen[int(ev.Stream.Index)] = struct{}{}
 		}
 		switch format {

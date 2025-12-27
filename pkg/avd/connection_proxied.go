@@ -181,6 +181,14 @@ func (c *ConnectionProxied) closeLocked(ctx context.Context) (_err error) {
 		c.CancelFunc()
 		c.CancelFunc = nil
 	}
+
+	select {
+	case <-c.InitFinished:
+		logger.Debugf(ctx, "initialization finished, proceeding with close")
+	default:
+		logger.Errorf(ctx, "closing when not initialized is not implemented yet; it may SEGFAULT")
+	}
+
 	var errs []error
 	if handler := c.GetHandler(); handler != nil {
 		if err := handler.Close(ctx); err != nil {

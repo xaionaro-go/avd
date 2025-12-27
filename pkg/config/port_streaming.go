@@ -21,8 +21,8 @@ type Destination struct {
 }
 
 type ForwardConfig struct {
-	Destination Destination                    `yaml:"destination"`
-	Recoding    *transcodertypes.RecoderConfig `yaml:"recoding"`
+	Destination Destination                       `yaml:"destination"`
+	Transcoding *transcodertypes.TranscoderConfig `yaml:"transcoding"`
 }
 
 type Command struct {

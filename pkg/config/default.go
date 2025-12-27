@@ -71,8 +71,8 @@ func Default() Config {
 					Restart: RestartPolicyNever,
 				},
 				Forwardings: []ForwardConfig{{
-					Recoding: &transcodertypes.RecoderConfig{
-						Output: transcodertypes.RecoderOutputConfig{
+					Transcoding: &transcodertypes.TranscoderConfig{
+						Output: transcodertypes.TranscoderOutputConfig{
 							AudioTrackConfigs: []transcodertypes.AudioTrackConfig{{
 								InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 								OutputTrackIDs: []int{0},

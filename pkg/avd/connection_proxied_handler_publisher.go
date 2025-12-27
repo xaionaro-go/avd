@@ -10,6 +10,7 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/go-ng/xatomic"
 	"github.com/xaionaro-go/avpipeline/kernel"
+	kerneltypesnolibav "github.com/xaionaro-go/avpipeline/kernel/typesnolibav"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/router"
 	"github.com/xaionaro-go/observability"
@@ -54,13 +55,13 @@ func (c *ConnectionProxiedHandlerPublisher) InitAVHandler(
 		kernel.InputConfig{
 			CustomOptions: customOpts,
 			AsyncOpen:     c.Parent.isAsyncOpen(ctx),
-			OnPostOpen: func(ctx context.Context, i *kernel.Input) error {
+			OnPostOpen: kernel.HookFunc(func(ctx context.Context, i kerneltypesnolibav.Abstract) error {
 				if !c.Parent.isAsyncOpen(ctx) {
 					return nil
 				}
 				c.Parent.onInitFinished(ctx)
 				return nil
-			},
+			}),
 			IgnoreZeroDuration: listenConfig.GetIgnoreZeroDuration(),
 		},
 	)

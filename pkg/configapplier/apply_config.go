@@ -132,7 +132,7 @@ func ApplyConfig(
 						path,
 						fwd.Destination.Local.Route,
 						router.PublishMode(fwd.Destination.Local.PublishMode),
-						fwd.Recoding,
+						fwd.Transcoding,
 					)
 					if err != nil {
 						logger.Errorf(
@@ -150,7 +150,7 @@ func ApplyConfig(
 						ctx,
 						path,
 						*fwd.Destination.URL, secret.New(""),
-						fwd.Recoding,
+						fwd.Transcoding,
 					)
 					if err != nil {
 						logger.Errorf(ctx, "unable to create forwarding from '%s' to a remote destination '%s': %v", path, fwd.Destination.URL, err)

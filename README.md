@@ -81,7 +81,7 @@ endpoints:
   mystream:
     forwardings:
     - destination: {}
-      recoding:
+      transcoding:
         audio_track_configs:
         - input_track_ids:
           - 0
