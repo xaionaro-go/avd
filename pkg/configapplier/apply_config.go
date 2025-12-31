@@ -1,3 +1,4 @@
+// Package configapplier applies the configuration to the AVD server.
 package configapplier
 
 import (

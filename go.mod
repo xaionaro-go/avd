@@ -1,10 +1,8 @@
 module github.com/xaionaro-go/avd
 
-go 1.24.4
+go 1.25.5
 
-toolchain go1.24.7
-
-replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20251210224931-afff9c0f1cf7
+replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20251221215811-398e1d68b2e9
 
 require (
 	github.com/asticode/go-astiav v0.36.0
@@ -16,7 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.11.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250823173020-6a2bb1e1f59d
-	github.com/xaionaro-go/avpipeline v0.0.0-20251209215812-5769ecad2bbd
+	github.com/xaionaro-go/avpipeline v0.0.0-20251231184858-46fa3653dbf5
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
@@ -68,7 +66,7 @@ require (
 	github.com/xaionaro-go/audio v0.0.0-20250426140416-6a9b3f1c8737 // indirect
 	github.com/xaionaro-go/avmediacodec v0.0.0-20250505012527-c819676502d8 // indirect
 	github.com/xaionaro-go/gorex v0.0.0-20241010205749-bcd59d639c4d // indirect
-	github.com/xaionaro-go/libsrt v0.0.0-20250505013920-61d894a3b7e9 // indirect
+	github.com/xaionaro-go/libsrt v0.0.0-20251231191024-483a9dd27df8 // indirect
 	github.com/xaionaro-go/logrustash v0.0.0-20240804141650-d48034780a5f // indirect
 	github.com/xaionaro-go/ndk v0.0.0-20250420195304-361bb98583bf // indirect
 	github.com/xaionaro-go/object v0.0.0-20241026212449-753ce10ec94c // indirect

@@ -75,7 +75,7 @@ func pushTestFileTo(
 
 	outputNode := node.NewFromKernel(ctx, outputKernel, processor.DefaultOptionsOutput()...)
 
-	inputNode.AddPushPacketsTo(ctx, outputNode)
+	inputNode.AddPushTo(ctx, outputNode)
 	errCh := make(chan node.Error, 100)
 
 	wg.Add(1)

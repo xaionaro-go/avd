@@ -1,3 +1,4 @@
+// Package commands provides the CLI commands for avcli.
 package commands
 
 import (

@@ -1,3 +1,4 @@
+// Package config provides the configuration structures for AVD.
 package config
 
 import (

@@ -141,14 +141,14 @@ func (p *ListeningPortDirectConsumers) startListening(
 	n := node.NewWithCustomData[*ListeningPortDirectConsumers](proc)
 	n.CustomData = p
 	p.Node = n
-	route.Node.AddPushPacketsTo(ctx, p.Node)
+	route.Node.AddPushTo(ctx, p.Node)
 
 	errCh := make(chan node.Error, 100)
 	p.WaitGroup.Add(1)
 	observability.Go(ctx, func(ctx context.Context) {
 		defer p.WaitGroup.Done()
 		defer func() {
-			err := route.Node.RemovePushPacketsTo(ctx, p.Node)
+			err := route.Node.RemovePushTo(ctx, p.Node)
 			if err != nil {
 				logger.Errorf(ctx, "unable to remove myself as a subscriber to '%s': %v", p.Route, err)
 			}
