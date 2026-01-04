@@ -1,3 +1,5 @@
+// transport_protocol.go defines the TransportProtocol type (TCP or UDP).
+
 package types
 
 import (
@@ -40,7 +42,7 @@ func (c *TransportProtocol) UnmarshalYAML(b []byte) error {
 		}
 	}
 
-	return fmt.Errorf("unknown port mode: '%s'", modeString)
+	return fmt.Errorf("unknown transport protocol: '%s'", modeString)
 }
 
 func (c TransportProtocol) MarshalYAML() ([]byte, error) {

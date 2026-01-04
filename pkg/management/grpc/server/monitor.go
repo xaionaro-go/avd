@@ -1,3 +1,5 @@
+// monitor.go provides monitoring capabilities for the management server.
+
 package server
 
 import (

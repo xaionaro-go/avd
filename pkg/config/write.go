@@ -1,3 +1,5 @@
+// write.go provides methods to write the configuration to a writer or byte slice.
+
 package config
 
 import (
@@ -9,8 +11,10 @@ import (
 	"github.com/xaionaro-go/datacounter"
 )
 
-var _ io.Writer = (*Config)(nil)
-var _ io.WriterTo = (*Config)(nil)
+var (
+	_ io.Writer   = (*Config)(nil)
+	_ io.WriterTo = (*Config)(nil)
+)
 
 func (cfg Config) Write(b []byte) (int, error) {
 	n, err := cfg.WriteTo(bytes.NewBuffer(b))

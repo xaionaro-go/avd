@@ -1,3 +1,6 @@
+// grpc_server.go implements the gRPC server for AVD management.
+
+// Package server provides a gRPC server for the AVD management service.
 package server
 
 import (

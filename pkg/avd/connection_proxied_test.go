@@ -1,3 +1,5 @@
+// connection_proxied_test.go tests for proxied connections.
+
 package avd
 
 import (

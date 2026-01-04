@@ -1,3 +1,5 @@
+// assert.go provides assertion functions for the management server.
+
 package server
 
 import (

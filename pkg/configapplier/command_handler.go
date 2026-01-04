@@ -1,3 +1,5 @@
+// command_handler.go handles commands triggered by route events.
+
 package configapplier
 
 import (
@@ -80,7 +82,7 @@ func (h *commandHandler[T]) onRoutePublisherAdded(
 
 	process, err := h.runCommand(ctx, cmd)
 	if err != nil {
-		logger.Errorf(ctx, "unable to run command %#+v: %w", cmd, err)
+		logger.Errorf(ctx, "unable to run command %#+v: %v", cmd, err)
 	}
 	h.RunningCommandsOnRoutePublisherAdded[key] = process
 }
@@ -121,7 +123,7 @@ func (h *commandHandler[T]) onRoutePublisherRemoved(
 
 	process, err := h.runCommand(ctx, cmd)
 	if err != nil {
-		logger.Errorf(ctx, "unable to run command %#+v: %w", cmd, err)
+		logger.Errorf(ctx, "unable to run command %#+v: %v", cmd, err)
 	}
 	h.RunningCommandsOnRoutePublisherRemoved[key] = process
 }

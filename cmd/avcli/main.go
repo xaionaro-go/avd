@@ -1,3 +1,5 @@
+// main.go is the entry point for the avcli command-line tool.
+
 package main
 
 import (

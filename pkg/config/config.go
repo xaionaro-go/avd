@@ -1,3 +1,5 @@
+// config.go defines the configuration structures for AVD.
+
 // Package config provides the configuration structures for AVD.
 package config
 

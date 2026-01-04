@@ -1,3 +1,5 @@
+// template_funcs.go provides template functions for configuration files.
+
 package configfile
 
 import (

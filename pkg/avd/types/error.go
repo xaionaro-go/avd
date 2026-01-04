@@ -1,3 +1,5 @@
+// error.go defines AVD-specific error types.
+
 package types
 
 import "fmt"

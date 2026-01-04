@@ -1,3 +1,5 @@
+// apply_config.go provides functions to apply configuration to the AVD server.
+
 // Package configapplier applies the configuration to the AVD server.
 package configapplier
 
@@ -138,7 +140,7 @@ func ApplyConfig(
 					if err != nil {
 						logger.Errorf(
 							ctx,
-							"unable to create forwarding from '%s' to a local stream '%s': %v",
+							"unable to create forwarding from '%s' to a local stream '%s' (mode %v): %v",
 							path,
 							fwd.Destination.Local.Route,
 							fwd.Destination.Local.PublishMode,

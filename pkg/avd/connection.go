@@ -1,3 +1,5 @@
+// connection.go defines the Connection interface for all types of connections in AVD.
+
 package avd
 
 import (

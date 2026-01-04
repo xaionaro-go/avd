@@ -1,3 +1,5 @@
+// node.go defines node types and factory functions for AVD.
+
 package avd
 
 import (
@@ -13,9 +15,11 @@ import (
 	"github.com/xaionaro-go/secret"
 )
 
-type ProcessorInput = processor.FromKernel[*kernel.Input]
-type NodeInputProxied = node.NodeWithCustomData[*ConnectionProxiedHandlerPublisher, *ProcessorInput]
-type NodeInputDirect = node.NodeWithCustomData[*ListeningPortDirectPublishers, *ProcessorInput]
+type (
+	ProcessorInput   = processor.FromKernel[*kernel.Input]
+	NodeInputProxied = node.NodeWithCustomData[*ConnectionProxiedHandlerPublisher, *ProcessorInput]
+	NodeInputDirect  = node.NodeWithCustomData[*ListeningPortDirectPublishers, *ProcessorInput]
+)
 
 func newProxiedInputNode(
 	ctx context.Context,
@@ -29,10 +33,12 @@ func newProxiedInputNode(
 	return n
 }
 
-type Sender = router.Sender
-type ProcessorOutput = processor.FromKernel[*kernel.ChainOfTwo[*kernel.ReorderMonotonicDTS, *kernel.Output]]
-type NodeOutputProxied = node.NodeWithCustomData[*ConnectionProxiedHandlerConsumer, *ProcessorOutput]
-type NodeOutputDirect = node.NodeWithCustomData[*ListeningPortDirectConsumers, *ProcessorOutput]
+type (
+	Sender            = router.Sender
+	ProcessorOutput   = processor.FromKernel[*kernel.ChainOfTwo[*kernel.ReorderMonotonicDTS, *kernel.Output]]
+	NodeOutputProxied = node.NodeWithCustomData[*ConnectionProxiedHandlerConsumer, *ProcessorOutput]
+	NodeOutputDirect  = node.NodeWithCustomData[*ListeningPortDirectConsumers, *ProcessorOutput]
+)
 
 func newProxiedOutputNode(
 	ctx context.Context,

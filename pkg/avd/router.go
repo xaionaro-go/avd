@@ -1,3 +1,5 @@
+// router.go provides router-related methods for the AVD server.
+
 package avd
 
 import (
@@ -8,8 +10,10 @@ import (
 	"github.com/xaionaro-go/avpipeline/router"
 )
 
-type RouteCustomData = types.RouteCustomData
-type RouteSource[T Publisher] = router.RouteSource[RouteCustomData, T, *ProcessorInput]
+type (
+	RouteCustomData          = types.RouteCustomData
+	RouteSource[T Publisher] = router.RouteSource[RouteCustomData, T, *ProcessorInput]
+)
 
 func (s *Server) OnRouteCreated(
 	ctx context.Context,

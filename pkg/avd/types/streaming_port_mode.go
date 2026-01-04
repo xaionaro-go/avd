@@ -1,3 +1,5 @@
+// streaming_port_mode.go defines the StreamingPortMode type, distinguishing between publishers and consumers.
+
 package types
 
 import (

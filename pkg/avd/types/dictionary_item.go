@@ -1,3 +1,6 @@
+// Package types defines the internal types used by the avd package.
+//
+// dictionary_item.go provides type aliases for dictionary items.
 package types
 
 import (

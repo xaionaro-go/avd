@@ -1,10 +1,11 @@
+// port_streaming.go defines the configuration for streaming ports and endpoints.
+
 package config
 
 import (
 	"fmt"
-	"strings"
-
 	"slices"
+	"strings"
 
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	transcodertypes "github.com/xaionaro-go/avpipeline/preset/transcoderwithpassthrough/types"
@@ -75,22 +76,24 @@ func (cfg StreamingProtocolHandlerConfig) Protocol() (StreamingProtocol, error) 
 	}
 }
 
-type StreamingPortMode = types.StreamingPortMode
-type PublishMode = types.PublishMode
-type DictionaryItem = types.DictionaryItem
-type DictionaryItems = types.DictionaryItems
-type OnEndAction = types.OnEndAction
-type StreamingPortConfig struct {
-	Address            PortAddress                    `yaml:"address"`
-	Mode               StreamingPortMode              `yaml:"mode"`
-	PublishMode        PublishMode                    `yaml:"publish_mode"`
-	ProtocolHandler    StreamingProtocolHandlerConfig `yaml:"protocol_handler"`
-	CustomOptions      DictionaryItems                `yaml:"custom_options,omitempty"`
-	DefaultRoutePath   string                         `yaml:"default_route_path"`
-	OnEnd              OnEndAction                    `yaml:"on_end"`
-	WaitUntil          WaitUntilConfig                `yaml:"wait_until,omitempty"`
-	IgnoreZeroDuration *bool                          `yaml:"ignore_zero_duration,omitempty"`
-}
+type (
+	StreamingPortMode   = types.StreamingPortMode
+	PublishMode         = types.PublishMode
+	DictionaryItem      = types.DictionaryItem
+	DictionaryItems     = types.DictionaryItems
+	OnEndAction         = types.OnEndAction
+	StreamingPortConfig struct {
+		Address            PortAddress                    `yaml:"address"`
+		Mode               StreamingPortMode              `yaml:"mode"`
+		PublishMode        PublishMode                    `yaml:"publish_mode"`
+		ProtocolHandler    StreamingProtocolHandlerConfig `yaml:"protocol_handler"`
+		CustomOptions      DictionaryItems                `yaml:"custom_options,omitempty"`
+		DefaultRoutePath   string                         `yaml:"default_route_path"`
+		OnEnd              OnEndAction                    `yaml:"on_end"`
+		WaitUntil          WaitUntilConfig                `yaml:"wait_until,omitempty"`
+		IgnoreZeroDuration *bool                          `yaml:"ignore_zero_duration,omitempty"`
+	}
+)
 
 func (cfg StreamingPortConfig) ListenOptions() []types.ListenOption {
 	opts := types.ListenOptions{

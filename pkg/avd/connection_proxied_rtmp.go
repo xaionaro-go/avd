@@ -1,3 +1,5 @@
+// connection_proxied_rtmp.go provides RTMP-specific logic for proxied connections.
+
 package avd
 
 import (
@@ -10,10 +12,10 @@ import (
 	"github.com/xaionaro-go/avcommon"
 )
 
-func (c *ConnectionProxied) AVRTMPContext() *avcommon.RTMPContext {
-	urlCtx := c.AVURLContext()
+func (c *ConnectionProxied) AVRTMPContext(ctx context.Context) *avcommon.RTMPContext {
+	urlCtx := c.AVURLContext(ctx)
 	if urlCtx == nil {
-		logger.Errorf(context.Background(), "AVRTMPContext: urlCtx == nil")
+		logger.Errorf(ctx, "AVRTMPContext: urlCtx == nil")
 		return nil
 	}
 	return avcommon.WrapRTMPContext(urlCtx.PrivData())
@@ -23,7 +25,7 @@ func (c *ConnectionProxied) onInitFinishedRTMP(
 	ctx context.Context,
 ) {
 	routePath := c.GetRoutePath()
-	rtmpCtx := c.AVRTMPContext()
+	rtmpCtx := c.AVRTMPContext(ctx)
 	if rtmpCtx == nil {
 		logger.Errorf(ctx, "onInitFinishedRTMP: rtmpCtx == nil")
 		return

@@ -1,4 +1,7 @@
+// Package client provides a gRPC client for the AVD management service.
 package client
+
+// grpc_client.go provides a gRPC client for the AVD management service.
 
 import (
 	"context"

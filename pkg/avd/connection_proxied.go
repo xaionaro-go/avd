@@ -1,3 +1,5 @@
+// connection_proxied.go implements a proxied connection that uses libav for protocol handling.
+
 package avd
 
 import (
@@ -34,15 +36,16 @@ type ConnectionProxied struct {
 	Locker  xsync.Mutex
 
 	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
-	Port         *ListeningPortProxied
-	Conn         *net.Conn
-	CancelFunc   context.CancelFunc
-	AVInputURL   *url.URL
-	AVInputKey   secret.String
-	AVConn       *net.TCPConn
-	InitError    error
-	InitFinished chan struct{}
-	RoutePath    *RoutePath
+	Port             *ListeningPortProxied
+	Conn             *net.Conn
+	CancelFunc       context.CancelFunc
+	AVInputURL       *url.URL
+	AVInputKey       secret.String
+	AVConn           *net.TCPConn
+	InitError        error
+	InitFinished     chan struct{}
+	InitFinishedOnce sync.Once
+	RoutePath        *RoutePath
 }
 
 func newConnectionProxied(
@@ -170,6 +173,12 @@ func (c *ConnectionProxied) Mode() PortMode {
 	return c.Port.Mode
 }
 
+func (c *ConnectionProxied) closeInitFinished() {
+	c.InitFinishedOnce.Do(func() {
+		close(c.InitFinished)
+	})
+}
+
 func (c *ConnectionProxied) Close(ctx context.Context) (_err error) {
 	return xsync.DoA1R1(ctx, &c.Locker, c.closeLocked, ctx)
 }
@@ -182,12 +191,7 @@ func (c *ConnectionProxied) closeLocked(ctx context.Context) (_err error) {
 		c.CancelFunc = nil
 	}
 
-	select {
-	case <-c.InitFinished:
-		logger.Debugf(ctx, "initialization finished, proceeding with close")
-	default:
-		logger.Errorf(ctx, "closing when not initialized is not implemented yet; it may SEGFAULT")
-	}
+	c.closeInitFinished()
 
 	var errs []error
 	if handler := c.GetHandler(); handler != nil {
@@ -285,7 +289,6 @@ func (c *ConnectionProxied) builtAVListenURL(
 	c.AVInputKey = secretKey
 	logger.Debugf(ctx, "c.AVInputURL: %#+v", c.AVInputURL)
 	return url, secretKey, nil
-
 }
 
 func (c *ConnectionProxied) isAsyncOpen(
@@ -403,7 +406,7 @@ func (c *ConnectionProxied) onInitFinished(
 	}
 	c.AVInputURL.Path = c.GetURLPath()
 	c.GetHandler().SetURL(ctx, c.AVInputURL)
-	close(c.InitFinished)
+	c.closeInitFinished()
 }
 
 func (c *ConnectionProxied) negotiate(
@@ -654,10 +657,10 @@ func (c *ConnectionProxied) GetKernel() kernel.Abstract {
 	return handler.GetKernel()
 }
 
-func (c *ConnectionProxied) getFormatContext() *astiav.FormatContext {
+func (c *ConnectionProxied) getFormatContext(ctx context.Context) *astiav.FormatContext {
 	k := c.GetKernel()
 	if k == nil {
-		logger.Errorf(context.TODO(), "getFormatContext: Kernel is nil, unable to get FormatContext")
+		logger.Errorf(ctx, "getFormatContext: Kernel is nil, unable to get FormatContext")
 		return nil
 	}
 	switch k := k.(type) {
@@ -672,10 +675,10 @@ func (c *ConnectionProxied) getFormatContext() *astiav.FormatContext {
 	}
 }
 
-func (c *ConnectionProxied) AVFormatContext() *avcommon.AVFormatContext {
-	fmtCtx := c.getFormatContext()
+func (c *ConnectionProxied) AVFormatContext(ctx context.Context) *avcommon.AVFormatContext {
+	fmtCtx := c.getFormatContext(ctx)
 	if fmtCtx == nil {
-		logger.Errorf(context.TODO(), "AVFormatContext is nil, unable to wrap it")
+		logger.Errorf(ctx, "AVFormatContext is nil, unable to wrap it")
 		return nil
 	}
 	return avcommon.WrapAVFormatContext(
@@ -685,8 +688,8 @@ func (c *ConnectionProxied) AVFormatContext() *avcommon.AVFormatContext {
 	)
 }
 
-func (c *ConnectionProxied) AVURLContext() *avcommon.URLContext {
-	fmtCtx := c.AVFormatContext()
+func (c *ConnectionProxied) AVURLContext(ctx context.Context) *avcommon.URLContext {
+	fmtCtx := c.AVFormatContext(ctx)
 	if fmtCtx == nil {
 		return nil
 	}

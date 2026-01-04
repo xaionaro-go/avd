@@ -1,3 +1,6 @@
+// read.go provides functions to read configuration files.
+
+// Package configfile provides functions to read and write configuration files.
 package configfile
 
 import (

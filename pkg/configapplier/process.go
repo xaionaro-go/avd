@@ -1,3 +1,5 @@
+// process.go manages the execution of external processes.
+
 package configapplier
 
 import (

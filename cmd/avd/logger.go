@@ -1,3 +1,5 @@
+// logger.go provides logging initialization for the avd server.
+
 package main
 
 import (

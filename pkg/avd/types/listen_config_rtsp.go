@@ -1,3 +1,5 @@
+// listen_config_rtsp.go defines RTSP-specific listening options.
+
 package types
 
 type ListenConfigRTSP struct {

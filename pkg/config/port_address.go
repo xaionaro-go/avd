@@ -1,3 +1,5 @@
+// port_address.go provides a type alias for PortAddress.
+
 package config
 
 import (

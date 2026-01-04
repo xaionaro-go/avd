@@ -1,3 +1,5 @@
+// common_test.go common testing utilities.
+
 package avd
 
 import (

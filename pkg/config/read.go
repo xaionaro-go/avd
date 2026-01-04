@@ -1,3 +1,5 @@
+// read.go provides methods to read the configuration from a reader or byte slice.
+
 package config
 
 import (
@@ -7,8 +9,10 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-var _ io.Reader = (*Config)(nil)
-var _ io.ReaderFrom = (*Config)(nil)
+var (
+	_ io.Reader     = (*Config)(nil)
+	_ io.ReaderFrom = (*Config)(nil)
+)
 
 func (cfg *Config) Read(
 	b []byte,

@@ -1,3 +1,5 @@
+// type_alias.go provides type aliases for types defined in the types subpackage.
+
 package avd
 
 import (
@@ -26,10 +28,12 @@ func SupportedProtocols() []Protocol {
 	return types.SupportedProtocols()
 }
 
-type ListenConfig = types.ListenConfig
-type ListenOption = types.ListenOption
-type ListenOptions = types.ListenOptions
-type ListenOptionDefaultAppName = types.ListenOptionDefaultRoutePath
+type (
+	ListenConfig               = types.ListenConfig
+	ListenOption               = types.ListenOption
+	ListenOptions              = types.ListenOptions
+	ListenOptionDefaultAppName = types.ListenOptionDefaultRoutePath
+)
 
 type TransportProtocol = types.TransportProtocol
 
@@ -39,5 +43,7 @@ const (
 	TransportProtocolUDP       = types.TransportProtocolUDP
 )
 
-type RoutePath = types.RoutePath
-type PortAddress = types.PortAddress
+type (
+	RoutePath   = types.RoutePath
+	PortAddress = types.PortAddress
+)

@@ -1,3 +1,5 @@
+// server_test.go tests for the server.
+
 package avd
 
 import (

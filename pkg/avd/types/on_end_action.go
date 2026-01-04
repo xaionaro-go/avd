@@ -1,3 +1,5 @@
+// on_end_action.go defines the actions to take when a publisher disconnects.
+
 package types
 
 import (

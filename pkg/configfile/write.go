@@ -1,3 +1,5 @@
+// write.go provides functions to write configuration files.
+
 package configfile
 
 import (
@@ -28,7 +30,7 @@ func Write[CFG io.WriterTo](
 	cfgPath = cfgPathExpanded
 
 	pathNew := cfgPath + ".new"
-	f, err := os.OpenFile(pathNew, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0750)
+	f, err := os.OpenFile(pathNew, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o750)
 	if err != nil {
 		return fmt.Errorf("unable to open the data file '%s': %w", pathNew, err)
 	}
@@ -41,7 +43,7 @@ func Write[CFG io.WriterTo](
 	}
 
 	backupDir := fmt.Sprintf("%s-backup", cfgPath)
-	err = os.MkdirAll(backupDir, 0755)
+	err = os.MkdirAll(backupDir, 0o755)
 	if err != nil {
 		logger.Errorf(ctx, "unable to create directory '%s'", backupDir)
 	} else {
@@ -58,7 +60,7 @@ func Write[CFG io.WriterTo](
 		logger.Debugf(ctx, "backup path: '%s'", pathBackup)
 		err = os.Rename(cfgPath, pathBackup)
 		if err != nil {
-			logger.Errorf(ctx, "cannot move '%s' to '%s': %w", cfgPath, pathBackup, err)
+			logger.Errorf(ctx, "cannot move '%s' to '%s': %v", cfgPath, pathBackup, err)
 		}
 	}
 

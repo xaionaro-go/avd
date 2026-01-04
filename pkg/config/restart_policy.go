@@ -1,3 +1,5 @@
+// restart_policy.go defines the restart policy for commands executed by AVD.
+
 package config
 
 import (
@@ -42,7 +44,7 @@ func (p *RestartPolicy) UnmarshalYAML(b []byte) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("unknown publish mode '%s'", s)
+	return fmt.Errorf("unknown restart policy '%s'", s)
 }
 
 func (p RestartPolicy) MarshalYAML() ([]byte, error) {

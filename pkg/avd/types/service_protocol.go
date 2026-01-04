@@ -1,3 +1,5 @@
+// service_protocol.go defines the ServiceProtocol type for management services.
+
 package types
 
 import (

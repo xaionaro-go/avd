@@ -1,3 +1,5 @@
+// wait_until.go defines the configuration for waiting for a certain number of tracks before starting.
+
 package config
 
 type WaitUntilConfig struct {

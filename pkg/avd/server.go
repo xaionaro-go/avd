@@ -1,3 +1,6 @@
+// server.go implements the AVD server.
+
+// Package avd provides the AVD server implementation.
 package avd
 
 import (

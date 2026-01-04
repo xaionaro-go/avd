@@ -1,3 +1,4 @@
+// Package types contains common types used in the avd package.
 package types
 
 import (

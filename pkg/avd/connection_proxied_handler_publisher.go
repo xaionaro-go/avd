@@ -1,3 +1,5 @@
+// connection_proxied_handler_publisher.go implements the proxied connection handler for publishers.
+
 package avd
 
 import (

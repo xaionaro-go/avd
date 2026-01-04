@@ -1,3 +1,5 @@
+// connection_proxied_handler_consumer.go implements the proxied connection handler for consumers.
+
 package avd
 
 import (

@@ -1,3 +1,5 @@
+// commands.go defines the CLI commands for avcli.
+
 // Package commands provides the CLI commands for avcli.
 package commands
 

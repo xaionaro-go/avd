@@ -1,3 +1,5 @@
+// port_service.go defines the configuration for service ports (e.g., management).
+
 package config
 
 import (

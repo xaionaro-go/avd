@@ -1,3 +1,5 @@
+// publisher_close.go provides logic for closing publishers and their associated routes.
+
 package avd
 
 import (

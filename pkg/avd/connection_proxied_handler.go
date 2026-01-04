@@ -1,3 +1,5 @@
+// connection_proxied_handler.go defines the interface for handling proxied connections.
+
 package avd
 
 import (

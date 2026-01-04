@@ -1,3 +1,5 @@
+// proto_rtsp.go defines the configuration for the RTSP protocol.
+
 package config
 
 import (

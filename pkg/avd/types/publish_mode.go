@@ -1,3 +1,5 @@
+// publish_mode.go provides YAML marshaling/unmarshaling for the PublishMode type.
+
 package types
 
 import (
@@ -10,6 +12,10 @@ import (
 )
 
 type PublishMode router.PublishMode
+
+func (mode PublishMode) String() string {
+	return router.PublishMode(mode).String()
+}
 
 func (mode *PublishMode) UnmarshalYAML(b []byte) error {
 	var s string

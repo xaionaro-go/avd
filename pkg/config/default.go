@@ -1,3 +1,5 @@
+// default.go provides the default configuration for AVD.
+
 package config
 
 import (
@@ -26,7 +28,6 @@ func Default() Config {
 				ProtocolHandler: StreamingProtocolHandlerConfig{
 					RTMP: &RTMPConfig{},
 				},
-				CustomOptions: DictionaryItems{},
 			},
 			{
 				Address: "tcp:0.0.0.0:1935",
@@ -34,8 +35,7 @@ func Default() Config {
 				ProtocolHandler: StreamingProtocolHandlerConfig{
 					RTMP: &RTMPConfig{},
 				},
-				CustomOptions: DictionaryItems{},
-				OnEnd:         types.OnEndActionCloseConsumers,
+				OnEnd: types.OnEndActionCloseConsumers,
 			},
 			{
 				Address: "tcp:0.0.0.0:1937",
@@ -43,8 +43,7 @@ func Default() Config {
 				ProtocolHandler: StreamingProtocolHandlerConfig{
 					RTMP: &RTMPConfig{},
 				},
-				CustomOptions: DictionaryItems{},
-				OnEnd:         types.OnEndActionWaitForNewPublisher,
+				OnEnd: types.OnEndActionWaitForNewPublisher,
 			},
 			{
 				Address: "tcp:127.0.0.1:8555",
@@ -52,7 +51,6 @@ func Default() Config {
 				ProtocolHandler: StreamingProtocolHandlerConfig{
 					RTSP: &RTSPConfig{},
 				},
-				CustomOptions: DictionaryItems{},
 			},
 			{
 				Address:          "udp:127.0.0.1:4445",
@@ -61,7 +59,6 @@ func Default() Config {
 				ProtocolHandler: StreamingProtocolHandlerConfig{
 					MPEGTS: &MPEGTSConfig{},
 				},
-				CustomOptions: DictionaryItems{},
 			},
 		},
 		Endpoints: map[types.RoutePath]EndpointConfig{
@@ -77,13 +74,11 @@ func Default() Config {
 								InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 								OutputTrackIDs: []int{0},
 								CodecName:      codectypes.Name(codec.NameCopy),
-								CustomOptions:  transcodertypes.DictionaryItems{},
 							}},
 							VideoTrackConfigs: []transcodertypes.VideoTrackConfig{{
 								InputTrackIDs:  []int{0, 1, 2, 3, 4, 5, 6, 7},
 								OutputTrackIDs: []int{1},
 								CodecName:      codectypes.Name(codec.NameCopy),
-								CustomOptions:  transcodertypes.DictionaryItems{},
 							}},
 						},
 					},

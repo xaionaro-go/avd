@@ -1,3 +1,6 @@
+// main.go is the entry point for the avd server.
+
+// Package main is the entry point for the avd server.
 package main
 
 import (

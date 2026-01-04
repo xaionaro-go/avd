@@ -1,3 +1,5 @@
+// assert.go provides assertion functions for the avd server.
+
 package main
 
 import (

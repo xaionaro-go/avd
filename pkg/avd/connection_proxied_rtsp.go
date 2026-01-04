@@ -1,3 +1,5 @@
+// connection_proxied_rtsp.go provides RTSP-specific logic for proxied connections.
+
 package avd
 
 import (
@@ -15,8 +17,8 @@ const (
 	connectionProxiedCorrectRTSPURL = false
 )
 
-func (c *ConnectionProxied) AVRTSPState() *avcommon.RTSPState {
-	return avcommon.WrapRTSPState(c.AVFormatContext().PrivData())
+func (c *ConnectionProxied) AVRTSPState(ctx context.Context) *avcommon.RTSPState {
+	return avcommon.WrapRTSPState(c.AVFormatContext(ctx).PrivData())
 }
 
 func (c *ConnectionProxied) onInitFinishedRTSP(
@@ -27,7 +29,7 @@ func (c *ConnectionProxied) onInitFinishedRTSP(
 		return
 	}
 	routePath := c.GetRoutePath()
-	rtspState := c.AVRTSPState()
+	rtspState := c.AVRTSPState(ctx)
 	logger.Debugf(ctx, "updating the control URI: '%s' -> '%s'", rtspState.ControlURI(), routePath)
 	rtspState.SetControlURI(string(routePath))
 	for idx, stream := range rtspState.RTSPStreams() {

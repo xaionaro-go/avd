@@ -1,3 +1,5 @@
+// port_address.go defines the PortAddress type and its parsing logic.
+
 package types
 
 import (

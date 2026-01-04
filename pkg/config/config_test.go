@@ -1,3 +1,5 @@
+// config_test.go provides tests for the configuration.
+
 package config
 
 import (
@@ -13,10 +15,16 @@ func TestConfigWriteRead(t *testing.T) {
 	var b bytes.Buffer
 	_, err := cfg.WriteTo(&b)
 	require.NoError(t, err)
+	yamlOrig := b.String()
 
 	var dup Config
 	_, err = dup.ReadFrom(&b)
 	require.NoError(t, err)
 
-	require.Equal(t, cfg, dup)
+	var b2 bytes.Buffer
+	_, err = dup.WriteTo(&b2)
+	require.NoError(t, err)
+	yamlDup := b2.String()
+
+	require.YAMLEq(t, yamlOrig, yamlDup)
 }

@@ -1,3 +1,5 @@
+// listening_port_proxied.go implements a proxied listening port.
+
 package avd
 
 import (
@@ -135,13 +137,16 @@ func (p *ListeningPortProxied) Close(ctx context.Context) (_err error) {
 	p.CancelFn()
 	err := p.Listener.Close()
 	logger.Debugf(ctx, "p.Listener.Close() result: %v", err)
+	var conns []*ConnectionProxied
 	p.ConnectionsLocker.Do(ctx, func() {
-		for addr, conn := range p.Connections {
-			err := conn.Close(ctx)
-			logger.Debugf(ctx, "conn[%s].Close(ctx) result: %v", addr, err)
-			delete(p.Connections, addr)
+		for _, conn := range p.Connections {
+			conns = append(conns, conn)
 		}
 	})
+	for _, conn := range conns {
+		err := conn.Close(ctx)
+		logger.Debugf(ctx, "conn[%s].Close(ctx) result: %v", conn, err)
+	}
 	p.Server.removeListeningPort(ctx, p)
 	return nil
 }
