@@ -1,3 +1,5 @@
+// listen_config.go defines the configuration for listening ports.
+
 package types
 
 import (
@@ -45,7 +47,7 @@ func (cfg ListenConfig) GetBufferDuration() time.Duration {
 
 func (cfg ListenConfig) GetIgnoreZeroDuration() bool {
 	if cfg.IgnoreZeroDuration == nil {
-		return true
+		return false
 	}
 	return *cfg.IgnoreZeroDuration
 }
