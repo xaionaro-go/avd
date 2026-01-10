@@ -31,6 +31,10 @@ const (
 	ConnectionEnableRoutePathUpdaterHack = true
 )
 
+const (
+	initAVHandlerDialRetryTimeout = 10 * time.Second
+)
+
 type ConnectionProxied struct {
 	Handler *ConnectionProxiedHandler
 	Locker  xsync.Mutex
@@ -84,27 +88,27 @@ func newConnectionProxied(
 		return nil, fmt.Errorf("unable to handle connection from %s: %w", conn.RemoteAddr(), err)
 	}
 
+	if ConnectionEnableRoutePathUpdaterHack {
+		switch p.Protocol {
+		case ProtocolRTMP, ProtocolRTSP:
+		default:
+			return nil, fmt.Errorf("negotiation for protocol '%s' is not implemented (yet?)", p.Protocol)
+		}
+	}
+
 	observability.Go(ctx, func(ctx context.Context) {
 		defer func() {
 			logger.Debugf(ctx, "the end")
 			c.Close(ctx)
 		}()
 		if ConnectionEnableRoutePathUpdaterHack {
-			var negotiate func(context.Context) error
-			switch p.Protocol {
-			case ProtocolRTMP, ProtocolRTSP:
-				negotiate = c.negotiate
-			default:
-				logger.Errorf(ctx, "negotiation for protocol '%s' is not implemented (yet?)", p.Protocol)
-				return
-			}
-			err = negotiate(ctx)
+			err := c.negotiate(ctx)
 			if err != nil {
 				logger.Errorf(ctx, "unable to negotiate the connection with %s: %v", conn.RemoteAddr(), err)
 				return
 			}
 		}
-		err = c.forward(ctx)
+		err := c.forward(ctx)
 		if err != nil {
 			switch {
 			case errors.Is(err, io.EOF):
@@ -155,10 +159,17 @@ func (c *ConnectionProxied) String() string {
 
 	conn := c.GetConn()
 	avConn := c.GetAVConn()
+	var connRemote, connLocal, avConnLocal, avConnRemote any = "?", "?", "?", "?"
+	if conn != nil {
+		connRemote, connLocal = conn.RemoteAddr(), conn.LocalAddr()
+	}
+	if avConn != nil {
+		avConnLocal, avConnRemote = avConn.LocalAddr(), avConn.RemoteAddr()
+	}
 	return fmt.Sprintf(
-		"%s[%s](%s->%s->%s->%s)",
+		"%s[%s](%v->%v->%v->%v)",
 		strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
-		conn.RemoteAddr(), conn.LocalAddr(), avConn.LocalAddr(), avConn.RemoteAddr(),
+		connRemote, connLocal, avConnLocal, avConnRemote,
 	)
 }
 
@@ -261,10 +272,6 @@ func (c *ConnectionProxied) builtAVListenURL(
 		return nil, secret.New(""), fmt.Errorf("protocol is not set")
 	}
 
-	if c.Port.Protocol == ProtocolRTSP && c.Mode() == PortModeConsumers {
-		return nil, secret.New(""), fmt.Errorf("AFAIK, libav does not support the server mode for RTSP")
-	}
-
 	randomPortTaker, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, secret.String{}, fmt.Errorf("unable to take a random port")
@@ -276,10 +283,9 @@ func (c *ConnectionProxied) builtAVListenURL(
 
 	logger.Debugf(ctx, "protocol: '%s", c.Port.Protocol)
 	url := &url.URL{
-		Scheme:   c.Port.Protocol.String(),
-		Host:     randomAddr,
-		Path:     fmt.Sprintf("%s/", defaultRoutePath),
-		RawQuery: "",
+		Scheme: c.Port.Protocol.String(),
+		Host:   randomAddr,
+		Path:   fmt.Sprintf("%s/", defaultRoutePath),
 	}
 	queryWords := strings.Split(url.Path, "/")
 	url.Path = strings.Join(queryWords[:len(queryWords)-1], "/")
@@ -302,7 +308,7 @@ func (c *ConnectionProxied) isAsyncOpen(
 		return false
 	}
 	switch port.Protocol {
-	case ProtocolRTMP:
+	case ProtocolRTMP, ProtocolRTSP:
 		return true
 	}
 	handler := c.GetHandler()
@@ -338,13 +344,18 @@ func (c *ConnectionProxied) initAVHandler(
 		return fmt.Errorf("unable to parse port in '%s': %w", portString, err)
 	}
 
+	ip := net.ParseIP(host)
+	if ip == nil {
+		logger.Errorf(ctx, "unable to parse IP from host '%s', defaulting to 127.0.0.1", host)
+		ip = net.ParseIP("127.0.0.1")
+	}
 	avInputAddr := &net.TCPAddr{
-		IP:   net.ParseIP(host),
+		IP:   ip,
 		Port: int(port),
 	}
 	logger.Debugf(ctx, "avInputAddr: %#+v", avInputAddr)
 
-	logger.Debugf(ctx, "attempting to listen by libav at '%s'...", url)
+	logger.Debugf(ctx, "attempting to listen by libav at '%s' (proto:%v)...", url, c.Port.Protocol)
 	handler := c.GetHandler()
 	err = handler.InitAVHandler(ctx, c.Port.Protocol, url, secretKey, c.Port.Config)
 	if err != nil {
@@ -353,9 +364,10 @@ func (c *ConnectionProxied) initAVHandler(
 
 	t := time.NewTicker(50 * time.Millisecond)
 	defer t.Stop()
-	deadline := time.NewTimer(3 * time.Second)
+	deadline := time.NewTimer(initAVHandlerDialRetryTimeout)
 	defer deadline.Stop()
 	var connErr error
+	// TODO: explain why we need to retry here
 	for {
 		select {
 		case <-ctx.Done():
@@ -444,13 +456,16 @@ func (c *ConnectionProxied) negotiate(
 		dst net.Conn,
 		msg []byte,
 	) error {
+		if dst == nil {
+			return fmt.Errorf("destination connection is nil")
+		}
 		w, err := dst.Write(msg)
 		if err != nil {
-			return fmt.Errorf("unable to write to the client: %w", err)
+			return fmt.Errorf("unable to write: %w", err)
 		}
 
 		if w != len(msg) {
-			return fmt.Errorf("expected to write to the client %d bytes, but wrote %d", len(msg), w)
+			return fmt.Errorf("expected to write %d bytes, but wrote %d", len(msg), w)
 		}
 
 		return nil
@@ -502,9 +517,16 @@ func (c *ConnectionProxied) negotiate(
 			}
 
 			msg := buf[:r]
+			logger.Debugf(ctx, "received %d bytes from client: %q", r, string(msg))
 			routePath, err := c.tryExtractRouteString(ctx, msg)
 			if err != nil {
 				errCh <- fmt.Errorf("unable to snoop the route path: %w", err)
+				return
+			}
+
+			msg, err = c.correctMessage(ctx, msg)
+			if err != nil {
+				errCh <- fmt.Errorf("unable to correct the message: %w", err)
 				return
 			}
 			if routePath == nil {
@@ -641,6 +663,21 @@ func (c *ConnectionProxied) tryExtractRouteString(
 	}
 }
 
+// TODO: get rid of this!
+func (c *ConnectionProxied) correctMessage(
+	ctx context.Context,
+	msg []byte,
+) ([]byte, error) {
+	switch c.Port.Protocol {
+	case ProtocolRTMP:
+		return c.correctMessageRTMP(ctx, msg)
+	case ProtocolRTSP:
+		return c.correctMessageRTSP(ctx, msg)
+	default:
+		return nil, fmt.Errorf("protocol '%s' is not supported", c.Port.Protocol)
+	}
+}
+
 func (c *ConnectionProxied) GetNode(ctx context.Context) node.Abstract {
 	handler := c.GetHandler()
 	if handler == nil {
@@ -658,21 +695,11 @@ func (c *ConnectionProxied) GetKernel() kernel.Abstract {
 }
 
 func (c *ConnectionProxied) getFormatContext(ctx context.Context) *astiav.FormatContext {
-	k := c.GetKernel()
-	if k == nil {
-		logger.Errorf(ctx, "getFormatContext: Kernel is nil, unable to get FormatContext")
+	handler := c.GetHandler()
+	if handler == nil {
 		return nil
 	}
-	switch k := k.(type) {
-	case *kernel.Input:
-		return k.FormatContext
-	case *kernel.Output:
-		return k.FormatContext
-	case *kernel.ChainOfTwo[*kernel.ReorderMonotonicDTS, *kernel.Output]:
-		return k.Kernel1.FormatContext
-	default:
-		panic(fmt.Errorf("unexpected type: %T", k))
-	}
+	return handler.GetFormatContext()
 }
 
 func (c *ConnectionProxied) AVFormatContext(ctx context.Context) *avcommon.AVFormatContext {

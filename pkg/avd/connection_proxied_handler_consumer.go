@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/asticode/go-astiav"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/router"
+	"github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
 	"github.com/xaionaro-go/xsync"
@@ -43,6 +45,14 @@ func (c *ConnectionProxiedHandlerConsumer) InitAVHandler(
 	listenConfig ListenConfig,
 ) error {
 	customOpts := listenConfig.DictionaryItems(proto, PortModeConsumers)
+	switch proto {
+	case ProtocolRTSP:
+		customOpts = append(customOpts, types.DictionaryItem{
+			Key:   "rtsp_flags",
+			Value: "listen",
+		})
+	}
+
 	node, err := newProxiedOutputNode(
 		ctx,
 		c,
@@ -60,11 +70,15 @@ func (c *ConnectionProxiedHandlerConsumer) InitAVHandler(
 				c.Parent.onInitFinished(ctx)
 				return nil
 			},
-			WaitForOutputStreams: &kernel.OutputConfigWaitForOutputStreams{
-				MinStreamsAudio:  listenConfig.WaitUntilAudioTracksCount,
-				MinStreamsVideo:  listenConfig.WaitUntilVideoTracksCount,
-				VideoBeforeAudio: ptr(c.Parent.Port.Protocol == ProtocolRTMP),
-			},
+			WaitForOutputStreams: func() *kernel.OutputConfigWaitForOutputStreams {
+				return &kernel.OutputConfigWaitForOutputStreams{
+					MinStreamsAudio:    listenConfig.WaitUntilAudioTracksCount,
+					MinStreamsVideo:    listenConfig.WaitUntilVideoTracksCount,
+					MinStreamsSubtitle: listenConfig.WaitUntilSubtitleTracksCount,
+					MinStreamsData:     listenConfig.WaitUntilDataTracksCount,
+					VideoBeforeAudio:   ptr(c.Parent.Port.Protocol == ProtocolRTMP),
+				}
+			}(),
 		},
 	)
 	if err != nil {
@@ -78,11 +92,19 @@ func (c *ConnectionProxiedHandlerConsumer) InitAVHandler(
 		return err
 	}
 	c.Node = node
+
 	return nil
 }
 
 func (c *ConnectionProxiedHandlerConsumer) GetNode() node.Abstract {
 	return c.Node
+}
+
+func (c *ConnectionProxiedHandlerConsumer) GetOutput() *kernel.Output {
+	if c.Node == nil {
+		return nil
+	}
+	return c.Node.Processor.Kernel.Kernel1
 }
 
 func (c *ConnectionProxiedHandlerConsumer) StartForwarding(
@@ -122,7 +144,18 @@ func (c *ConnectionProxiedHandlerConsumer) startForwarding(
 }
 
 func (c *ConnectionProxiedHandlerConsumer) GetKernel() kernel.Abstract {
+	if c.Node == nil {
+		return nil
+	}
 	return c.Node.Processor.Kernel
+}
+
+func (c *ConnectionProxiedHandlerConsumer) GetFormatContext() *astiav.FormatContext {
+	output := c.GetOutput()
+	if output != nil {
+		return output.FormatContext
+	}
+	return nil
 }
 
 func (c *ConnectionProxiedHandlerConsumer) Close(ctx context.Context) (_err error) {
@@ -155,6 +188,10 @@ func (c *ConnectionProxiedHandlerConsumer) SetURL(
 	ctx context.Context,
 	url *url.URL,
 ) {
-	c.Node.Processor.Kernel.Kernel1.URL = url.String()
-	c.Node.Processor.Kernel.Kernel1.URLParsed = url
+	output := c.GetOutput()
+	if output == nil {
+		return
+	}
+	output.URL = url.String()
+	output.URLParsed = url
 }

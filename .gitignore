@@ -2,3 +2,14 @@
 /go.work
 /go.work.sum
 /.github/instructions/afk
+*.log
+test_*
+/*.sh
+/*.yaml
+/*.conf
+/*.mp4
+/cmd/avd/avd
+/build
+/bin
+/avd
+/myscripts

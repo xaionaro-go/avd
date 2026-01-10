@@ -132,8 +132,10 @@ func (p *ListeningPortDirectConsumers) startListening(
 				return nil
 			},
 			WaitForOutputStreams: &kernel.OutputConfigWaitForOutputStreams{
-				MinStreamsAudio: p.Config.WaitUntilAudioTracksCount,
-				MinStreamsVideo: p.Config.WaitUntilVideoTracksCount,
+				MinStreamsAudio:    p.Config.WaitUntilAudioTracksCount,
+				MinStreamsVideo:    p.Config.WaitUntilVideoTracksCount,
+				MinStreamsSubtitle: p.Config.WaitUntilSubtitleTracksCount,
+				MinStreamsData:     p.Config.WaitUntilDataTracksCount,
 			},
 		},
 	)

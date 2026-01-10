@@ -24,6 +24,7 @@ type Destination struct {
 type ForwardConfig struct {
 	Destination Destination                       `yaml:"destination"`
 	Transcoding *transcodertypes.TranscoderConfig `yaml:"transcoding"`
+	WaitUntil   WaitUntilConfig                   `yaml:"wait_until"`
 }
 
 type Command struct {
@@ -113,6 +114,12 @@ func (cfg StreamingPortConfig) ListenOptions() []types.ListenOption {
 	}
 	if cfg.WaitUntil.AudioTrackCount > 0 {
 		opts = append(opts, types.ListenOptionWaitUntilAudioTracksCount(cfg.WaitUntil.AudioTrackCount))
+	}
+	if cfg.WaitUntil.SubtitleTrackCount > 0 {
+		opts = append(opts, types.ListenOptionWaitUntilSubtitleTracksCount(cfg.WaitUntil.SubtitleTrackCount))
+	}
+	if cfg.WaitUntil.DataTrackCount > 0 {
+		opts = append(opts, types.ListenOptionWaitUntilDataTracksCount(cfg.WaitUntil.DataTrackCount))
 	}
 	if cfg.IgnoreZeroDuration != nil {
 		opts = append(opts, types.ListenOptionIgnoreZeroDuration(*cfg.IgnoreZeroDuration))

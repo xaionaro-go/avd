@@ -51,6 +51,13 @@ func (c *ConnectionProxied) tryExtractRouteStringRTMP(
 	return ptr(RoutePath(routePath)), nil
 }
 
+func (c *ConnectionProxied) correctMessageRTMP(
+	ctx context.Context,
+	msg []byte,
+) ([]byte, error) {
+	return msg, nil
+}
+
 var rtmpConnectMagic []byte
 
 func init() {

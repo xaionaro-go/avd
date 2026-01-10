@@ -60,7 +60,7 @@ func newProxiedOutputNode(
 
 	minStreams := uint(0)
 	if w := cfg.WaitForOutputStreams; w != nil {
-		minStreams = max(w.MinStreams, w.MinStreamsAudio+w.MinStreamsVideo)
+		minStreams = max(w.MinStreams, w.MinStreamsAudio+w.MinStreamsVideo+w.MinStreamsSubtitle+w.MinStreamsData)
 	}
 	outputKernel, err := kernel.NewOutputFromURL(ctx, dstURL, streamKey, cfg)
 	if err != nil {

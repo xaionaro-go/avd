@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sync/atomic"
 
+	"github.com/asticode/go-astiav"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/go-ng/xatomic"
 	"github.com/xaionaro-go/avpipeline/kernel"
@@ -103,6 +104,14 @@ func (c *ConnectionProxiedHandlerPublisher) GetNode() node.Abstract {
 		return nil
 	}
 	return n
+}
+
+func (c *ConnectionProxiedHandlerPublisher) GetInput() *kernel.Input {
+	n := c.GetNodeTyped()
+	if n == nil {
+		return nil
+	}
+	return n.Processor.Kernel
 }
 
 func (c *ConnectionProxiedHandlerPublisher) GetNodeTyped() *NodeInputProxied {
@@ -235,6 +244,14 @@ func (c *ConnectionProxiedHandlerPublisher) GetKernel() kernel.Abstract {
 		return nil
 	}
 	return n.Processor.Kernel
+}
+
+func (c *ConnectionProxiedHandlerPublisher) GetFormatContext() *astiav.FormatContext {
+	input := c.GetInput()
+	if input != nil {
+		return input.FormatContext
+	}
+	return nil
 }
 
 func (c *ConnectionProxiedHandlerPublisher) Close(ctx context.Context) (_err error) {

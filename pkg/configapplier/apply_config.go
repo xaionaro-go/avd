@@ -13,6 +13,7 @@ import (
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avd/pkg/config"
 	grpcserver "github.com/xaionaro-go/avd/pkg/management/grpc/server"
+	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/router"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
@@ -154,6 +155,14 @@ func ApplyConfig(
 						path,
 						*fwd.Destination.URL, secret.New(""),
 						fwd.Transcoding,
+						kernel.OutputConfig{
+							WaitForOutputStreams: &kernel.OutputConfigWaitForOutputStreams{
+								MinStreamsVideo:    fwd.WaitUntil.VideoTrackCount,
+								MinStreamsAudio:    fwd.WaitUntil.AudioTrackCount,
+								MinStreamsSubtitle: fwd.WaitUntil.SubtitleTrackCount,
+								MinStreamsData:     fwd.WaitUntil.DataTrackCount,
+							},
+						},
 					)
 					if err != nil {
 						logger.Errorf(ctx, "unable to create forwarding from '%s' to a remote destination '%s': %v", path, fwd.Destination.URL, err)

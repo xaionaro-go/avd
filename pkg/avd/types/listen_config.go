@@ -13,22 +13,24 @@ import (
 type RoutePath = routertypes.RoutePath
 
 type ListenConfig struct {
-	DefaultRoutePath          RoutePath
-	OnEndAction               OnEndAction
-	PublishMode               router.PublishMode
-	WaitUntilVideoTracksCount uint
-	WaitUntilAudioTracksCount uint
-	IgnoreZeroDuration        *bool
-	CustomOptions             DictionaryItems
+	DefaultRoutePath             RoutePath          `yaml:"default_route_path"`
+	OnEndAction                  OnEndAction        `yaml:"on_end"`
+	PublishMode                  router.PublishMode `yaml:"publish_mode"`
+	WaitUntilVideoTracksCount    uint               `yaml:"wait_until_video_tracks_count"`
+	WaitUntilAudioTracksCount    uint               `yaml:"wait_until_audio_tracks_count"`
+	WaitUntilSubtitleTracksCount uint               `yaml:"wait_until_subtitle_tracks_count"`
+	WaitUntilDataTracksCount     uint               `yaml:"wait_until_data_tracks_count"`
+	IgnoreZeroDuration           *bool              `yaml:"ignore_zero_duration"`
+	CustomOptions                DictionaryItems    `yaml:"custom_options"`
 
 	// not all protocols respects these, but some do:
-	BufferDuration   time.Duration
-	MaxBufferSize    uint32
-	ReorderQueueSize uint32
-	Timeout          time.Duration
+	BufferDuration   time.Duration `yaml:"buffer_duration"`
+	MaxBufferSize    uint32        `yaml:"max_buffer_size"`
+	ReorderQueueSize uint32        `yaml:"reorder_queue_size"`
+	Timeout          time.Duration `yaml:"timeout"`
 
 	// protocol-specific stuff
-	RTSP ListenConfigRTSP
+	RTSP ListenConfigRTSP `yaml:"rtsp"`
 }
 
 func (cfg ListenConfig) GetPublishMode() router.PublishMode {
@@ -56,8 +58,9 @@ func (cfg ListenConfig) DictionaryItems(
 	protocol StreamingProtocol,
 	mode StreamingPortMode,
 ) DictionaryItems {
-	customOpts := DictionaryItems{
-		{Key: "listen", Value: "1"},
+	customOpts := DictionaryItems{}
+	if protocol != ProtocolRTSP || mode == PortModePublishers {
+		customOpts = append(customOpts, DictionaryItem{Key: "listen", Value: "1"})
 	}
 	if cfg.MaxBufferSize != 0 {
 		customOpts = append(customOpts, DictionaryItem{
@@ -86,9 +89,10 @@ func (cfg ListenConfig) DictionaryItems(
 			})
 		}
 	case ProtocolRTSP:
-		customOpts = append(customOpts, DictionaryItems{
-			{Key: "rtsp_flags", Value: "listen"},
-		}...)
+		customOpts = append(customOpts, DictionaryItem{Key: "rtsp_transport", Value: "tcp"})
+		if mode == PortModePublishers {
+			customOpts = append(customOpts, DictionaryItem{Key: "rtsp_flags", Value: "listen"})
+		}
 		if cfg.RTSP.PacketSize != 0 {
 			customOpts = append(customOpts, DictionaryItem{
 				Key: "pkt_size", Value: fmt.Sprintf("%d", cfg.RTSP.PacketSize),
@@ -170,6 +174,18 @@ type ListenOptionWaitUntilAudioTracksCount uint
 
 func (opt ListenOptionWaitUntilAudioTracksCount) apply(cfg *ListenConfig) {
 	cfg.WaitUntilAudioTracksCount = uint(opt)
+}
+
+type ListenOptionWaitUntilSubtitleTracksCount uint
+
+func (opt ListenOptionWaitUntilSubtitleTracksCount) apply(cfg *ListenConfig) {
+	cfg.WaitUntilSubtitleTracksCount = uint(opt)
+}
+
+type ListenOptionWaitUntilDataTracksCount uint
+
+func (opt ListenOptionWaitUntilDataTracksCount) apply(cfg *ListenConfig) {
+	cfg.WaitUntilDataTracksCount = uint(opt)
 }
 
 type ListenOptionCustomOptions DictionaryItems
