@@ -6,19 +6,16 @@ package commands
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"strconv"
-	"strings"
-	"time"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/spf13/cobra"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/client"
+	"github.com/xaionaro-go/avpipeline/monitor"
 	avpipeline_proto "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
-	goconvlibav "github.com/xaionaro-go/avpipeline/protobuf/goconv/libav"
 	"github.com/xaionaro-go/observability"
 )
 
@@ -87,7 +84,7 @@ var (
 	Monitor = &cobra.Command{
 		Use:  "monitor",
 		Args: cobra.RangeArgs(1, 2),
-		Run:  monitor,
+		Run:  monitorCommand,
 	}
 
 	LoggerLevel = logger.LevelWarning
@@ -107,6 +104,8 @@ func init() {
 	Monitor.Flags().Bool("include-packet-payload", false, "include packet payloads in monitor events")
 	Monitor.Flags().Bool("include-frame-payload", false, "include frame payloads in monitor events")
 	Monitor.Flags().Bool("do-decode", false, "do decode of packets/frames for monitor events")
+	Monitor.Flags().Duration("highlight-discontinuity", 0, "highlight discontinuities (if the gap is greater than the specified duration)")
+	Monitor.Flags().IntSlice("stream-indices", nil, "filter by stream indices")
 	Monitor.Flags().String("format", "plaintext", "output format (plaintext|json)")
 
 	Root.PersistentFlags().Var(&LoggerLevel, "log-level", "")
@@ -171,7 +170,7 @@ func routesList(cmd *cobra.Command, args []string) {
 	assertNoError(ctx, err)
 }
 
-func monitor(cmd *cobra.Command, args []string) {
+func monitorCommand(cmd *cobra.Command, args []string) {
 	ctx := cmd.Context()
 
 	remoteAddr, err := cmd.Flags().GetString("remote-addr")
@@ -184,16 +183,9 @@ func monitor(cmd *cobra.Command, args []string) {
 
 	evenType := avpipeline_proto.MonitorEventType_EVENT_TYPE_SEND
 	if len(args) >= 2 {
-		switch strings.ToLower(args[1]) {
-		case "send":
-			evenType = avpipeline_proto.MonitorEventType_EVENT_TYPE_SEND
-		case "receive":
-			evenType = avpipeline_proto.MonitorEventType_EVENT_TYPE_RECEIVE
-		case "kernel_output_send":
-			evenType = avpipeline_proto.MonitorEventType_EVENT_TYPE_KERNEL_OUTPUT_SEND
-		default:
-			logger.Panicf(ctx, "unknown event type: %q", args[1])
-		}
+		var err error
+		evenType, err = monitor.ParseEventType(args[1])
+		assertNoError(ctx, err)
 	}
 
 	includePacketPayload, err := cmd.Flags().GetBool("include-packet-payload")
@@ -204,71 +196,22 @@ func monitor(cmd *cobra.Command, args []string) {
 	assertNoError(ctx, err)
 	format, err := cmd.Flags().GetString("format")
 	assertNoError(ctx, err)
-
-	const eventFormatString = "%-21s %-10s %-10s %-14s %-10s %-14s %-10s %-14s %-10s %-10s %-10s %-10s\n"
-	switch format {
-	case "plaintext":
-		fmt.Printf(eventFormatString, "TS", "streamIdx", "PTS", "PTS", "DTS", "DTS", "dur", "dur", "size", "type", "frameFlags", "picType")
-	case "json":
-	default:
-		logger.Panicf(ctx, "unknown format: %q", format)
+	highlightDiscontinuity, err := cmd.Flags().GetDuration("highlight-discontinuity")
+	assertNoError(ctx, err)
+	streamIndices, err := cmd.Flags().GetIntSlice("stream-indices")
+	assertNoError(ctx, err)
+	if len(streamIndices) == 0 {
+		streamIndices = nil
 	}
 
 	eventsCh, err := client.Monitor(ctx, objID, evenType, includePacketPayload, includeFramePayload, doDecode)
 	assertNoError(ctx, err)
 
 	logger.Infof(ctx, "monitoring started for object ID %d, event type %s", objID, evenType.String())
-	streamSeen := map[int]struct{}{}
-	for ev := range eventsCh {
-		if _, ok := streamSeen[int(ev.Stream.Index)]; !ok {
-			fmt.Printf("= new stream: %d; codec: 0x%X: time_base: %s\n", ev.Stream.Index, ev.Stream.CodecParameters.CodecId, ev.Stream.TimeBase)
-			streamSeen[int(ev.Stream.Index)] = struct{}{}
-		}
-		switch format {
-		case "plaintext":
-			timeBase := goconvlibav.RationalFromProtobuf(ev.Stream.GetTimeBase())
-			if ev.Packet != nil && len(ev.Frames) == 0 {
-				pkt := ev.Packet
-				fmt.Printf(eventFormatString,
-					fmt.Sprintf("%d", ev.GetTimestampNs()),
-					fmt.Sprintf("%d", ev.Stream.Index),
-					fmt.Sprintf("%d", pkt.Pts),
-					avconvDuration(pkt.Pts, timeBase),
-					fmt.Sprintf("%d", pkt.Dts),
-					avconvDuration(pkt.Dts, timeBase),
-					fmt.Sprintf("%d", pkt.Duration),
-					avconvDuration(pkt.Duration, timeBase),
-					fmt.Sprintf("%d", pkt.DataSize),
-					fmt.Sprintf("%d", ev.Stream.CodecParameters.GetCodecType()),
-					"-",
-					"-",
-				)
-			}
-			for _, frame := range ev.Frames {
-				fmt.Printf(eventFormatString,
-					fmt.Sprintf("%d", ev.GetTimestampNs()),
-					fmt.Sprintf("%d", ev.Stream.Index),
-					fmt.Sprintf("%d", frame.Pts),
-					avconvDuration(frame.Pts, timeBase),
-					fmt.Sprintf("%d", frame.PktDts),
-					avconvDuration(frame.PktDts, timeBase),
-					fmt.Sprintf("%d", frame.Duration),
-					avconvDuration(frame.Duration, timeBase),
-					fmt.Sprintf("%d", frame.DataSize),
-					fmt.Sprintf("%d", ev.Stream.CodecParameters.GetCodecType()),
-					fmt.Sprintf("0x%08X", frame.Flags),
-					fmt.Sprintf("0x%08X", frame.PictType),
-				)
-			}
-		case "json":
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			err = enc.Encode(ev)
-			assertNoError(ctx, err)
-		}
-	}
-}
-
-func avconvDuration(pts int64, timeBase *goconvlibav.Rational) time.Duration {
-	return time.Duration(int64(time.Second) * pts * timeBase.N / timeBase.D)
+	err = monitor.PrintMonitorEvents(ctx, os.Stdout, eventsCh, monitor.PrintOptions{
+		Format:                 format,
+		HighlightDiscontinuity: highlightDiscontinuity,
+		StreamIndices:          streamIndices,
+	})
+	assertNoError(ctx, err)
 }
