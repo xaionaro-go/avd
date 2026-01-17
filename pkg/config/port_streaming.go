@@ -43,6 +43,7 @@ type EndpointConfig struct {
 type StreamingProtocolHandlerConfig struct {
 	RTMP   *RTMPConfig   `yaml:"rtmp,omitempty"`
 	RTSP   *RTSPConfig   `yaml:"rtsp,omitempty"`
+	SRT    *SRTConfig    `yaml:"srt,omitempty"`
 	MPEGTS *MPEGTSConfig `yaml:"mpegts,omitempty"`
 }
 
@@ -52,6 +53,7 @@ func (cfg StreamingProtocolHandlerConfig) Protocol() (StreamingProtocol, error) 
 	m := map[StreamingProtocol]bool{
 		types.ProtocolRTMP:   cfg.RTMP != nil,
 		types.ProtocolRTSP:   cfg.RTSP != nil,
+		types.ProtocolSRT:    cfg.SRT != nil,
 		types.ProtocolMPEGTS: cfg.MPEGTS != nil,
 	}
 

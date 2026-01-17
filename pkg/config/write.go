@@ -30,6 +30,6 @@ func (cfg Config) WriteTo(
 	}
 
 	counter := datacounter.NewWriterCounter(w)
-	io.Copy(counter, bytes.NewReader(b))
-	return int64(counter.Count()), nil
+	_, err = io.Copy(counter, bytes.NewReader(b))
+	return int64(counter.Count()), err
 }

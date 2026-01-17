@@ -39,17 +39,18 @@ type ConnectionProxied struct {
 	Handler *ConnectionProxiedHandler
 	Locker  xsync.Mutex
 
-	// access only when Locker is locked (but better don't access at all if you are not familiar with the code):
 	Port             *ListeningPortProxied
-	Conn             *net.Conn
+	ProxyConn        xatomic.Value[net.Conn]
 	CancelFunc       context.CancelFunc
 	AVInputURL       *url.URL
 	AVInputKey       secret.String
-	AVConn           *net.TCPConn
+	AVConn           xatomic.Value[net.Conn]
 	InitError        error
 	InitFinished     chan struct{}
 	InitFinishedOnce sync.Once
 	RoutePath        *RoutePath
+
+	ProtocolProperties map[string]any
 }
 
 func newConnectionProxied(
@@ -65,11 +66,12 @@ func newConnectionProxied(
 	ctx = belt.WithField(ctx, "port_mode", p.Mode.String())
 	ctx = belt.WithField(ctx, "protocol", p.Protocol.String())
 	c := &ConnectionProxied{
-		Port:         p,
-		CancelFunc:   cancelFn,
-		InitFinished: make(chan struct{}),
+		Port:               p,
+		CancelFunc:         cancelFn,
+		InitFinished:       make(chan struct{}),
+		ProtocolProperties: make(map[string]any),
 	}
-	c.SetConn(conn)
+	c.SetProxyConn(conn)
 	switch p.Mode {
 	case PortModePublishers:
 		c.SetHandler(newConnectionProxiedPublisher(c))
@@ -90,18 +92,20 @@ func newConnectionProxied(
 
 	if ConnectionEnableRoutePathUpdaterHack {
 		switch p.Protocol {
-		case ProtocolRTMP, ProtocolRTSP:
+		case ProtocolRTMP, ProtocolRTSP, ProtocolSRT:
 		default:
 			return nil, fmt.Errorf("negotiation for protocol '%s' is not implemented (yet?)", p.Protocol)
 		}
 	}
 
 	observability.Go(ctx, func(ctx context.Context) {
+		logger.Tracef(ctx, "newConnectionProxied: forwarder started")
 		defer func() {
-			logger.Debugf(ctx, "the end")
+			logger.Debugf(ctx, "newConnectionProxied: forwarder ended")
 			c.Close(ctx)
 		}()
 		if ConnectionEnableRoutePathUpdaterHack {
+			logger.Tracef(ctx, "newConnectionProxied: p.Protocol == %d (%s)", p.Protocol, p.Protocol.String())
 			err := c.negotiate(ctx)
 			if err != nil {
 				logger.Errorf(ctx, "unable to negotiate the connection with %s: %v", conn.RemoteAddr(), err)
@@ -141,24 +145,23 @@ func (c *ConnectionProxied) GetHandler() ConnectionProxiedHandler {
 }
 
 func (c *ConnectionProxied) String() string {
+	if c == nil {
+		return "nil"
+	}
 	ctx := context.TODO()
+	protocol := "?"
+	if c.Port != nil {
+		protocol = strings.ToUpper(c.Port.Protocol.String())
+	}
 	if !c.Locker.ManualTryLock(ctx) {
 		return fmt.Sprintf(
 			"%s[%s](?->?->?->?)",
-			strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
+			protocol, c.Mode(),
 		)
 	}
 	defer c.Locker.ManualUnlock(ctx)
 
-	if c.Conn == nil || c.AVConn == nil {
-		return fmt.Sprintf(
-			"%s[%s](?->?->?->?)",
-			strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
-		)
-	}
-
-	conn := c.GetConn()
-	avConn := c.GetAVConn()
+	conn, avConn := c.GetProxyConn(), c.GetAVConn()
 	var connRemote, connLocal, avConnLocal, avConnRemote any = "?", "?", "?", "?"
 	if conn != nil {
 		connRemote, connLocal = conn.RemoteAddr(), conn.LocalAddr()
@@ -168,17 +171,17 @@ func (c *ConnectionProxied) String() string {
 	}
 	return fmt.Sprintf(
 		"%s[%s](%v->%v->%v->%v)",
-		strings.ToUpper(c.Port.Protocol.String()), c.Mode(),
+		protocol, c.Mode(),
 		connRemote, connLocal, avConnLocal, avConnRemote,
 	)
 }
 
 func (c *ConnectionProxied) GetRawConn(context.Context) net.Conn {
-	return c.GetConn()
+	return c.GetProxyConn()
 }
 
 func (c *ConnectionProxied) Mode() PortMode {
-	if c == nil {
+	if c == nil || c.Port == nil {
 		return UndefinedPortMode
 	}
 	return c.Port.Mode
@@ -223,11 +226,11 @@ func (c *ConnectionProxied) closeLocked(ctx context.Context) (_err error) {
 		}
 		c.SetAVConn(nil)
 	}
-	if conn := c.GetConn(); conn != nil {
+	if conn := c.GetProxyConn(); conn != nil {
 		if err := conn.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("unable to close the Conn: %w", err))
 		}
-		c.SetConn(nil)
+		c.SetProxyConn(nil)
 	}
 	return errors.Join(errs...)
 }
@@ -243,26 +246,35 @@ func (c *ConnectionProxied) SetPort(port *ListeningPortProxied) {
 	xatomic.StorePointer(&c.Port, port)
 }
 
-func (c *ConnectionProxied) GetAVConn() *net.TCPConn {
+func (c *ConnectionProxied) GetProxyConn() net.Conn {
 	if c == nil {
 		return nil
 	}
-	return xatomic.LoadPointer(&c.AVConn)
+	return c.ProxyConn.Load()
 }
 
-func (c *ConnectionProxied) SetAVConn(avConn *net.TCPConn) {
-	xatomic.StorePointer(&c.AVConn, avConn)
+func (c *ConnectionProxied) SetProxyConn(conn net.Conn) {
+	c.ProxyConn.Store(conn)
 }
 
-func (c *ConnectionProxied) GetConn() net.Conn {
+func (c *ConnectionProxied) GetAVConn() net.Conn {
 	if c == nil {
 		return nil
 	}
-	return *xatomic.LoadPointer(&c.Conn)
+	return c.AVConn.Load()
 }
 
-func (c *ConnectionProxied) SetConn(conn net.Conn) {
-	xatomic.StorePointer(&c.Conn, &conn)
+func (c *ConnectionProxied) SetAVConn(conn net.Conn) {
+	c.AVConn.Store(conn)
+}
+
+func (c *ConnectionProxied) getSocketNetworkName() string {
+	switch c.Port.Protocol {
+	case ProtocolSRT:
+		return "udp"
+	default:
+		return "tcp"
+	}
 }
 
 func (c *ConnectionProxied) builtAVListenURL(
@@ -272,20 +284,38 @@ func (c *ConnectionProxied) builtAVListenURL(
 		return nil, secret.New(""), fmt.Errorf("protocol is not set")
 	}
 
-	randomPortTaker, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return nil, secret.String{}, fmt.Errorf("unable to take a random port")
+	var randomAddr net.Addr
+	switch c.getSocketNetworkName() {
+	case "udp":
+		randomPortTaker, err := net.ListenPacket("udp", "127.0.0.1:0")
+		if err != nil {
+			return nil, secret.String{}, fmt.Errorf("unable to take a random port: %w", err)
+		}
+		randomAddr = randomPortTaker.LocalAddr()
+		randomPortTaker.Close()
+	default:
+		randomPortTaker, err := net.Listen(c.getSocketNetworkName(), "127.0.0.1:0")
+		if err != nil {
+			return nil, secret.String{}, fmt.Errorf("unable to take a random port: %w", err)
+		}
+		randomAddr = randomPortTaker.Addr()
+		randomPortTaker.Close()
 	}
-	randomAddr := randomPortTaker.Addr().String()
-	randomPortTaker.Close()
 
 	defaultRoutePath := c.GetRoutePath()
 
-	logger.Debugf(ctx, "protocol: '%s", c.Port.Protocol)
+	logger.Debugf(ctx, "builtAVListenURL: protocol: %v, randomAddr: %v", c.Port.Protocol, randomAddr)
 	url := &url.URL{
 		Scheme: c.Port.Protocol.String(),
-		Host:   randomAddr,
+		Host:   randomAddr.String(),
 		Path:   fmt.Sprintf("%s/", defaultRoutePath),
+	}
+	switch c.Port.Protocol {
+	case ProtocolSRT:
+		// We don't set streamid here, so that libav accepts any streamid.
+		// The routing is handled by avd based on the initial handshake.
+		url.Path = ""
+		url.RawQuery = "mode=listener&transtype=live"
 	}
 	queryWords := strings.Split(url.Path, "/")
 	url.Path = strings.Join(queryWords[:len(queryWords)-1], "/")
@@ -308,7 +338,7 @@ func (c *ConnectionProxied) isAsyncOpen(
 		return false
 	}
 	switch port.Protocol {
-	case ProtocolRTMP, ProtocolRTSP:
+	case ProtocolRTMP, ProtocolRTSP, ProtocolSRT:
 		return true
 	}
 	handler := c.GetHandler()
@@ -321,6 +351,26 @@ func (c *ConnectionProxied) isAsyncOpen(
 		return true
 	}
 	return false
+}
+
+func (c *ConnectionProxied) makeAddr(
+	ip net.IP,
+	port uint16,
+) net.Addr {
+	switch c.getSocketNetworkName() {
+	case "udp":
+		return &net.UDPAddr{
+			IP:   ip,
+			Port: int(port),
+		}
+	case "tcp":
+		return &net.TCPAddr{
+			IP:   ip,
+			Port: int(port),
+		}
+	default:
+		panic(fmt.Errorf("unsupported network name: %s", c.getSocketNetworkName()))
+	}
 }
 
 func (c *ConnectionProxied) initAVHandler(
@@ -345,14 +395,11 @@ func (c *ConnectionProxied) initAVHandler(
 	}
 
 	ip := net.ParseIP(host)
-	if ip == nil {
-		logger.Errorf(ctx, "unable to parse IP from host '%s', defaulting to 127.0.0.1", host)
+	if ip == nil || ip.IsUnspecified() {
+		logger.Errorf(ctx, "unable to parse IP from host '%s' or it is unspecified, defaulting to 127.0.0.1", host)
 		ip = net.ParseIP("127.0.0.1")
 	}
-	avInputAddr := &net.TCPAddr{
-		IP:   ip,
-		Port: int(port),
-	}
+	avInputAddr := c.makeAddr(ip, uint16(port))
 	logger.Debugf(ctx, "avInputAddr: %#+v", avInputAddr)
 
 	logger.Debugf(ctx, "attempting to listen by libav at '%s' (proto:%v)...", url, c.Port.Protocol)
@@ -362,7 +409,7 @@ func (c *ConnectionProxied) initAVHandler(
 		return fmt.Errorf("unable to initialize the AV handler at %s: %w", url, err)
 	}
 
-	t := time.NewTicker(50 * time.Millisecond)
+	t := time.NewTicker(50 * time.Millisecond) // TODO: try to get rid of this ticker
 	defer t.Stop()
 	deadline := time.NewTimer(initAVHandlerDialRetryTimeout)
 	defer deadline.Stop()
@@ -378,18 +425,37 @@ func (c *ConnectionProxied) initAVHandler(
 			}
 			return connErr
 		case <-t.C:
-			var AVConn *net.TCPConn
-			AVConn, connErr = net.DialTCP("tcp4", nil, avInputAddr)
+			var avConn net.Conn
+			avConn, connErr = c.dialAVInput(ctx, avInputAddr)
 			if connErr != nil {
-				connErr = fmt.Errorf("unable to connect to the libav input '%s': %w", avInputAddr, connErr)
-				logger.Tracef(ctx, "%s", connErr)
+				connErr = fmt.Errorf("unable to connect to the libav input '%s': %w", avInputAddr.String(), connErr)
 				continue
 			}
-
-			c.AVConn = AVConn
+			c.SetAVConn(avConn)
 			return nil
 		}
 	}
+}
+
+func (c *ConnectionProxied) dialAVInput(
+	ctx context.Context,
+	addr net.Addr,
+) (_ret net.Conn, _err error) {
+	logger.Debugf(ctx, "dialAVInput(%q)", addr)
+	defer func() { logger.Debugf(ctx, "/dialAVInput(%q): %v %v", addr, _ret, _err) }()
+	switch addr := addr.(type) {
+	case *net.UDPAddr:
+		logger.Tracef(ctx, "checking if UDP port %s is already bound...", addr)
+		isBound, err := isLocalUDPPortBound(uint16(addr.Port))
+		if err != nil {
+			return nil, fmt.Errorf("unable to check if port %s is bound: %w", addr, err)
+		}
+		if !isBound {
+			return nil, fmt.Errorf("port %s is not yet bound by libav", addr)
+		}
+		logger.Tracef(ctx, "port %s is already bound (probably by libav), proceeding to dial", addr)
+	}
+	return (&net.Dialer{}).DialContext(ctx, c.getSocketNetworkName(), addr.String())
 }
 
 func (c *ConnectionProxied) onInitFinished(
@@ -413,10 +479,21 @@ func (c *ConnectionProxied) onInitFinished(
 		c.onInitFinishedRTMP(ctx)
 	case ProtocolRTSP:
 		c.onInitFinishedRTSP(ctx)
+	case ProtocolSRT:
+		c.onInitFinishedSRT(ctx)
 	default:
 		logger.Errorf(ctx, "onInitFinished is not implemented for protocol '%s' (yet?)", port.Protocol)
 	}
-	c.AVInputURL.Path = c.GetURLPath()
+	urlPath := c.GetURLPath()
+	if strings.HasPrefix(urlPath, "?") {
+		if c.AVInputURL.RawQuery != "" {
+			c.AVInputURL.RawQuery += "&" + urlPath[1:]
+		} else {
+			c.AVInputURL.RawQuery = urlPath[1:]
+		}
+	} else {
+		c.AVInputURL.Path = urlPath
+	}
 	c.GetHandler().SetURL(ctx, c.AVInputURL)
 	c.closeInitFinished()
 }
@@ -427,7 +504,7 @@ func (c *ConnectionProxied) negotiate(
 	logger.Debugf(origCtx, "negotiate")
 	defer func() { logger.Debugf(origCtx, "/negotiate: %v", _err) }()
 
-	avConn, conn := c.GetAVConn(), c.GetConn()
+	avConn, conn := c.GetAVConn(), c.GetProxyConn()
 	if avConn == nil {
 		return fmt.Errorf("avConn is nil")
 	}
@@ -436,6 +513,7 @@ func (c *ConnectionProxied) negotiate(
 	}
 
 	defer func() {
+		logger.Tracef(origCtx, "negotiate: resetting the read deadline...")
 		if err := avConn.SetDeadline(time.Time{}); err != nil {
 			logger.Errorf(origCtx, "unable to revert the deadline for AVConn: %v", err)
 		}
@@ -506,7 +584,7 @@ func (c *ConnectionProxied) negotiate(
 		for {
 			logger.Tracef(ctx, "waiting for c.Conn input...")
 			r, err := conn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for c.Conn input")
+			logger.Tracef(ctx, "/waiting for c.Conn input: %v %v", r, err)
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					logger.Debugf(ctx, "it was a deadline, ignoring")
@@ -529,11 +607,17 @@ func (c *ConnectionProxied) negotiate(
 				errCh <- fmt.Errorf("unable to correct the message: %w", err)
 				return
 			}
-			if routePath == nil {
+
+			// Forwarding logic
+			forwardToAV := func(msg []byte) error {
 				logger.Tracef(ctx, "waiting for c.AVConn output...")
 				err := forward(avConn, msg)
-				logger.Tracef(ctx, "/waiting for c.AVConn output")
-				if err != nil {
+				logger.Tracef(ctx, "/waiting for c.AVConn output: %v", err)
+				return err
+			}
+
+			if routePath == nil {
+				if err := forwardToAV(msg); err != nil {
 					errCh <- err
 					return
 				}
@@ -546,15 +630,11 @@ func (c *ConnectionProxied) negotiate(
 				c.onInitFinished(ctx)
 			}
 
-			ctx = belt.WithField(ctx, "path", *routePath)
 			observability.Go(ctx, func(ctx context.Context) {
 				c.serve(origCtx)
 			})
 
-			logger.Tracef(ctx, "waiting for c.AVConn output...")
-			err = forward(avConn, msg)
-			logger.Tracef(ctx, "/waiting for c.AVConn output")
-			if err != nil {
+			if err := forwardToAV(msg); err != nil {
 				errCh <- err
 			}
 
@@ -658,6 +738,8 @@ func (c *ConnectionProxied) tryExtractRouteString(
 		return c.tryExtractRouteStringRTMP(ctx, msg)
 	case ProtocolRTSP:
 		return c.tryExtractRouteStringRTSP(ctx, msg)
+	case ProtocolSRT:
+		return c.tryExtractRouteStringSRT(ctx, msg)
 	default:
 		return nil, fmt.Errorf("protocol '%s' is not supported", c.Port.Protocol)
 	}
@@ -673,6 +755,8 @@ func (c *ConnectionProxied) correctMessage(
 		return c.correctMessageRTMP(ctx, msg)
 	case ProtocolRTSP:
 		return c.correctMessageRTSP(ctx, msg)
+	case ProtocolSRT:
+		return c.correctMessageSRT(ctx, msg)
 	default:
 		return nil, fmt.Errorf("protocol '%s' is not supported", c.Port.Protocol)
 	}
@@ -694,7 +778,7 @@ func (c *ConnectionProxied) GetKernel() kernel.Abstract {
 	return handler.GetKernel()
 }
 
-func (c *ConnectionProxied) getFormatContext(ctx context.Context) *astiav.FormatContext {
+func (c *ConnectionProxied) getFormatContext(context.Context) *astiav.FormatContext {
 	handler := c.GetHandler()
 	if handler == nil {
 		return nil
@@ -732,6 +816,10 @@ func (c *ConnectionProxied) GetRoutePath() RoutePath {
 		return *c.RoutePath
 	}
 
+	if c.Port.Protocol == ProtocolSRT {
+		return ""
+	}
+
 	if c.Port.Config.DefaultRoutePath != "" {
 		return c.Port.Config.DefaultRoutePath
 	}
@@ -746,6 +834,8 @@ func (c *ConnectionProxied) GetURLPath() string {
 		return string(routePath) + "/"
 	case ProtocolRTSP:
 		return string(routePath)
+	case ProtocolSRT:
+		return fmt.Sprintf("?streamid=%s", url.QueryEscape("/"+string(routePath)))
 	default:
 		panic(fmt.Errorf("unsupported protocol: %s", c.Port.Protocol))
 	}
@@ -757,7 +847,7 @@ func (c *ConnectionProxied) forward(
 	logger.Debugf(ctx, "forward")
 	defer func() { logger.Debugf(ctx, "/forward: %v", _err) }()
 
-	avConn, conn := c.GetAVConn(), c.GetConn()
+	avConn, conn := c.GetAVConn(), c.GetProxyConn()
 	if avConn == nil {
 		return fmt.Errorf("avConn is nil")
 	}
@@ -805,7 +895,7 @@ func (c *ConnectionProxied) forward(
 		for {
 			logger.Tracef(ctx, "waiting for AVConn input...")
 			r, err := avConn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for AVConn input")
+			logger.Tracef(ctx, "/waiting for AVConn input: %d %v", r, err)
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					logger.Debugf(ctx, "it was a deadline, ignoring")
@@ -818,7 +908,7 @@ func (c *ConnectionProxied) forward(
 			msg := buf[:r]
 			logger.Tracef(ctx, "waiting for c.Conn output...")
 			err = forward(conn, msg)
-			logger.Tracef(ctx, "/waiting for c.Conn output")
+			logger.Tracef(ctx, "/waiting for c.Conn output: %d %v", r, err)
 			if err != nil {
 				errCh <- err
 				return
@@ -833,7 +923,7 @@ func (c *ConnectionProxied) forward(
 		for {
 			logger.Tracef(ctx, "waiting for c.Conn input...")
 			r, err := conn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for c.Conn input")
+			logger.Tracef(ctx, "/waiting for c.Conn input: %d %v", r, err)
 			if err != nil {
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 					logger.Debugf(ctx, "it was a deadline, ignoring")
@@ -846,7 +936,7 @@ func (c *ConnectionProxied) forward(
 			msg := buf[:r]
 			logger.Tracef(ctx, "waiting for c.AVConn output...")
 			err = forward(avConn, msg)
-			logger.Tracef(ctx, "/waiting for c.AVConn output")
+			logger.Tracef(ctx, "/waiting for c.AVConn output: %d %v", r, err)
 			if err != nil {
 				errCh <- err
 				return

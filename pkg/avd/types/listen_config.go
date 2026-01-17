@@ -31,6 +31,7 @@ type ListenConfig struct {
 
 	// protocol-specific stuff
 	RTSP ListenConfigRTSP `yaml:"rtsp"`
+	SRT  ListenConfigSRT  `yaml:"srt"`
 }
 
 func (cfg ListenConfig) GetPublishMode() router.PublishMode {
@@ -59,7 +60,7 @@ func (cfg ListenConfig) DictionaryItems(
 	mode StreamingPortMode,
 ) DictionaryItems {
 	customOpts := DictionaryItems{}
-	if protocol != ProtocolRTSP || mode == PortModePublishers {
+	if protocol == ProtocolRTMP || protocol == ProtocolRTSP {
 		customOpts = append(customOpts, DictionaryItem{Key: "listen", Value: "1"})
 	}
 	if cfg.MaxBufferSize != 0 {
@@ -89,22 +90,17 @@ func (cfg ListenConfig) DictionaryItems(
 			})
 		}
 	case ProtocolRTSP:
-		customOpts = append(customOpts, DictionaryItem{Key: "rtsp_transport", Value: "tcp"})
-		if mode == PortModePublishers {
-			customOpts = append(customOpts, DictionaryItem{Key: "rtsp_flags", Value: "listen"})
-		}
+		customOpts = append(customOpts, DictionaryItem{
+			Key: "rtsp_flags", Value: "+listen",
+		})
 		if cfg.RTSP.PacketSize != 0 {
 			customOpts = append(customOpts, DictionaryItem{
 				Key: "pkt_size", Value: fmt.Sprintf("%d", cfg.RTSP.PacketSize),
 			})
 		}
-		if cfg.RTSP.TransportProtocol == TransportProtocolUDP {
-			panic(fmt.Errorf("we do not support UDP transport protocol for RTSP, yet"))
-		} else {
-			customOpts = append(customOpts, DictionaryItem{
-				Key: "rtsp_transport", Value: TransportProtocolTCP.String(),
-			})
-		}
+		customOpts = append(customOpts, DictionaryItem{
+			Key: "rtsp_transport", Value: "tcp",
+		})
 	case ProtocolSRT:
 		customOpts = append(customOpts, DictionaryItems{
 			{Key: "smoother", Value: "live"},

@@ -26,7 +26,10 @@ type ConnectionProxiedHandlerPublisher struct {
 	Locker        xsync.Mutex
 	Node          *NodeInputProxied
 	AsRouteSource *RouteSource[*ConnectionProxiedHandlerPublisher]
-	IsForwarding  atomic.Bool
+
+	// isForwarding indicates whether the publisher is currently forwarding data.
+	// It does not indicate if we are attempting to start forwarding data.
+	isForwarding atomic.Bool
 }
 
 var _ ConnectionProxiedHandler = (*ConnectionProxiedHandlerPublisher)(nil)
@@ -183,14 +186,14 @@ func (c *ConnectionProxiedHandlerPublisher) GetAsRouteSource() *RouteSource[*Con
 	return xatomic.LoadPointer(&c.AsRouteSource)
 }
 
-func (c *ConnectionProxiedHandlerPublisher) SetIsForwarding(
+func (c *ConnectionProxiedHandlerPublisher) setIsForwarding(
 	isForwarding bool,
 ) bool {
 	if c == nil {
 		return false
 	}
 
-	return c.IsForwarding.Swap(isForwarding) != isForwarding
+	return c.isForwarding.Swap(isForwarding) != isForwarding
 }
 
 func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePostStart(
@@ -199,7 +202,7 @@ func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePostStart(
 ) {
 	logger.Debugf(ctx, "onRouteSourcePostStart")
 	defer func() { logger.Debugf(ctx, "/onRouteSourcePostStart") }()
-	c.SetIsForwarding(true)
+	c.setIsForwarding(true)
 	observability.Go(ctx, func(ctx context.Context) {
 		s := c.GetNodeTyped().DotString(false)
 		logger.Debugf(ctx, "onRouteSourcePostStart: pipeline: %s", s)
@@ -212,7 +215,7 @@ func (c *ConnectionProxiedHandlerPublisher) onRouteSourcePreStop(
 ) {
 	logger.Debugf(ctx, "onRouteSourcePreStop")
 	defer func() { logger.Debugf(ctx, "/onRouteSourcePreStop") }()
-	if !c.SetIsForwarding(false) {
+	if !c.setIsForwarding(false) {
 		return
 	}
 	port := c.Parent.GetPort()

@@ -100,6 +100,8 @@ func (c *ConnectionProxied) correctMessageRTSP(
 
 	u.Host = c.AVInputURL.Host
 	u.Scheme = c.AVInputURL.Scheme
+	u.Path = c.AVInputURL.Path
+	u.RawQuery = ""
 
 	newURL := u.String()
 	newMsg := bytes.Join([][]byte{parts[0], []byte(newURL), parts[2]}, []byte(" "))

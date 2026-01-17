@@ -14,7 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.11.0
 	github.com/xaionaro-go/avcommon v0.0.0-20250823173020-6a2bb1e1f59d
-	github.com/xaionaro-go/avpipeline v0.0.0-20260110220739-7478c0e500f0
+	github.com/xaionaro-go/avpipeline v0.0.0-20260117175604-14f4ec89391d
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20250622130956-24b7017284e4
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
@@ -26,6 +26,7 @@ require (
 )
 
 require (
+	github.com/brettbuddin/fourier v0.1.1 // indirect
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -64,7 +65,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/xaionaro-go/androidetc v0.0.0-20250824193302-b7ecebb3b825 // indirect
-	github.com/xaionaro-go/audio v0.0.0-20250426140416-6a9b3f1c8737 // indirect
+	github.com/xaionaro-go/audio v0.0.0-20260117175055-f7091fc3002b // indirect
 	github.com/xaionaro-go/avmediacodec v0.0.0-20250505012527-c819676502d8 // indirect
 	github.com/xaionaro-go/gorex v0.0.0-20241010205749-bcd59d639c4d // indirect
 	github.com/xaionaro-go/libsrt v0.0.0-20251231191024-483a9dd27df8 // indirect

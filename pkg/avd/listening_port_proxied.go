@@ -157,11 +157,17 @@ func (p *ListeningPortProxied) GetURLForRoute(
 ) (_ret *url.URL, _err error) {
 	logger.Debugf(ctx, "GetURLForRoute")
 	defer func() { logger.Debugf(ctx, "/GetURLForRoute: %v %v", _ret, _err) }()
-	return &url.URL{
+	u := &url.URL{
 		Scheme: p.Protocol.String(),
 		Host:   p.Listener.Addr().String(),
-		Path:   route,
-	}, nil
+	}
+	switch p.Protocol {
+	case ProtocolSRT:
+		u.RawQuery = "streamid=" + url.QueryEscape("/"+route)
+	default:
+		u.Path = route
+	}
+	return u, nil
 }
 
 func (p *ListeningPortProxied) listen(

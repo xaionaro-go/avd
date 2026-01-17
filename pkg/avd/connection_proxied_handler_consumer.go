@@ -13,7 +13,6 @@ import (
 	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	"github.com/xaionaro-go/avpipeline/router"
-	"github.com/xaionaro-go/avpipeline/types"
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
 	"github.com/xaionaro-go/xsync"
@@ -45,14 +44,6 @@ func (c *ConnectionProxiedHandlerConsumer) InitAVHandler(
 	listenConfig ListenConfig,
 ) error {
 	customOpts := listenConfig.DictionaryItems(proto, PortModeConsumers)
-	switch proto {
-	case ProtocolRTSP:
-		customOpts = append(customOpts, types.DictionaryItem{
-			Key:   "rtsp_flags",
-			Value: "listen",
-		})
-	}
-
 	node, err := newProxiedOutputNode(
 		ctx,
 		c,

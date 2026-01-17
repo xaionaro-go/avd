@@ -84,5 +84,5 @@ func (c StreamingProtocol) MarshalYAML() ([]byte, error) {
 }
 
 func SupportedProtocols() []StreamingProtocol {
-	return []StreamingProtocol{ProtocolRTMP, ProtocolRTSP}
+	return []StreamingProtocol{ProtocolRTMP, ProtocolRTSP, ProtocolSRT}
 }

@@ -36,9 +36,20 @@ func (s *Server) Listen(
 			return nil, fmt.Errorf("unable to parse the port string '%s': %w", portAddr, err)
 		}
 		logger.Debugf(ctx, "parsed: transport='%s', host='%s' (orig='%s')", proto, host, portAddr)
-		listener, err := net.Listen(proto, host)
-		if err != nil {
-			return nil, fmt.Errorf("unable to start listening on '%s': %w", portAddr, err)
+		var listener net.Listener
+		switch proto {
+		case "udp", "srt":
+			var err error
+			listener, err = NewUDPListener("udp", host)
+			if err != nil {
+				return nil, fmt.Errorf("unable to start listening on UDP '%s': %w", host, err)
+			}
+		default:
+			var err error
+			listener, err = net.Listen(proto, host)
+			if err != nil {
+				return nil, fmt.Errorf("unable to start listening on '%s': %w", portAddr, err)
+			}
 		}
 
 		port, err := s.ListenProxied(ctx, listener, protocol, mode, opts...)
