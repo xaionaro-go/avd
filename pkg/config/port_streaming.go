@@ -21,10 +21,19 @@ type Destination struct {
 	Local *DestinationLocal `yaml:"local,omitempty"`
 }
 
+type PrivacyBlurConfig struct {
+	Enabled           bool    `yaml:"enabled"`
+	Faces             bool    `yaml:"faces"`
+	Plates            bool    `yaml:"plates"`
+	BlurRadius        float64 `yaml:"blur_radius"`
+	PixelateBlockSize int     `yaml:"pixelate_block_size"`
+}
+
 type ForwardConfig struct {
 	Destination Destination                       `yaml:"destination"`
 	Transcoding *transcodertypes.TranscoderConfig `yaml:"transcoding"`
 	WaitUntil   WaitUntilConfig                   `yaml:"wait_until"`
+	PrivacyBlur *PrivacyBlurConfig                `yaml:"privacy_blur,omitempty"`
 }
 
 type Command struct {

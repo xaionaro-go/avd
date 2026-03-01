@@ -8,6 +8,8 @@ service AvdService {
     rpc ListRoutes (ListRoutesRequest) returns (ListRoutesResponse);
     rpc ListConsumers (ListConsumersRequest) returns (ListConsumersResponse);
     rpc Monitor(avpipeline.MonitorRequest) returns (stream avpipeline.MonitorEvent);
+    rpc SetPrivacyBlur(SetPrivacyBlurRequest) returns (SetPrivacyBlurResponse);
+    rpc GetPrivacyBlur(GetPrivacyBlurRequest) returns (GetPrivacyBlurResponse);
 }
 
 message ListPublishersRequest {}
@@ -23,4 +25,25 @@ message ListRoutesResponse {
 message ListConsumersRequest {}
 message ListConsumersResponse {
     repeated avpipeline.Node nodes = 1;
+}
+
+message SetPrivacyBlurRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+    optional bool enabled = 3;
+    optional double blur_radius = 4;
+    optional int64 pixelate_block_size = 5;
+}
+
+message SetPrivacyBlurResponse {}
+
+message GetPrivacyBlurRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+}
+
+message GetPrivacyBlurResponse {
+    bool enabled = 1;
+    double blur_radius = 2;
+    int64 pixelate_block_size = 3;
 }

@@ -6,6 +6,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/spf13/cobra"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/client"
+	"github.com/xaionaro-go/avd/pkg/management/grpc/proto/avdmanagementgrpc"
 	"github.com/xaionaro-go/avpipeline/monitor"
 	avpipeline_proto "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	"github.com/xaionaro-go/observability"
@@ -87,6 +89,22 @@ var (
 		Run:  monitorCommand,
 	}
 
+	PrivacyBlur = &cobra.Command{
+		Use: "privacy-blur",
+	}
+
+	PrivacyBlurSet = &cobra.Command{
+		Use:  "set <route-path> <forwarding-index>",
+		Args: cobra.ExactArgs(2),
+		Run:  privacyBlurSetCommand,
+	}
+
+	PrivacyBlurGet = &cobra.Command{
+		Use:  "get <route-path> <forwarding-index>",
+		Args: cobra.ExactArgs(2),
+		Run:  privacyBlurGetCommand,
+	}
+
 	LoggerLevel = logger.LevelWarning
 )
 
@@ -99,6 +117,14 @@ func init() {
 
 	Root.AddCommand(Routes)
 	Routes.AddCommand(RoutesList)
+
+	Root.AddCommand(PrivacyBlur)
+	PrivacyBlur.AddCommand(PrivacyBlurSet)
+	PrivacyBlur.AddCommand(PrivacyBlurGet)
+	PrivacyBlurSet.Flags().Bool("enabled", false, "enable or disable privacy blur")
+	PrivacyBlurSet.Flags().Bool("no-enabled", false, "explicitly set enabled to false")
+	PrivacyBlurSet.Flags().Float64("blur-radius", 0, "Gaussian blur radius")
+	PrivacyBlurSet.Flags().Int64("pixelate-block-size", 0, "pixelation block size (0 = use Gaussian)")
 
 	Root.AddCommand(Monitor)
 	Monitor.Flags().Bool("include-packet-payload", false, "include packet payloads in monitor events")
@@ -213,5 +239,68 @@ func monitorCommand(cmd *cobra.Command, args []string) {
 		HighlightDiscontinuity: highlightDiscontinuity,
 		StreamIndices:          streamIndices,
 	})
+	assertNoError(ctx, err)
+}
+
+func privacyBlurSetCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+
+	req := &avdmanagementgrpc.SetPrivacyBlurRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+	}
+
+	if cmd.Flags().Changed("enabled") || cmd.Flags().Changed("no-enabled") {
+		v, err := cmd.Flags().GetBool("enabled")
+		assertNoError(ctx, err)
+		if cmd.Flags().Changed("no-enabled") {
+			v = false
+		}
+		req.Enabled = &v
+	}
+	if cmd.Flags().Changed("blur-radius") {
+		v, err := cmd.Flags().GetFloat64("blur-radius")
+		assertNoError(ctx, err)
+		req.BlurRadius = &v
+	}
+	if cmd.Flags().Changed("pixelate-block-size") {
+		v, err := cmd.Flags().GetInt64("pixelate-block-size")
+		assertNoError(ctx, err)
+		req.PixelateBlockSize = &v
+	}
+
+	_, err = avdClient.SetPrivacyBlur(ctx, req)
+	assertNoError(ctx, err)
+	fmt.Println("OK")
+}
+
+func privacyBlurGetCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+
+	resp, err := avdClient.GetPrivacyBlur(ctx, &avdmanagementgrpc.GetPrivacyBlurRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+	})
+	assertNoError(ctx, err)
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	err = enc.Encode(resp)
 	assertNoError(ctx, err)
 }

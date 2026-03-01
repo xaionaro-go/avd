@@ -129,6 +129,19 @@ func ApplyConfig(
 		for idx, fwd := range endpoint.Forwardings {
 			idx, fwd := idx, fwd
 			observability.Go(ctx, func(ctx context.Context) {
+				filterKernelFactory, blurControl := newPrivacyBlurFactory(fwd.PrivacyBlur)
+				if filterKernelFactory != nil && fwd.Transcoding == nil {
+					logger.Warnf(ctx, "forwarding #%d: privacy_blur requires transcoding to be enabled; blur will be ignored", idx)
+					filterKernelFactory = nil
+					blurControl = nil
+				}
+				if blurControl != nil {
+					srv.RegisterPrivacyBlurControl(ctx, avd.PrivacyBlurControlKey{
+						RoutePath:       router.RoutePath(path),
+						ForwardingIndex: idx,
+					}, blurControl)
+				}
+
 				switch {
 				case fwd.Destination.Local != nil:
 					_, err := srv.AddRouteForwardingLocal(
@@ -137,6 +150,7 @@ func ApplyConfig(
 						fwd.Destination.Local.Route,
 						router.PublishMode(fwd.Destination.Local.PublishMode),
 						fwd.Transcoding,
+						filterKernelFactory,
 					)
 					if err != nil {
 						logger.Errorf(
@@ -155,6 +169,7 @@ func ApplyConfig(
 						path,
 						*fwd.Destination.URL, secret.New(""),
 						fwd.Transcoding,
+						filterKernelFactory,
 						kernel.OutputConfig{
 							WaitForOutputStreams: &kernel.OutputConfigWaitForOutputStreams{
 								MinStreamsVideo:    fwd.WaitUntil.VideoTrackCount,

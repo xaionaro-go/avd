@@ -74,6 +74,20 @@ func (c *GRPCClient) ProcessError(
 	return in
 }
 
+func (c *GRPCClient) SetPrivacyBlur(
+	ctx context.Context,
+	req *avdmanagementgrpc.SetPrivacyBlurRequest,
+) (*avdmanagementgrpc.SetPrivacyBlurResponse, error) {
+	return c.client.SetPrivacyBlur(ctx, req)
+}
+
+func (c *GRPCClient) GetPrivacyBlur(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetPrivacyBlurRequest,
+) (*avdmanagementgrpc.GetPrivacyBlurResponse, error) {
+	return c.client.GetPrivacyBlur(ctx, req)
+}
+
 func (c *GRPCClient) Monitor(
 	ctx context.Context,
 	nodeID uint64,

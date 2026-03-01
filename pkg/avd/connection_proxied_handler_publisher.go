@@ -157,7 +157,7 @@ func (c *ConnectionProxiedHandlerPublisher) StartForwarding(
 		n,
 		routePath,
 		publishMode,
-		nil,
+		nil, nil,
 		c.onRouteSourcePostStart,
 		c.onRouteSourcePreStop,
 		c.onRouteSourcePostStop,

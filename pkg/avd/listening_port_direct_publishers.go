@@ -117,7 +117,7 @@ func (p *ListeningPortDirectPublishers) startListening(
 						n,
 						routePath,
 						p.GetPublishMode(ctx),
-						nil,
+						nil, nil,
 						p.onRouteSourcePostStart,
 						p.onRouteSourcePreStop,
 						p.onRouteSourcePostStop,

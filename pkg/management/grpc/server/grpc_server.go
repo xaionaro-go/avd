@@ -33,6 +33,8 @@ type GRPCServer struct {
 type Backend interface {
 	GetListeningPorts(ctx context.Context) []avd.ListeningPort
 	GetRouter() *router.Router[types.RouteCustomData]
+	SetPrivacyBlurState(ctx context.Context, key avd.PrivacyBlurControlKey, enabled *bool, blurRadius *float64, pixelateBlockSize *int64) error
+	GetPrivacyBlurState(ctx context.Context, key avd.PrivacyBlurControlKey) (enabled bool, blurRadius float64, pixelateBlockSize int64, err error)
 }
 
 func New(
@@ -168,4 +170,54 @@ func (srv *GRPCServer) getPipeline(
 		}
 	}
 	return
+}
+
+func (srv *GRPCServer) SetPrivacyBlur(
+	ctx context.Context,
+	req *avdmanagementgrpc.SetPrivacyBlurRequest,
+) (*avdmanagementgrpc.SetPrivacyBlurResponse, error) {
+	ctx = srv.ctx(ctx)
+	key := avd.PrivacyBlurControlKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	var enabled *bool
+	if req.Enabled != nil {
+		v := *req.Enabled
+		enabled = &v
+	}
+	var blurRadius *float64
+	if req.BlurRadius != nil {
+		v := *req.BlurRadius
+		blurRadius = &v
+	}
+	var pixelateBlockSize *int64
+	if req.PixelateBlockSize != nil {
+		v := *req.PixelateBlockSize
+		pixelateBlockSize = &v
+	}
+	if err := srv.Backend.SetPrivacyBlurState(ctx, key, enabled, blurRadius, pixelateBlockSize); err != nil {
+		return nil, err
+	}
+	return &avdmanagementgrpc.SetPrivacyBlurResponse{}, nil
+}
+
+func (srv *GRPCServer) GetPrivacyBlur(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetPrivacyBlurRequest,
+) (*avdmanagementgrpc.GetPrivacyBlurResponse, error) {
+	ctx = srv.ctx(ctx)
+	key := avd.PrivacyBlurControlKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	enabled, blurRadius, pixelateBlockSize, err := srv.Backend.GetPrivacyBlurState(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return &avdmanagementgrpc.GetPrivacyBlurResponse{
+		Enabled:           enabled,
+		BlurRadius:        blurRadius,
+		PixelateBlockSize: pixelateBlockSize,
+	}, nil
 }
