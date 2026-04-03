@@ -16,10 +16,16 @@ import (
 func newPrivacyBlurFactory(
 	cfg *config.PrivacyBlurConfig,
 ) (router.FilterKernelFactory, *avd.PrivacyBlurControl) {
-	if cfg == nil || !cfg.Enabled {
+	if cfg == nil {
 		return nil, nil
 	}
+
+	control := &avd.PrivacyBlurControl{}
+	control.Enabled.Store(cfg.Enabled)
+	control.SetBlurRadius(cfg.BlurRadius)
+	control.PixelateBlockSize.Store(int64(cfg.PixelateBlockSize))
+
 	return func(ctx context.Context) (kernel.Abstract, error) {
 		return nil, fmt.Errorf("privacy blur requires the 'with_cv' build tag (OpenCV support)")
-	}, nil
+	}, control
 }

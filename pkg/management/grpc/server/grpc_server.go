@@ -35,6 +35,10 @@ type Backend interface {
 	GetRouter() *router.Router[types.RouteCustomData]
 	SetPrivacyBlurState(ctx context.Context, key avd.PrivacyBlurControlKey, enabled *bool, blurRadius *float64, pixelateBlockSize *int64) error
 	GetPrivacyBlurState(ctx context.Context, key avd.PrivacyBlurControlKey) (enabled bool, blurRadius float64, pixelateBlockSize int64, err error)
+	GetRegisteredPrivacyBlurKeys(ctx context.Context) []avd.PrivacyBlurControlKey
+	SetDeblemishState(ctx context.Context, key avd.DeblemishControlKey, enabled *bool, sigmaS *float64, sigmaR *float64, diameter *int64) error
+	GetDeblemishState(ctx context.Context, key avd.DeblemishControlKey) (enabled bool, sigmaS float64, sigmaR float64, diameter int64, err error)
+	GetRegisteredDeblemishKeys(ctx context.Context) []avd.DeblemishControlKey
 }
 
 func New(
@@ -119,21 +123,24 @@ func (srv *GRPCServer) ListRoutes(
 	req *avdmanagementgrpc.ListRoutesRequest,
 ) (*avdmanagementgrpc.ListRoutesResponse, error) {
 	ctx = srv.ctx(ctx)
-	var result []*avpipelinegrpc.Node
-	router := srv.Backend.GetRouter()
-	router.Locker.Do(ctx, func() {
-		for _, route := range router.RoutesByPath {
+	var nodes []*avpipelinegrpc.Node
+	var routePaths []string
+	r := srv.Backend.GetRouter()
+	r.Locker.Do(ctx, func() {
+		for path, route := range r.RoutesByPath {
 			if route == nil {
 				continue
 			}
+			routePaths = append(routePaths, string(path))
 			node := goconvavp.NodeToGRPC(ctx, route.Node)
 			if node != nil {
-				result = append(result, node)
+				nodes = append(nodes, node)
 			}
 		}
 	})
 	return &avdmanagementgrpc.ListRoutesResponse{
-		Nodes: result,
+		Nodes:      nodes,
+		RoutePaths: routePaths,
 	}, nil
 }
 
@@ -219,5 +226,121 @@ func (srv *GRPCServer) GetPrivacyBlur(
 		Enabled:           enabled,
 		BlurRadius:        blurRadius,
 		PixelateBlockSize: pixelateBlockSize,
+	}, nil
+}
+
+func (srv *GRPCServer) SetDeblemish(
+	ctx context.Context,
+	req *avdmanagementgrpc.SetDeblemishRequest,
+) (*avdmanagementgrpc.SetDeblemishResponse, error) {
+	ctx = srv.ctx(ctx)
+	key := avd.DeblemishControlKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	var enabled *bool
+	if req.Enabled != nil {
+		v := *req.Enabled
+		enabled = &v
+	}
+	var sigmaS *float64
+	if req.SigmaS != nil {
+		v := *req.SigmaS
+		sigmaS = &v
+	}
+	var sigmaR *float64
+	if req.SigmaR != nil {
+		v := *req.SigmaR
+		sigmaR = &v
+	}
+	var diameter *int64
+	if req.Diameter != nil {
+		v := *req.Diameter
+		diameter = &v
+	}
+	if err := srv.Backend.SetDeblemishState(ctx, key, enabled, sigmaS, sigmaR, diameter); err != nil {
+		return nil, err
+	}
+	return &avdmanagementgrpc.SetDeblemishResponse{}, nil
+}
+
+func (srv *GRPCServer) GetDeblemish(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetDeblemishRequest,
+) (*avdmanagementgrpc.GetDeblemishResponse, error) {
+	ctx = srv.ctx(ctx)
+	key := avd.DeblemishControlKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	enabled, sigmaS, sigmaR, diameter, err := srv.Backend.GetDeblemishState(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return &avdmanagementgrpc.GetDeblemishResponse{
+		Enabled:  enabled,
+		SigmaS:   sigmaS,
+		SigmaR:   sigmaR,
+		Diameter: diameter,
+	}, nil
+}
+
+// filterControlKey is a composite key for deduplicating filter controls
+// across privacy blur and deblemish registries.
+type filterControlKey struct {
+	RoutePath       string
+	ForwardingIndex int
+}
+
+func (srv *GRPCServer) ListFilterControls(
+	ctx context.Context,
+	req *avdmanagementgrpc.ListFilterControlsRequest,
+) (*avdmanagementgrpc.ListFilterControlsResponse, error) {
+	ctx = srv.ctx(ctx)
+
+	type controlFlags struct {
+		HasPrivacyBlur bool
+		HasDeblemish   bool
+	}
+	controls := map[filterControlKey]*controlFlags{}
+
+	for _, k := range srv.Backend.GetRegisteredPrivacyBlurKeys(ctx) {
+		fk := filterControlKey{
+			RoutePath:       string(k.RoutePath),
+			ForwardingIndex: k.ForwardingIndex,
+		}
+		flags, ok := controls[fk]
+		if !ok {
+			flags = &controlFlags{}
+			controls[fk] = flags
+		}
+		flags.HasPrivacyBlur = true
+	}
+
+	for _, k := range srv.Backend.GetRegisteredDeblemishKeys(ctx) {
+		fk := filterControlKey{
+			RoutePath:       string(k.RoutePath),
+			ForwardingIndex: k.ForwardingIndex,
+		}
+		flags, ok := controls[fk]
+		if !ok {
+			flags = &controlFlags{}
+			controls[fk] = flags
+		}
+		flags.HasDeblemish = true
+	}
+
+	result := make([]*avdmanagementgrpc.FilterControlInfo, 0, len(controls))
+	for fk, flags := range controls {
+		result = append(result, &avdmanagementgrpc.FilterControlInfo{
+			RoutePath:       fk.RoutePath,
+			ForwardingIndex: int32(fk.ForwardingIndex),
+			HasPrivacyBlur:  flags.HasPrivacyBlur,
+			HasDeblemish:    flags.HasDeblemish,
+		})
+	}
+
+	return &avdmanagementgrpc.ListFilterControlsResponse{
+		Controls: result,
 	}, nil
 }

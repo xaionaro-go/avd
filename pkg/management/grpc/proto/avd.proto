@@ -10,6 +10,9 @@ service AvdService {
     rpc Monitor(avpipeline.MonitorRequest) returns (stream avpipeline.MonitorEvent);
     rpc SetPrivacyBlur(SetPrivacyBlurRequest) returns (SetPrivacyBlurResponse);
     rpc GetPrivacyBlur(GetPrivacyBlurRequest) returns (GetPrivacyBlurResponse);
+    rpc SetDeblemish(SetDeblemishRequest) returns (SetDeblemishResponse);
+    rpc GetDeblemish(GetDeblemishRequest) returns (GetDeblemishResponse);
+    rpc ListFilterControls(ListFilterControlsRequest) returns (ListFilterControlsResponse);
 }
 
 message ListPublishersRequest {}
@@ -20,6 +23,7 @@ message ListPublishersResponse {
 message ListRoutesRequest {}
 message ListRoutesResponse {
     repeated avpipeline.Node nodes = 1;
+    repeated string route_paths = 2;
 }
 
 message ListConsumersRequest {}
@@ -46,4 +50,39 @@ message GetPrivacyBlurResponse {
     bool enabled = 1;
     double blur_radius = 2;
     int64 pixelate_block_size = 3;
+}
+
+message SetDeblemishRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+    optional bool enabled = 3;
+    optional double sigma_s = 4;
+    optional double sigma_r = 5;
+    optional int64 diameter = 6;
+}
+
+message SetDeblemishResponse {}
+
+message GetDeblemishRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+}
+
+message GetDeblemishResponse {
+    bool enabled = 1;
+    double sigma_s = 2;
+    double sigma_r = 3;
+    int64 diameter = 4;
+}
+
+message FilterControlInfo {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+    bool has_privacy_blur = 3;
+    bool has_deblemish = 4;
+}
+
+message ListFilterControlsRequest {}
+message ListFilterControlsResponse {
+    repeated FilterControlInfo controls = 1;
 }

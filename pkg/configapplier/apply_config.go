@@ -129,17 +129,36 @@ func ApplyConfig(
 		for idx, fwd := range endpoint.Forwardings {
 			idx, fwd := idx, fwd
 			observability.Go(ctx, func(ctx context.Context) {
-				filterKernelFactory, blurControl := newPrivacyBlurFactory(fwd.PrivacyBlur)
+				blurFactory, blurControl := newPrivacyBlurFactory(fwd.PrivacyBlur)
+				deblemishFactory, deblemishControl := newDeblemishFactory(fwd.Deblemish)
+
+				// When privacy blur has face detection, deblemish is
+				// redundant on blurred faces. Wrap the deblemish factory
+				// with a runtime guard that skips it whenever the privacy
+				// blur control is enabled — so toggling privacy blur via
+				// avcli automatically suppresses deblemish.
+				if deblemishFactory != nil && blurControl != nil && fwd.PrivacyBlur != nil && fwd.PrivacyBlur.Faces {
+					deblemishFactory = wrapWithSkipGuard(deblemishFactory, &blurControl.Enabled)
+				}
+
+				filterKernelFactory := composeFilterKernelFactories(blurFactory, deblemishFactory)
 				if filterKernelFactory != nil && fwd.Transcoding == nil {
-					logger.Warnf(ctx, "forwarding #%d: privacy_blur requires transcoding to be enabled; blur will be ignored", idx)
+					logger.Warnf(ctx, "forwarding #%d: filter kernels require transcoding to be enabled; filters will be ignored", idx)
 					filterKernelFactory = nil
 					blurControl = nil
+					deblemishControl = nil
 				}
 				if blurControl != nil {
 					srv.RegisterPrivacyBlurControl(ctx, avd.PrivacyBlurControlKey{
 						RoutePath:       router.RoutePath(path),
 						ForwardingIndex: idx,
 					}, blurControl)
+				}
+				if deblemishControl != nil {
+					srv.RegisterDeblemishControl(ctx, avd.DeblemishControlKey{
+						RoutePath:       router.RoutePath(path),
+						ForwardingIndex: idx,
+					}, deblemishControl)
 				}
 
 				switch {

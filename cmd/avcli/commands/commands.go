@@ -105,6 +105,22 @@ var (
 		Run:  privacyBlurGetCommand,
 	}
 
+	Deblemish = &cobra.Command{
+		Use: "deblemish",
+	}
+
+	DeblemishSet = &cobra.Command{
+		Use:  "set <route-path> <forwarding-index>",
+		Args: cobra.ExactArgs(2),
+		Run:  deblemishSetCommand,
+	}
+
+	DeblemishGet = &cobra.Command{
+		Use:  "get <route-path> <forwarding-index>",
+		Args: cobra.ExactArgs(2),
+		Run:  deblemishGetCommand,
+	}
+
 	LoggerLevel = logger.LevelWarning
 )
 
@@ -125,6 +141,15 @@ func init() {
 	PrivacyBlurSet.Flags().Bool("no-enabled", false, "explicitly set enabled to false")
 	PrivacyBlurSet.Flags().Float64("blur-radius", 0, "Gaussian blur radius")
 	PrivacyBlurSet.Flags().Int64("pixelate-block-size", 0, "pixelation block size (0 = use Gaussian)")
+
+	Root.AddCommand(Deblemish)
+	Deblemish.AddCommand(DeblemishSet)
+	Deblemish.AddCommand(DeblemishGet)
+	DeblemishSet.Flags().Bool("enabled", false, "enable or disable deblemish (skin smoothing)")
+	DeblemishSet.Flags().Bool("no-enabled", false, "explicitly set enabled to false")
+	DeblemishSet.Flags().Float64("sigma-s", 0, "spatial sigma for bilateral filter")
+	DeblemishSet.Flags().Float64("sigma-r", 0, "range/color sigma for bilateral filter")
+	DeblemishSet.Flags().Int64("diameter", 0, "filter kernel diameter (-1 = auto)")
 
 	Root.AddCommand(Monitor)
 	Monitor.Flags().Bool("include-packet-payload", false, "include packet payloads in monitor events")
@@ -280,6 +305,74 @@ func privacyBlurSetCommand(cmd *cobra.Command, args []string) {
 	_, err = avdClient.SetPrivacyBlur(ctx, req)
 	assertNoError(ctx, err)
 	fmt.Println("OK")
+}
+
+func deblemishSetCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+
+	req := &avdmanagementgrpc.SetDeblemishRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+	}
+
+	if cmd.Flags().Changed("enabled") || cmd.Flags().Changed("no-enabled") {
+		v, err := cmd.Flags().GetBool("enabled")
+		assertNoError(ctx, err)
+		if cmd.Flags().Changed("no-enabled") {
+			v = false
+		}
+		req.Enabled = &v
+	}
+	if cmd.Flags().Changed("sigma-s") {
+		v, err := cmd.Flags().GetFloat64("sigma-s")
+		assertNoError(ctx, err)
+		req.SigmaS = &v
+	}
+	if cmd.Flags().Changed("sigma-r") {
+		v, err := cmd.Flags().GetFloat64("sigma-r")
+		assertNoError(ctx, err)
+		req.SigmaR = &v
+	}
+	if cmd.Flags().Changed("diameter") {
+		v, err := cmd.Flags().GetInt64("diameter")
+		assertNoError(ctx, err)
+		req.Diameter = &v
+	}
+
+	_, err = avdClient.SetDeblemish(ctx, req)
+	assertNoError(ctx, err)
+	fmt.Println("OK")
+}
+
+func deblemishGetCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+
+	resp, err := avdClient.GetDeblemish(ctx, &avdmanagementgrpc.GetDeblemishRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+	})
+	assertNoError(ctx, err)
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	err = enc.Encode(resp)
+	assertNoError(ctx, err)
 }
 
 func privacyBlurGetCommand(cmd *cobra.Command, args []string) {

@@ -99,3 +99,15 @@ func (s *Server) GetPrivacyBlurState(
 	}
 	return ctrl.Enabled.Load(), ctrl.GetBlurRadius(), ctrl.PixelateBlockSize.Load(), nil
 }
+
+func (s *Server) GetRegisteredPrivacyBlurKeys(
+	ctx context.Context,
+) []PrivacyBlurControlKey {
+	var keys []PrivacyBlurControlKey
+	s.PrivacyBlurRegistry.Locker.Do(ctx, func() {
+		for k := range s.PrivacyBlurRegistry.Controls {
+			keys = append(keys, k)
+		}
+	})
+	return keys
+}

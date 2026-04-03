@@ -17,6 +17,7 @@ type Server struct {
 	ListeningPortsLocker xsync.RWMutex
 	ListeningPorts       []ListeningPort
 	PrivacyBlurRegistry  privacyBlurRegistry
+	DeblemishRegistry    deblemishRegistry
 }
 
 func NewServer(
@@ -26,6 +27,9 @@ func NewServer(
 		Router: router.New[RouteCustomData](ctx),
 		PrivacyBlurRegistry: privacyBlurRegistry{
 			Controls: make(map[PrivacyBlurControlKey]*PrivacyBlurControl),
+		},
+		DeblemishRegistry: deblemishRegistry{
+			Controls: make(map[DeblemishControlKey]*DeblemishControl),
 		},
 	}
 	s.Router.OnRouteCreated = s.OnRouteCreated

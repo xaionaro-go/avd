@@ -22,8 +22,15 @@ func TestNewPrivacyBlurFactory_NilConfig(t *testing.T) {
 func TestNewPrivacyBlurFactory_DisabledConfig(t *testing.T) {
 	cfg := &config.PrivacyBlurConfig{Enabled: false}
 	factory, control := newPrivacyBlurFactory(cfg)
-	assert.Nil(t, factory, "disabled config should produce nil factory")
-	assert.Nil(t, control, "disabled config should produce nil control")
+	// Passthrough mode: factory and control are created so avcli can enable at runtime.
+	require.NotNil(t, factory, "disabled config should still produce a factory for runtime enable")
+	require.NotNil(t, control, "disabled config should still produce a control for runtime enable")
+	assert.False(t, control.Enabled.Load(), "Enabled should be false")
+
+	// The factory should return an error when called (no CV support).
+	_, err := factory(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "with_cv")
 }
 
 func TestNewPrivacyBlurFactory_EnabledWithoutCV(t *testing.T) {
@@ -33,9 +40,10 @@ func TestNewPrivacyBlurFactory_EnabledWithoutCV(t *testing.T) {
 	}
 	factory, control := newPrivacyBlurFactory(cfg)
 	require.NotNil(t, factory, "enabled config should produce a factory even without with_cv")
-	assert.Nil(t, control, "nocv variant should not produce a control")
+	require.NotNil(t, control, "enabled config should produce a control")
+	assert.True(t, control.Enabled.Load(), "Enabled should be true")
 
-	// The factory should return an error when called.
+	// The factory should return an error when called (no CV support).
 	_, err := factory(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "with_cv")

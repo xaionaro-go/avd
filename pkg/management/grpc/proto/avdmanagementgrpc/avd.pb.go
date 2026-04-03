@@ -141,6 +141,7 @@ func (*ListRoutesRequest) Descriptor() ([]byte, []int) {
 type ListRoutesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Nodes         []*avpipeline.Node     `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	RoutePaths    []string               `protobuf:"bytes,2,rep,name=route_paths,json=routePaths,proto3" json:"route_paths,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -178,6 +179,13 @@ func (*ListRoutesResponse) Descriptor() ([]byte, []int) {
 func (x *ListRoutesResponse) GetNodes() []*avpipeline.Node {
 	if x != nil {
 		return x.Nodes
+	}
+	return nil
+}
+
+func (x *ListRoutesResponse) GetRoutePaths() []string {
+	if x != nil {
+		return x.RoutePaths
 	}
 	return nil
 }
@@ -486,6 +494,394 @@ func (x *GetPrivacyBlurResponse) GetPixelateBlockSize() int64 {
 	return 0
 }
 
+type SetDeblemishRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RoutePath       string                 `protobuf:"bytes,1,opt,name=route_path,json=routePath,proto3" json:"route_path,omitempty"`
+	ForwardingIndex int32                  `protobuf:"varint,2,opt,name=forwarding_index,json=forwardingIndex,proto3" json:"forwarding_index,omitempty"`
+	Enabled         *bool                  `protobuf:"varint,3,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	SigmaS          *float64               `protobuf:"fixed64,4,opt,name=sigma_s,json=sigmaS,proto3,oneof" json:"sigma_s,omitempty"`
+	SigmaR          *float64               `protobuf:"fixed64,5,opt,name=sigma_r,json=sigmaR,proto3,oneof" json:"sigma_r,omitempty"`
+	Diameter        *int64                 `protobuf:"varint,6,opt,name=diameter,proto3,oneof" json:"diameter,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *SetDeblemishRequest) Reset() {
+	*x = SetDeblemishRequest{}
+	mi := &file_avd_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetDeblemishRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetDeblemishRequest) ProtoMessage() {}
+
+func (x *SetDeblemishRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetDeblemishRequest.ProtoReflect.Descriptor instead.
+func (*SetDeblemishRequest) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SetDeblemishRequest) GetRoutePath() string {
+	if x != nil {
+		return x.RoutePath
+	}
+	return ""
+}
+
+func (x *SetDeblemishRequest) GetForwardingIndex() int32 {
+	if x != nil {
+		return x.ForwardingIndex
+	}
+	return 0
+}
+
+func (x *SetDeblemishRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *SetDeblemishRequest) GetSigmaS() float64 {
+	if x != nil && x.SigmaS != nil {
+		return *x.SigmaS
+	}
+	return 0
+}
+
+func (x *SetDeblemishRequest) GetSigmaR() float64 {
+	if x != nil && x.SigmaR != nil {
+		return *x.SigmaR
+	}
+	return 0
+}
+
+func (x *SetDeblemishRequest) GetDiameter() int64 {
+	if x != nil && x.Diameter != nil {
+		return *x.Diameter
+	}
+	return 0
+}
+
+type SetDeblemishResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetDeblemishResponse) Reset() {
+	*x = SetDeblemishResponse{}
+	mi := &file_avd_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetDeblemishResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetDeblemishResponse) ProtoMessage() {}
+
+func (x *SetDeblemishResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetDeblemishResponse.ProtoReflect.Descriptor instead.
+func (*SetDeblemishResponse) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{11}
+}
+
+type GetDeblemishRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RoutePath       string                 `protobuf:"bytes,1,opt,name=route_path,json=routePath,proto3" json:"route_path,omitempty"`
+	ForwardingIndex int32                  `protobuf:"varint,2,opt,name=forwarding_index,json=forwardingIndex,proto3" json:"forwarding_index,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GetDeblemishRequest) Reset() {
+	*x = GetDeblemishRequest{}
+	mi := &file_avd_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDeblemishRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDeblemishRequest) ProtoMessage() {}
+
+func (x *GetDeblemishRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDeblemishRequest.ProtoReflect.Descriptor instead.
+func (*GetDeblemishRequest) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetDeblemishRequest) GetRoutePath() string {
+	if x != nil {
+		return x.RoutePath
+	}
+	return ""
+}
+
+func (x *GetDeblemishRequest) GetForwardingIndex() int32 {
+	if x != nil {
+		return x.ForwardingIndex
+	}
+	return 0
+}
+
+type GetDeblemishResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	SigmaS        float64                `protobuf:"fixed64,2,opt,name=sigma_s,json=sigmaS,proto3" json:"sigma_s,omitempty"`
+	SigmaR        float64                `protobuf:"fixed64,3,opt,name=sigma_r,json=sigmaR,proto3" json:"sigma_r,omitempty"`
+	Diameter      int64                  `protobuf:"varint,4,opt,name=diameter,proto3" json:"diameter,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDeblemishResponse) Reset() {
+	*x = GetDeblemishResponse{}
+	mi := &file_avd_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDeblemishResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDeblemishResponse) ProtoMessage() {}
+
+func (x *GetDeblemishResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDeblemishResponse.ProtoReflect.Descriptor instead.
+func (*GetDeblemishResponse) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetDeblemishResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *GetDeblemishResponse) GetSigmaS() float64 {
+	if x != nil {
+		return x.SigmaS
+	}
+	return 0
+}
+
+func (x *GetDeblemishResponse) GetSigmaR() float64 {
+	if x != nil {
+		return x.SigmaR
+	}
+	return 0
+}
+
+func (x *GetDeblemishResponse) GetDiameter() int64 {
+	if x != nil {
+		return x.Diameter
+	}
+	return 0
+}
+
+type FilterControlInfo struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RoutePath       string                 `protobuf:"bytes,1,opt,name=route_path,json=routePath,proto3" json:"route_path,omitempty"`
+	ForwardingIndex int32                  `protobuf:"varint,2,opt,name=forwarding_index,json=forwardingIndex,proto3" json:"forwarding_index,omitempty"`
+	HasPrivacyBlur  bool                   `protobuf:"varint,3,opt,name=has_privacy_blur,json=hasPrivacyBlur,proto3" json:"has_privacy_blur,omitempty"`
+	HasDeblemish    bool                   `protobuf:"varint,4,opt,name=has_deblemish,json=hasDeblemish,proto3" json:"has_deblemish,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *FilterControlInfo) Reset() {
+	*x = FilterControlInfo{}
+	mi := &file_avd_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilterControlInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilterControlInfo) ProtoMessage() {}
+
+func (x *FilterControlInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilterControlInfo.ProtoReflect.Descriptor instead.
+func (*FilterControlInfo) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *FilterControlInfo) GetRoutePath() string {
+	if x != nil {
+		return x.RoutePath
+	}
+	return ""
+}
+
+func (x *FilterControlInfo) GetForwardingIndex() int32 {
+	if x != nil {
+		return x.ForwardingIndex
+	}
+	return 0
+}
+
+func (x *FilterControlInfo) GetHasPrivacyBlur() bool {
+	if x != nil {
+		return x.HasPrivacyBlur
+	}
+	return false
+}
+
+func (x *FilterControlInfo) GetHasDeblemish() bool {
+	if x != nil {
+		return x.HasDeblemish
+	}
+	return false
+}
+
+type ListFilterControlsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFilterControlsRequest) Reset() {
+	*x = ListFilterControlsRequest{}
+	mi := &file_avd_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFilterControlsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFilterControlsRequest) ProtoMessage() {}
+
+func (x *ListFilterControlsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFilterControlsRequest.ProtoReflect.Descriptor instead.
+func (*ListFilterControlsRequest) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{15}
+}
+
+type ListFilterControlsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Controls      []*FilterControlInfo   `protobuf:"bytes,1,rep,name=controls,proto3" json:"controls,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFilterControlsResponse) Reset() {
+	*x = ListFilterControlsResponse{}
+	mi := &file_avd_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFilterControlsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFilterControlsResponse) ProtoMessage() {}
+
+func (x *ListFilterControlsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFilterControlsResponse.ProtoReflect.Descriptor instead.
+func (*ListFilterControlsResponse) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ListFilterControlsResponse) GetControls() []*FilterControlInfo {
+	if x != nil {
+		return x.Controls
+	}
+	return nil
+}
+
 var File_avd_proto protoreflect.FileDescriptor
 
 const file_avd_proto_rawDesc = "" +
@@ -494,9 +890,11 @@ const file_avd_proto_rawDesc = "" +
 	"\x15ListPublishersRequest\"@\n" +
 	"\x16ListPublishersResponse\x12&\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x10.avpipeline.NodeR\x05nodes\"\x13\n" +
-	"\x11ListRoutesRequest\"<\n" +
+	"\x11ListRoutesRequest\"]\n" +
 	"\x12ListRoutesResponse\x12&\n" +
-	"\x05nodes\x18\x01 \x03(\v2\x10.avpipeline.NodeR\x05nodes\"\x16\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x10.avpipeline.NodeR\x05nodes\x12\x1f\n" +
+	"\vroute_paths\x18\x02 \x03(\tR\n" +
+	"routePaths\"\x16\n" +
 	"\x14ListConsumersRequest\"?\n" +
 	"\x15ListConsumersResponse\x12&\n" +
 	"\x05nodes\x18\x01 \x03(\v2\x10.avpipeline.NodeR\x05nodes\"\x8f\x02\n" +
@@ -521,7 +919,41 @@ const file_avd_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1f\n" +
 	"\vblur_radius\x18\x02 \x01(\x01R\n" +
 	"blurRadius\x12.\n" +
-	"\x13pixelate_block_size\x18\x03 \x01(\x03R\x11pixelateBlockSize2\x8f\x03\n" +
+	"\x13pixelate_block_size\x18\x03 \x01(\x03R\x11pixelateBlockSize\"\x8c\x02\n" +
+	"\x13SetDeblemishRequest\x12\x1d\n" +
+	"\n" +
+	"route_path\x18\x01 \x01(\tR\troutePath\x12)\n" +
+	"\x10forwarding_index\x18\x02 \x01(\x05R\x0fforwardingIndex\x12\x1d\n" +
+	"\aenabled\x18\x03 \x01(\bH\x00R\aenabled\x88\x01\x01\x12\x1c\n" +
+	"\asigma_s\x18\x04 \x01(\x01H\x01R\x06sigmaS\x88\x01\x01\x12\x1c\n" +
+	"\asigma_r\x18\x05 \x01(\x01H\x02R\x06sigmaR\x88\x01\x01\x12\x1f\n" +
+	"\bdiameter\x18\x06 \x01(\x03H\x03R\bdiameter\x88\x01\x01B\n" +
+	"\n" +
+	"\b_enabledB\n" +
+	"\n" +
+	"\b_sigma_sB\n" +
+	"\n" +
+	"\b_sigma_rB\v\n" +
+	"\t_diameter\"\x16\n" +
+	"\x14SetDeblemishResponse\"_\n" +
+	"\x13GetDeblemishRequest\x12\x1d\n" +
+	"\n" +
+	"route_path\x18\x01 \x01(\tR\troutePath\x12)\n" +
+	"\x10forwarding_index\x18\x02 \x01(\x05R\x0fforwardingIndex\"~\n" +
+	"\x14GetDeblemishResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x17\n" +
+	"\asigma_s\x18\x02 \x01(\x01R\x06sigmaS\x12\x17\n" +
+	"\asigma_r\x18\x03 \x01(\x01R\x06sigmaR\x12\x1a\n" +
+	"\bdiameter\x18\x04 \x01(\x03R\bdiameter\"\xac\x01\n" +
+	"\x11FilterControlInfo\x12\x1d\n" +
+	"\n" +
+	"route_path\x18\x01 \x01(\tR\troutePath\x12)\n" +
+	"\x10forwarding_index\x18\x02 \x01(\x05R\x0fforwardingIndex\x12(\n" +
+	"\x10has_privacy_blur\x18\x03 \x01(\bR\x0ehasPrivacyBlur\x12#\n" +
+	"\rhas_deblemish\x18\x04 \x01(\bR\fhasDeblemish\"\x1b\n" +
+	"\x19ListFilterControlsRequest\"L\n" +
+	"\x1aListFilterControlsResponse\x12.\n" +
+	"\bcontrols\x18\x01 \x03(\v2\x12.FilterControlInfoR\bcontrols2\xd8\x04\n" +
 	"\n" +
 	"AvdService\x12A\n" +
 	"\x0eListPublishers\x12\x16.ListPublishersRequest\x1a\x17.ListPublishersResponse\x125\n" +
@@ -530,7 +962,10 @@ const file_avd_proto_rawDesc = "" +
 	"\rListConsumers\x12\x15.ListConsumersRequest\x1a\x16.ListConsumersResponse\x12A\n" +
 	"\aMonitor\x12\x1a.avpipeline.MonitorRequest\x1a\x18.avpipeline.MonitorEvent0\x01\x12A\n" +
 	"\x0eSetPrivacyBlur\x12\x16.SetPrivacyBlurRequest\x1a\x17.SetPrivacyBlurResponse\x12A\n" +
-	"\x0eGetPrivacyBlur\x12\x16.GetPrivacyBlurRequest\x1a\x17.GetPrivacyBlurResponseBHZFgithub.com/xaionaro-go/avd/pkg/management/grpc/proto;avdmanagementgrpcb\x06proto3"
+	"\x0eGetPrivacyBlur\x12\x16.GetPrivacyBlurRequest\x1a\x17.GetPrivacyBlurResponse\x12;\n" +
+	"\fSetDeblemish\x12\x14.SetDeblemishRequest\x1a\x15.SetDeblemishResponse\x12;\n" +
+	"\fGetDeblemish\x12\x14.GetDeblemishRequest\x1a\x15.GetDeblemishResponse\x12M\n" +
+	"\x12ListFilterControls\x12\x1a.ListFilterControlsRequest\x1a\x1b.ListFilterControlsResponseBHZFgithub.com/xaionaro-go/avd/pkg/management/grpc/proto;avdmanagementgrpcb\x06proto3"
 
 var (
 	file_avd_proto_rawDescOnce sync.Once
@@ -544,43 +979,57 @@ func file_avd_proto_rawDescGZIP() []byte {
 	return file_avd_proto_rawDescData
 }
 
-var file_avd_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_avd_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_avd_proto_goTypes = []any{
-	(*ListPublishersRequest)(nil),     // 0: ListPublishersRequest
-	(*ListPublishersResponse)(nil),    // 1: ListPublishersResponse
-	(*ListRoutesRequest)(nil),         // 2: ListRoutesRequest
-	(*ListRoutesResponse)(nil),        // 3: ListRoutesResponse
-	(*ListConsumersRequest)(nil),      // 4: ListConsumersRequest
-	(*ListConsumersResponse)(nil),     // 5: ListConsumersResponse
-	(*SetPrivacyBlurRequest)(nil),     // 6: SetPrivacyBlurRequest
-	(*SetPrivacyBlurResponse)(nil),    // 7: SetPrivacyBlurResponse
-	(*GetPrivacyBlurRequest)(nil),     // 8: GetPrivacyBlurRequest
-	(*GetPrivacyBlurResponse)(nil),    // 9: GetPrivacyBlurResponse
-	(*avpipeline.Node)(nil),           // 10: avpipeline.Node
-	(*avpipeline.MonitorRequest)(nil), // 11: avpipeline.MonitorRequest
-	(*avpipeline.MonitorEvent)(nil),   // 12: avpipeline.MonitorEvent
+	(*ListPublishersRequest)(nil),      // 0: ListPublishersRequest
+	(*ListPublishersResponse)(nil),     // 1: ListPublishersResponse
+	(*ListRoutesRequest)(nil),          // 2: ListRoutesRequest
+	(*ListRoutesResponse)(nil),         // 3: ListRoutesResponse
+	(*ListConsumersRequest)(nil),       // 4: ListConsumersRequest
+	(*ListConsumersResponse)(nil),      // 5: ListConsumersResponse
+	(*SetPrivacyBlurRequest)(nil),      // 6: SetPrivacyBlurRequest
+	(*SetPrivacyBlurResponse)(nil),     // 7: SetPrivacyBlurResponse
+	(*GetPrivacyBlurRequest)(nil),      // 8: GetPrivacyBlurRequest
+	(*GetPrivacyBlurResponse)(nil),     // 9: GetPrivacyBlurResponse
+	(*SetDeblemishRequest)(nil),        // 10: SetDeblemishRequest
+	(*SetDeblemishResponse)(nil),       // 11: SetDeblemishResponse
+	(*GetDeblemishRequest)(nil),        // 12: GetDeblemishRequest
+	(*GetDeblemishResponse)(nil),       // 13: GetDeblemishResponse
+	(*FilterControlInfo)(nil),          // 14: FilterControlInfo
+	(*ListFilterControlsRequest)(nil),  // 15: ListFilterControlsRequest
+	(*ListFilterControlsResponse)(nil), // 16: ListFilterControlsResponse
+	(*avpipeline.Node)(nil),            // 17: avpipeline.Node
+	(*avpipeline.MonitorRequest)(nil),  // 18: avpipeline.MonitorRequest
+	(*avpipeline.MonitorEvent)(nil),    // 19: avpipeline.MonitorEvent
 }
 var file_avd_proto_depIdxs = []int32{
-	10, // 0: ListPublishersResponse.nodes:type_name -> avpipeline.Node
-	10, // 1: ListRoutesResponse.nodes:type_name -> avpipeline.Node
-	10, // 2: ListConsumersResponse.nodes:type_name -> avpipeline.Node
-	0,  // 3: AvdService.ListPublishers:input_type -> ListPublishersRequest
-	2,  // 4: AvdService.ListRoutes:input_type -> ListRoutesRequest
-	4,  // 5: AvdService.ListConsumers:input_type -> ListConsumersRequest
-	11, // 6: AvdService.Monitor:input_type -> avpipeline.MonitorRequest
-	6,  // 7: AvdService.SetPrivacyBlur:input_type -> SetPrivacyBlurRequest
-	8,  // 8: AvdService.GetPrivacyBlur:input_type -> GetPrivacyBlurRequest
-	1,  // 9: AvdService.ListPublishers:output_type -> ListPublishersResponse
-	3,  // 10: AvdService.ListRoutes:output_type -> ListRoutesResponse
-	5,  // 11: AvdService.ListConsumers:output_type -> ListConsumersResponse
-	12, // 12: AvdService.Monitor:output_type -> avpipeline.MonitorEvent
-	7,  // 13: AvdService.SetPrivacyBlur:output_type -> SetPrivacyBlurResponse
-	9,  // 14: AvdService.GetPrivacyBlur:output_type -> GetPrivacyBlurResponse
-	9,  // [9:15] is the sub-list for method output_type
-	3,  // [3:9] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	17, // 0: ListPublishersResponse.nodes:type_name -> avpipeline.Node
+	17, // 1: ListRoutesResponse.nodes:type_name -> avpipeline.Node
+	17, // 2: ListConsumersResponse.nodes:type_name -> avpipeline.Node
+	14, // 3: ListFilterControlsResponse.controls:type_name -> FilterControlInfo
+	0,  // 4: AvdService.ListPublishers:input_type -> ListPublishersRequest
+	2,  // 5: AvdService.ListRoutes:input_type -> ListRoutesRequest
+	4,  // 6: AvdService.ListConsumers:input_type -> ListConsumersRequest
+	18, // 7: AvdService.Monitor:input_type -> avpipeline.MonitorRequest
+	6,  // 8: AvdService.SetPrivacyBlur:input_type -> SetPrivacyBlurRequest
+	8,  // 9: AvdService.GetPrivacyBlur:input_type -> GetPrivacyBlurRequest
+	10, // 10: AvdService.SetDeblemish:input_type -> SetDeblemishRequest
+	12, // 11: AvdService.GetDeblemish:input_type -> GetDeblemishRequest
+	15, // 12: AvdService.ListFilterControls:input_type -> ListFilterControlsRequest
+	1,  // 13: AvdService.ListPublishers:output_type -> ListPublishersResponse
+	3,  // 14: AvdService.ListRoutes:output_type -> ListRoutesResponse
+	5,  // 15: AvdService.ListConsumers:output_type -> ListConsumersResponse
+	19, // 16: AvdService.Monitor:output_type -> avpipeline.MonitorEvent
+	7,  // 17: AvdService.SetPrivacyBlur:output_type -> SetPrivacyBlurResponse
+	9,  // 18: AvdService.GetPrivacyBlur:output_type -> GetPrivacyBlurResponse
+	11, // 19: AvdService.SetDeblemish:output_type -> SetDeblemishResponse
+	13, // 20: AvdService.GetDeblemish:output_type -> GetDeblemishResponse
+	16, // 21: AvdService.ListFilterControls:output_type -> ListFilterControlsResponse
+	13, // [13:22] is the sub-list for method output_type
+	4,  // [4:13] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_avd_proto_init() }
@@ -589,13 +1038,14 @@ func file_avd_proto_init() {
 		return
 	}
 	file_avd_proto_msgTypes[6].OneofWrappers = []any{}
+	file_avd_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_avd_proto_rawDesc), len(file_avd_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

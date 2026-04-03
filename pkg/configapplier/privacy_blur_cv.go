@@ -17,12 +17,12 @@ import (
 func newPrivacyBlurFactory(
 	cfg *config.PrivacyBlurConfig,
 ) (router.FilterKernelFactory, *avd.PrivacyBlurControl) {
-	if cfg == nil || !cfg.Enabled {
+	if cfg == nil {
 		return nil, nil
 	}
 
 	control := &avd.PrivacyBlurControl{}
-	control.Enabled.Store(true)
+	control.Enabled.Store(cfg.Enabled)
 	control.SetBlurRadius(cfg.BlurRadius)
 	control.PixelateBlockSize.Store(int64(cfg.PixelateBlockSize))
 

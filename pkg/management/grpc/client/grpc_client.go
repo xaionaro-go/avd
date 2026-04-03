@@ -88,6 +88,26 @@ func (c *GRPCClient) GetPrivacyBlur(
 	return c.client.GetPrivacyBlur(ctx, req)
 }
 
+func (c *GRPCClient) SetDeblemish(
+	ctx context.Context,
+	req *avdmanagementgrpc.SetDeblemishRequest,
+) (*avdmanagementgrpc.SetDeblemishResponse, error) {
+	return c.client.SetDeblemish(ctx, req)
+}
+
+func (c *GRPCClient) GetDeblemish(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetDeblemishRequest,
+) (*avdmanagementgrpc.GetDeblemishResponse, error) {
+	return c.client.GetDeblemish(ctx, req)
+}
+
+func (c *GRPCClient) ListFilterControls(
+	ctx context.Context,
+) (*avdmanagementgrpc.ListFilterControlsResponse, error) {
+	return c.client.ListFilterControls(ctx, &avdmanagementgrpc.ListFilterControlsRequest{})
+}
+
 func (c *GRPCClient) Monitor(
 	ctx context.Context,
 	nodeID uint64,

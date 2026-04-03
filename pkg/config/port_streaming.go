@@ -29,11 +29,20 @@ type PrivacyBlurConfig struct {
 	PixelateBlockSize int     `yaml:"pixelate_block_size"`
 }
 
+type DeblemishConfig struct {
+	Enabled  bool    `yaml:"enabled"`
+	SigmaS   float64 `yaml:"sigma_s"`
+	SigmaR   float64 `yaml:"sigma_r"`
+	Diameter int     `yaml:"diameter"`
+	FaceOnly bool    `yaml:"face_only"`
+}
+
 type ForwardConfig struct {
 	Destination Destination                       `yaml:"destination"`
 	Transcoding *transcodertypes.TranscoderConfig `yaml:"transcoding"`
 	WaitUntil   WaitUntilConfig                   `yaml:"wait_until"`
 	PrivacyBlur *PrivacyBlurConfig                `yaml:"privacy_blur,omitempty"`
+	Deblemish   *DeblemishConfig                  `yaml:"deblemish,omitempty"`
 }
 
 type Command struct {
