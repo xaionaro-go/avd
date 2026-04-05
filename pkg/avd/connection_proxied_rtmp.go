@@ -107,20 +107,20 @@ func rtmpParseRoutePath(
 
 	idx := connectMagicIdx + len(rtmpConnectMagic)
 	for {
-		if idx+2 >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the length of the key: %d >= %d", idx+2, len(msg))
+		if idx+2 > len(msg) {
+			return nil, fmt.Errorf("the message was too short: cannot get the length of the key: %d > %d", idx+2, len(msg))
 		}
 		keyLen := binary.BigEndian.Uint16(msg[idx:])
 		idx += 2
 
-		if idx+int(keyLen) >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the key: %d >= %d", idx+int(keyLen), len(msg))
+		if idx+int(keyLen) > len(msg) {
+			return nil, fmt.Errorf("the message was too short: cannot get the key: %d > %d", idx+int(keyLen), len(msg))
 		}
 		key := string(msg[idx : idx+int(keyLen)])
 		idx += int(keyLen)
 
-		if idx+1 >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the the value type: %d >= %d (key: '%s')", idx+1, len(msg), key)
+		if idx+1 > len(msg) {
+			return nil, fmt.Errorf("the message was too short: cannot get the the value type: %d > %d (key: '%s')", idx+1, len(msg), key)
 		}
 		valueType := msg[idx]
 		idx++
@@ -129,14 +129,14 @@ func rtmpParseRoutePath(
 			return nil, fmt.Errorf("we currently support only string values, but received type ID %d (key: '%s')", valueType, key)
 		}
 
-		if idx+2 >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the length of the value: %d >= %d (key: '%s')", idx+2, len(msg), key)
+		if idx+2 > len(msg) {
+			return nil, fmt.Errorf("the message was too short: cannot get the length of the value: %d > %d (key: '%s')", idx+2, len(msg), key)
 		}
 		valueLen := binary.BigEndian.Uint16(msg[idx:])
 		idx += 2
 
-		if idx+int(valueLen) >= len(msg) {
-			return nil, fmt.Errorf("the message was too short: cannot get the value: %d >= %d (key: '%s')", idx+int(valueLen), len(msg), key)
+		if idx+int(valueLen) > len(msg) {
+			return nil, fmt.Errorf("the message was too short: cannot get the value: %d > %d (key: '%s')", idx+int(valueLen), len(msg), key)
 		}
 		value := msg[idx : idx+int(valueLen)]
 		idx += int(valueLen)
