@@ -69,7 +69,9 @@ func (h *commandHandler[T]) onRoutePublisherAdded(
 	}
 
 	if process, ok := h.RunningCommandsOnRoutePublisherRemoved[key]; ok {
-		process.Close(ctx)
+		if process != nil {
+			process.Close(ctx)
+		}
 		delete(h.RunningCommandsOnRoutePublisherRemoved, key)
 	}
 
@@ -84,7 +86,9 @@ func (h *commandHandler[T]) onRoutePublisherAdded(
 	if err != nil {
 		logger.Errorf(ctx, "unable to run command %#+v: %v", cmd, err)
 	}
-	h.RunningCommandsOnRoutePublisherAdded[key] = process
+	if process != nil {
+		h.RunningCommandsOnRoutePublisherAdded[key] = process
+	}
 }
 
 func (h *commandHandler[T]) OnRoutePublisherRemoved(
@@ -110,7 +114,9 @@ func (h *commandHandler[T]) onRoutePublisherRemoved(
 	}
 
 	if process, ok := h.RunningCommandsOnRoutePublisherAdded[key]; ok {
-		process.Close(ctx)
+		if process != nil {
+			process.Close(ctx)
+		}
 		delete(h.RunningCommandsOnRoutePublisherAdded, key)
 	}
 
@@ -125,7 +131,9 @@ func (h *commandHandler[T]) onRoutePublisherRemoved(
 	if err != nil {
 		logger.Errorf(ctx, "unable to run command %#+v: %v", cmd, err)
 	}
-	h.RunningCommandsOnRoutePublisherRemoved[key] = process
+	if process != nil {
+		h.RunningCommandsOnRoutePublisherRemoved[key] = process
+	}
 }
 
 func (h *commandHandler[T]) runCommand(

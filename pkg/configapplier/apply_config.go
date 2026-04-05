@@ -5,8 +5,10 @@ package configapplier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avd/pkg/avd"
@@ -18,6 +20,14 @@ import (
 	"github.com/xaionaro-go/observability"
 	"github.com/xaionaro-go/secret"
 )
+
+// forwardingSetupInitialDeadline is the window ApplyConfig waits after
+// spawning all per-forwarding goroutines to collect any synchronous
+// configuration-level errors (parse URL, resolve transcoder, check the
+// destination). Errors that surface later (for example, after the
+// wait-for-publisher blocking call returns) still go to logs but no
+// longer block ApplyConfig from returning.
+const forwardingSetupInitialDeadline = 2 * time.Second
 
 func getListener(ctx context.Context, addr avd.PortAddress) (_ret net.Listener, _err error) {
 	logger.Debugf(ctx, "getListener")
@@ -121,6 +131,16 @@ func ApplyConfig(
 	}
 
 	logger.Debugf(ctx, "configuring the endpoints...")
+	// errChan collects immediate setup errors from the per-forwarding
+	// goroutines. It is sized to the maximum possible number of senders
+	// so the sends are non-blocking, and each goroutine sends exactly
+	// once (nil on success or after the blocking wait-for-publisher
+	// returns).
+	forwardingCount := 0
+	for _, endpoint := range cfg.Endpoints {
+		forwardingCount += len(endpoint.Forwardings)
+	}
+	errChan := make(chan error, forwardingCount)
 	for path, endpoint := range cfg.Endpoints {
 		_, err := srv.Router.GetRoute(ctx, path, router.GetRouteModeCreatePersistentIfNotFound)
 		if err != nil {
@@ -129,6 +149,8 @@ func ApplyConfig(
 		for idx, fwd := range endpoint.Forwardings {
 			idx, fwd := idx, fwd
 			observability.Go(ctx, func(ctx context.Context) {
+				var sendErr error
+				defer func() { errChan <- sendErr }()
 				blurFactory, blurControl := newPrivacyBlurFactory(fwd.PrivacyBlur)
 				deblemishFactory, deblemishControl := newDeblemishFactory(fwd.Deblemish)
 
@@ -180,6 +202,7 @@ func ApplyConfig(
 							fwd.Destination.Local.PublishMode,
 							err,
 						)
+						sendErr = fmt.Errorf("forwarding '%s' -> local '%s' (mode %v): %w", path, fwd.Destination.Local.Route, fwd.Destination.Local.PublishMode, err)
 						return
 					}
 				case fwd.Destination.URL != nil:
@@ -200,6 +223,7 @@ func ApplyConfig(
 					)
 					if err != nil {
 						logger.Errorf(ctx, "unable to create forwarding from '%s' to a remote destination '%s': %v", path, fwd.Destination.URL, err)
+						sendErr = fmt.Errorf("forwarding '%s' -> remote '%s': %w", path, *fwd.Destination.URL, err)
 						return
 					}
 				default:
@@ -207,6 +231,35 @@ func ApplyConfig(
 				}
 			})
 		}
+	}
+
+	// Collect any forwarding-setup errors that surface within the initial
+	// deadline. This does not catch every failure mode (setup calls that
+	// block on GetRouteModeWaitForPublisher may surface errors much later,
+	// and those continue to be logged), but it does turn immediate
+	// config-level failures — parse URL, resolve transcoder, unknown
+	// destination route — into a returned error instead of a silent drop.
+	deadline := time.NewTimer(forwardingSetupInitialDeadline)
+	defer deadline.Stop()
+	var errs []error
+	collected := 0
+collectLoop:
+	for collected < forwardingCount {
+		select {
+		case err := <-errChan:
+			collected++
+			if err != nil {
+				errs = append(errs, err)
+			}
+		case <-deadline.C:
+			break collectLoop
+		case <-ctx.Done():
+			errs = append(errs, ctx.Err())
+			break collectLoop
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("one or more forwardings failed to set up: %w", errors.Join(errs...))
 	}
 
 	return nil

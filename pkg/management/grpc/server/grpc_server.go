@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/facebookincubator/go-belt"
 	"github.com/xaionaro-go/avd/pkg/avd"
@@ -19,6 +21,7 @@ import (
 	avpipelinegrpc "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	goconvavp "github.com/xaionaro-go/avpipeline/protobuf/goconv/avpipeline"
 	"github.com/xaionaro-go/avpipeline/router"
+	"github.com/xaionaro-go/observability"
 )
 
 type GRPCServer struct {
@@ -79,9 +82,9 @@ func (srv *GRPCServer) ServeContext(ctx context.Context) error {
 	}()
 	srv.Observability = belt.CtxBelt(ctx)
 	errCh := make(chan error, 1)
-	go func() {
+	observability.Go(ctx, func(_ context.Context) {
 		errCh <- srv.GRPCServer.Serve(srv.Listener)
-	}()
+	})
 	select {
 	case <-ctx.Done():
 		srv.GRPCServer.GracefulStop()
@@ -204,7 +207,7 @@ func (srv *GRPCServer) SetPrivacyBlur(
 		pixelateBlockSize = &v
 	}
 	if err := srv.Backend.SetPrivacyBlurState(ctx, key, enabled, blurRadius, pixelateBlockSize); err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.NotFound, "%v", err)
 	}
 	return &avdmanagementgrpc.SetPrivacyBlurResponse{}, nil
 }
@@ -220,7 +223,7 @@ func (srv *GRPCServer) GetPrivacyBlur(
 	}
 	enabled, blurRadius, pixelateBlockSize, err := srv.Backend.GetPrivacyBlurState(ctx, key)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.NotFound, "%v", err)
 	}
 	return &avdmanagementgrpc.GetPrivacyBlurResponse{
 		Enabled:           enabled,
@@ -259,7 +262,7 @@ func (srv *GRPCServer) SetDeblemish(
 		diameter = &v
 	}
 	if err := srv.Backend.SetDeblemishState(ctx, key, enabled, sigmaS, sigmaR, diameter); err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.NotFound, "%v", err)
 	}
 	return &avdmanagementgrpc.SetDeblemishResponse{}, nil
 }
@@ -275,7 +278,7 @@ func (srv *GRPCServer) GetDeblemish(
 	}
 	enabled, sigmaS, sigmaR, diameter, err := srv.Backend.GetDeblemishState(ctx, key)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.NotFound, "%v", err)
 	}
 	return &avdmanagementgrpc.GetDeblemishResponse{
 		Enabled:  enabled,

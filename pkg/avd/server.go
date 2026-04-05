@@ -5,6 +5,8 @@ package avd
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline/router"
@@ -40,14 +42,21 @@ func NewServer(
 func (s *Server) Close(
 	ctx context.Context,
 ) error {
-	return s.Router.Close(ctx)
+	var errs []error
+	for _, port := range s.GetListeningPorts(ctx) {
+		if err := port.Close(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("unable to close listening port %s: %w", port, err))
+		}
+	}
+	if err := s.Router.Close(ctx); err != nil {
+		errs = append(errs, fmt.Errorf("unable to close router: %w", err))
+	}
+	return errors.Join(errs...)
 }
 
 func (s *Server) Wait(ctx context.Context) error {
 	logger.Debugf(ctx, "Wait")
 	defer func() { logger.Debugf(ctx, "/Wait") }()
-
-	// TODO: add a waiter for Listeners to end
 
 	return s.Router.Wait(ctx)
 }

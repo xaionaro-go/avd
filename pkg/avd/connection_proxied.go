@@ -292,14 +292,18 @@ func (c *ConnectionProxied) builtAVListenURL(
 			return nil, secret.String{}, fmt.Errorf("unable to take a random port: %w", err)
 		}
 		randomAddr = randomPortTaker.LocalAddr()
-		randomPortTaker.Close()
+		if err := randomPortTaker.Close(); err != nil {
+			return nil, secret.String{}, fmt.Errorf("unable to release random port: %w", err)
+		}
 	default:
 		randomPortTaker, err := net.Listen(c.getSocketNetworkName(), "127.0.0.1:0")
 		if err != nil {
 			return nil, secret.String{}, fmt.Errorf("unable to take a random port: %w", err)
 		}
 		randomAddr = randomPortTaker.Addr()
-		randomPortTaker.Close()
+		if err := randomPortTaker.Close(); err != nil {
+			return nil, secret.String{}, fmt.Errorf("unable to release random port: %w", err)
+		}
 	}
 
 	defaultRoutePath := c.GetRoutePath()
@@ -812,24 +816,45 @@ func (c *ConnectionProxied) AVURLContext(ctx context.Context) *avcommon.URLConte
 }
 
 func (c *ConnectionProxied) GetRoutePath() RoutePath {
+	if c == nil {
+		return ""
+	}
 	if c.RoutePath != nil {
 		return *c.RoutePath
 	}
 
-	if c.Port.Protocol == ProtocolSRT {
+	// c.Port is nilled by closeLocked, so a late call to this getter
+	// (e.g. from logging or a scheduled goroutine) must not panic.
+	// Snapshotting via GetPort() avoids TOCTOU with concurrent close.
+	port := c.GetPort()
+	if port == nil {
 		return ""
 	}
 
-	if c.Port.Config.DefaultRoutePath != "" {
-		return c.Port.Config.DefaultRoutePath
+	if port.Protocol == ProtocolSRT {
+		return ""
+	}
+
+	if port.Config.DefaultRoutePath != "" {
+		return port.Config.DefaultRoutePath
 	}
 
 	return "avd-input"
 }
 
 func (c *ConnectionProxied) GetURLPath() string {
+	if c == nil {
+		return ""
+	}
 	routePath := c.GetRoutePath()
-	switch c.Port.Protocol {
+	// c.Port is nilled by closeLocked, so a late call to this getter must
+	// not panic. Snapshotting via GetPort() avoids TOCTOU with concurrent
+	// close.
+	port := c.GetPort()
+	if port == nil {
+		return ""
+	}
+	switch port.Protocol {
 	case ProtocolRTMP:
 		return string(routePath) + "/"
 	case ProtocolRTSP:
@@ -837,7 +862,13 @@ func (c *ConnectionProxied) GetURLPath() string {
 	case ProtocolSRT:
 		return fmt.Sprintf("?streamid=%s", url.QueryEscape("/"+string(routePath)))
 	default:
-		panic(fmt.Errorf("unsupported protocol: %s", c.Port.Protocol))
+		// Degrade gracefully to match GetRoutePath so a connection with an
+		// unrecognized protocol (e.g. retained by a logger after close, or a
+		// protocol whose URL-path wiring is not yet implemented) cannot panic.
+		// The only caller (onInitFinished) already logs the unrecognized
+		// protocol via logger.Errorf and assigning "" to AVInputURL.Path is
+		// safe.
+		return ""
 	}
 }
 
