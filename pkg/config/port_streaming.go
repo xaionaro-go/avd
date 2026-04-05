@@ -37,12 +37,30 @@ type DeblemishConfig struct {
 	FaceOnly bool    `yaml:"face_only"`
 }
 
+// DefaultIdleTimeoutSec is the fallback idle timeout applied to an
+// on-demand forwarding when IdleTimeoutSec is zero. It gives the
+// transcoder a 30-second grace period to handle brief gaps between
+// consumers before tearing the pipeline down.
+const DefaultIdleTimeoutSec = 30
+
 type ForwardConfig struct {
-	Destination Destination                       `yaml:"destination"`
-	Transcoding *transcodertypes.TranscoderConfig `yaml:"transcoding"`
-	WaitUntil   WaitUntilConfig                   `yaml:"wait_until"`
-	PrivacyBlur *PrivacyBlurConfig                `yaml:"privacy_blur,omitempty"`
-	Deblemish   *DeblemishConfig                  `yaml:"deblemish,omitempty"`
+	Destination    Destination                       `yaml:"destination"`
+	Transcoding    *transcodertypes.TranscoderConfig `yaml:"transcoding"`
+	WaitUntil      WaitUntilConfig                   `yaml:"wait_until"`
+	PrivacyBlur    *PrivacyBlurConfig                `yaml:"privacy_blur,omitempty"`
+	Deblemish      *DeblemishConfig                  `yaml:"deblemish,omitempty"`
+	OnDemand       bool                              `yaml:"on_demand,omitempty"`
+	IdleTimeoutSec uint                              `yaml:"idle_timeout_sec,omitempty"`
+}
+
+// EffectiveIdleTimeoutSec returns IdleTimeoutSec when set, or
+// DefaultIdleTimeoutSec when the caller left it zero. Only meaningful
+// when OnDemand is true; eager forwardings ignore this value entirely.
+func (c ForwardConfig) EffectiveIdleTimeoutSec() uint {
+	if c.IdleTimeoutSec == 0 {
+		return DefaultIdleTimeoutSec
+	}
+	return c.IdleTimeoutSec
 }
 
 type Command struct {

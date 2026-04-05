@@ -63,10 +63,19 @@ func (l *UDPListener) serve() {
 			}
 			conn.deadlineUpdated.Store(make(chan struct{}))
 			l.connections[addr.String()] = conn
+			select {
+			case l.acceptChan <- conn:
+			default:
+				logger.Errorf(l.ctx, "acceptChan full, dropping new connection from %v", addr)
+				delete(l.connections, addr.String())
+				conn = nil
+			}
 			l.locker.Unlock()
-			l.acceptChan <- conn
 		} else {
 			l.locker.Unlock()
+		}
+		if conn == nil {
+			continue
 		}
 
 		data := make([]byte, n)

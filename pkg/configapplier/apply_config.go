@@ -185,7 +185,7 @@ func ApplyConfig(
 
 				switch {
 				case fwd.Destination.Local != nil:
-					_, err := srv.AddRouteForwardingLocal(
+					routeForwarding, err := srv.AddRouteForwardingLocal(
 						ctx,
 						path,
 						fwd.Destination.Local.Route,
@@ -204,6 +204,14 @@ func ApplyConfig(
 						)
 						sendErr = fmt.Errorf("forwarding '%s' -> local '%s' (mode %v): %w", path, fwd.Destination.Local.Route, fwd.Destination.Local.PublishMode, err)
 						return
+					}
+					if fwd.OnDemand {
+						idleTimeout := time.Duration(fwd.EffectiveIdleTimeoutSec()) * time.Second
+						if err := wireOnDemandLocalForwarding(ctx, routeForwarding, idleTimeout); err != nil {
+							logger.Errorf(ctx, "unable to wire on-demand local forwarding '%s' -> '%s': %v", path, fwd.Destination.Local.Route, err)
+							sendErr = fmt.Errorf("on-demand wiring '%s' -> local '%s': %w", path, fwd.Destination.Local.Route, err)
+							return
+						}
 					}
 				case fwd.Destination.URL != nil:
 					_, err := srv.AddRouteForwardingToRemote(
@@ -225,6 +233,15 @@ func ApplyConfig(
 						logger.Errorf(ctx, "unable to create forwarding from '%s' to a remote destination '%s': %v", path, fwd.Destination.URL, err)
 						sendErr = fmt.Errorf("forwarding '%s' -> remote '%s': %w", path, *fwd.Destination.URL, err)
 						return
+					}
+					if fwd.OnDemand {
+						// Remote destinations do not have a router-level
+						// consumer set: the remote endpoint is effectively
+						// always the sole consumer. There is no hook point
+						// to gate activation on, so we log and treat the
+						// forwarding as eager. A future RPC-triggered
+						// activation path could revisit this.
+						logger.Warnf(ctx, "on_demand=true is not supported for remote forwardings ('%s' -> '%s'); forwarding will run eagerly", path, *fwd.Destination.URL)
 					}
 				default:
 					logger.Debugf(ctx, "skipped forwarding #%d: no destination", idx)

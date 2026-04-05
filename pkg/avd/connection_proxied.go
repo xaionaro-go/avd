@@ -33,6 +33,7 @@ const (
 
 const (
 	initAVHandlerDialRetryTimeout = 10 * time.Second
+	initAVHandlerPortRetryCount   = 4
 )
 
 type ConnectionProxied struct {
@@ -383,6 +384,56 @@ func (c *ConnectionProxied) initAVHandler(
 	logger.Debugf(ctx, "initAVHandler")
 	defer func() { logger.Debugf(ctx, "/initAVHandler: %v", _err) }()
 
+	// There is a TOCTOU race between builtAVListenURL (which allocates a port
+	// by opening+closing a listener) and libav's subsequent bind on that port.
+	// If the port gets snatched in the window, libav's bind fails
+	// asynchronously and dialAVInput times out. Retry with a fresh port on
+	// such failures before giving up.
+	var lastErr error
+	for attempt := 0; attempt < initAVHandlerPortRetryCount; attempt++ {
+		err := c.tryInitAVHandler(ctx)
+		if err == nil {
+			return nil
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		logger.Warnf(ctx, "initAVHandler attempt %d/%d failed (port may have been raced): %v", attempt+1, initAVHandlerPortRetryCount, err)
+		lastErr = err
+
+		// Clean up the handler's node from the failed attempt so the next
+		// iteration of InitAVHandler can create a fresh one.
+		handler := c.GetHandler()
+		if handler != nil {
+			if closeErr := handler.Close(ctx); closeErr != nil {
+				logger.Warnf(ctx, "unable to close handler after failed attempt: %v", closeErr)
+			}
+		}
+		// Re-create the handler and init-finished signal so the next attempt
+		// starts clean (the async-open callback from the stale attempt is
+		// harmless since the handler was closed above).
+		c.Locker.Do(ctx, func() {
+			c.InitFinished = make(chan struct{})
+			c.InitFinishedOnce = sync.Once{}
+			c.InitError = nil
+		})
+		port := c.GetPort()
+		if port == nil {
+			return fmt.Errorf("unable to init AV handler: port is nil")
+		}
+		switch port.Mode {
+		case PortModePublishers:
+			c.SetHandler(newConnectionProxiedPublisher(c))
+		case PortModeConsumers:
+			c.SetHandler(newConnectionProxiedConsumer(c))
+		}
+	}
+	return fmt.Errorf("unable to init AV handler after %d attempts: %w", initAVHandlerPortRetryCount, lastErr)
+}
+
+func (c *ConnectionProxied) tryInitAVHandler(
+	ctx context.Context,
+) (_err error) {
 	url, secretKey, err := c.builtAVListenURL(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to build an URL to be listened by libav's handlers: %w", err)

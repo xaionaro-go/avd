@@ -94,12 +94,16 @@ func (p *process) runLoop(
 func (p *process) Close(
 	ctx context.Context,
 ) {
-	p.CancelFunc()
 	p.Locker.Do(ctx, func() {
-		p.CancelFunc = nil
+		if p.CancelFunc != nil {
+			p.CancelFunc()
+			p.CancelFunc = nil
+		}
 		if p.Cmd != nil {
-			err := p.Cmd.Process.Kill()
-			logger.Debugf(ctx, "kill result: %v", err)
+			if p.Cmd.Process != nil {
+				err := p.Cmd.Process.Kill()
+				logger.Debugf(ctx, "kill result: %v", err)
+			}
 			p.Cmd = nil
 		}
 	})

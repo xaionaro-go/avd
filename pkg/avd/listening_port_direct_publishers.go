@@ -224,6 +224,9 @@ func (p *ListeningPortDirectPublishers) GetInputNode(
 func (p *ListeningPortDirectPublishers) GetOutputRoute(
 	ctx context.Context,
 ) *router.Route[RouteCustomData] {
+	if p.AsRouteSource == nil {
+		return nil
+	}
 	return p.AsRouteSource.Output
 }
 
