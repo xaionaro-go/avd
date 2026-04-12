@@ -12,6 +12,8 @@ service AvdService {
     rpc GetPrivacyBlur(GetPrivacyBlurRequest) returns (GetPrivacyBlurResponse);
     rpc SetDeblemish(SetDeblemishRequest) returns (SetDeblemishResponse);
     rpc GetDeblemish(GetDeblemishRequest) returns (GetDeblemishResponse);
+    rpc SetWhisper(SetWhisperRequest) returns (SetWhisperResponse);
+    rpc GetWhisper(GetWhisperRequest) returns (GetWhisperResponse);
     rpc ListFilterControls(ListFilterControlsRequest) returns (ListFilterControlsResponse);
     rpc ActivateRoute(ActivateRouteRequest) returns (ActivateRouteResponse);
     rpc DeactivateRoute(DeactivateRouteRequest) returns (DeactivateRouteResponse);
@@ -77,11 +79,33 @@ message GetDeblemishResponse {
     int64 diameter = 4;
 }
 
+message SetWhisperRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+    optional bool enabled = 3;
+    optional string language = 4;
+    optional string model = 5;
+}
+
+message SetWhisperResponse {}
+
+message GetWhisperRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+}
+
+message GetWhisperResponse {
+    bool enabled = 1;
+    string language = 2;
+    string model = 3;
+}
+
 message FilterControlInfo {
     string route_path = 1;
     int32 forwarding_index = 2;
     bool has_privacy_blur = 3;
     bool has_deblemish = 4;
+    bool has_whisper = 5;
 }
 
 message ListFilterControlsRequest {}

@@ -42,6 +42,9 @@ type Backend interface {
 	SetDeblemishState(ctx context.Context, key avd.DeblemishControlKey, enabled *bool, sigmaS *float64, sigmaR *float64, diameter *int64) error
 	GetDeblemishState(ctx context.Context, key avd.DeblemishControlKey) (enabled bool, sigmaS float64, sigmaR float64, diameter int64, err error)
 	GetRegisteredDeblemishKeys(ctx context.Context) []avd.DeblemishControlKey
+	SetWhisperState(ctx context.Context, key avd.WhisperControlKey, enabled *bool, language *string, model *string) error
+	GetWhisperState(ctx context.Context, key avd.WhisperControlKey) (enabled bool, language string, model string, err error)
+	GetRegisteredWhisperKeys(ctx context.Context) []avd.WhisperControlKey
 }
 
 func New(
@@ -304,6 +307,7 @@ func (srv *GRPCServer) ListFilterControls(
 	type controlFlags struct {
 		HasPrivacyBlur bool
 		HasDeblemish   bool
+		HasWhisper     bool
 	}
 	controls := map[filterControlKey]*controlFlags{}
 
@@ -333,6 +337,19 @@ func (srv *GRPCServer) ListFilterControls(
 		flags.HasDeblemish = true
 	}
 
+	for _, k := range srv.Backend.GetRegisteredWhisperKeys(ctx) {
+		fk := filterControlKey{
+			RoutePath:       string(k.RoutePath),
+			ForwardingIndex: k.ForwardingIndex,
+		}
+		flags, ok := controls[fk]
+		if !ok {
+			flags = &controlFlags{}
+			controls[fk] = flags
+		}
+		flags.HasWhisper = true
+	}
+
 	result := make([]*avdmanagementgrpc.FilterControlInfo, 0, len(controls))
 	for fk, flags := range controls {
 		result = append(result, &avdmanagementgrpc.FilterControlInfo{
@@ -340,10 +357,61 @@ func (srv *GRPCServer) ListFilterControls(
 			ForwardingIndex: int32(fk.ForwardingIndex),
 			HasPrivacyBlur:  flags.HasPrivacyBlur,
 			HasDeblemish:    flags.HasDeblemish,
+			HasWhisper:      flags.HasWhisper,
 		})
 	}
 
 	return &avdmanagementgrpc.ListFilterControlsResponse{
 		Controls: result,
+	}, nil
+}
+
+func (srv *GRPCServer) SetWhisper(
+	ctx context.Context,
+	req *avdmanagementgrpc.SetWhisperRequest,
+) (*avdmanagementgrpc.SetWhisperResponse, error) {
+	ctx = srv.ctx(ctx)
+	key := avd.WhisperControlKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	var enabled *bool
+	if req.Enabled != nil {
+		v := *req.Enabled
+		enabled = &v
+	}
+	var language *string
+	if req.Language != nil {
+		v := *req.Language
+		language = &v
+	}
+	var model *string
+	if req.Model != nil {
+		v := *req.Model
+		model = &v
+	}
+	if err := srv.Backend.SetWhisperState(ctx, key, enabled, language, model); err != nil {
+		return nil, status.Errorf(codes.NotFound, "%v", err)
+	}
+	return &avdmanagementgrpc.SetWhisperResponse{}, nil
+}
+
+func (srv *GRPCServer) GetWhisper(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetWhisperRequest,
+) (*avdmanagementgrpc.GetWhisperResponse, error) {
+	ctx = srv.ctx(ctx)
+	key := avd.WhisperControlKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	enabled, language, model, err := srv.Backend.GetWhisperState(ctx, key)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "%v", err)
+	}
+	return &avdmanagementgrpc.GetWhisperResponse{
+		Enabled:  enabled,
+		Language: language,
+		Model:    model,
 	}, nil
 }

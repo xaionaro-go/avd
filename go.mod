@@ -12,7 +12,7 @@ require (
 	github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f
 	github.com/go-ng/xatomic v0.0.0-20251124145245-9a7a1838d3aa
 	github.com/goccy/go-yaml v1.18.0
-	github.com/spf13/cobra v1.9.1
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/xaionaro-go/avcommon v0.0.0-20250823173020-6a2bb1e1f59d
@@ -23,7 +23,7 @@ require (
 	github.com/xaionaro-go/xcontext v0.0.0-20250111150717-e70e1f5b299c
 	github.com/xaionaro-go/xpath v0.0.0-20250111145115-55f5728f643f
 	github.com/xaionaro-go/xsync v0.0.0-20260103200624-2cd14b984747
-	google.golang.org/grpc v1.79.3
+	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -40,6 +40,7 @@ require (
 	github.com/xaionaro-go/rpn v0.0.0-20250818130635-1419b5218722 // indirect
 	github.com/xaionaro-go/tcp v0.0.0-20260103194940-f10157ebd88d // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	tailscale.com v1.86.5 // indirect
 )
 
@@ -69,14 +70,14 @@ require (
 	github.com/montanaflynn/stats v0.6.6 // indirect
 	github.com/phuslu/goid v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/xaionaro-go/androidetc v0.0.0-20250824193302-b7ecebb3b825 // indirect
-	github.com/xaionaro-go/audio v0.0.0-20260124161002-bd5e1d855f00 // indirect
+	github.com/xaionaro-go/audio v0.0.0-20260202195702-429dcb87c05c // indirect
 	github.com/xaionaro-go/avmediacodec v0.0.0-20250505012527-c819676502d8 // indirect
 	github.com/xaionaro-go/gorex v0.0.0-20241010205749-bcd59d639c4d // indirect
 	github.com/xaionaro-go/libsrt v0.0.0-20251231191024-483a9dd27df8 // indirect
 	github.com/xaionaro-go/logrustash v0.0.0-20240804141650-d48034780a5f // indirect
-	github.com/xaionaro-go/ndk v0.0.0-20251109211112-251265903264 // indirect
+	github.com/xaionaro-go/ndk v0.0.0-20260309023337-691843bece17 // indirect
 	github.com/xaionaro-go/object v0.0.0-20241026212449-753ce10ec94c // indirect
 	github.com/xaionaro-go/proxy v0.0.0-20250525144747-579f5a891c15 // indirect
 	github.com/xaionaro-go/spinlock v0.0.0-20200518175509-30e6d1ce68a1 // indirect
@@ -86,14 +87,14 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	gocv.io/x/gocv v0.41.0 // indirect
-	golang.org/x/crypto v0.47.0 // indirect
+	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
 	golang.org/x/image v0.37.0 // indirect
-	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	gonum.org/v1/plot v0.16.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120174246-409b4a993575 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260311181403-84a4fc48630c // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	lukechampine.com/blake3 v1.4.1 // indirect
 )

@@ -121,6 +121,22 @@ var (
 		Run:  deblemishGetCommand,
 	}
 
+	Whisper = &cobra.Command{
+		Use: "whisper",
+	}
+
+	WhisperSet = &cobra.Command{
+		Use:  "set <route-path> <forwarding-index>",
+		Args: cobra.ExactArgs(2),
+		Run:  whisperSetCommand,
+	}
+
+	WhisperGet = &cobra.Command{
+		Use:  "get <route-path> <forwarding-index>",
+		Args: cobra.ExactArgs(2),
+		Run:  whisperGetCommand,
+	}
+
 	LoggerLevel = logger.LevelWarning
 )
 
@@ -150,6 +166,14 @@ func init() {
 	DeblemishSet.Flags().Float64("sigma-s", 0, "spatial sigma for bilateral filter")
 	DeblemishSet.Flags().Float64("sigma-r", 0, "range/color sigma for bilateral filter")
 	DeblemishSet.Flags().Int64("diameter", 0, "filter kernel diameter (-1 = auto)")
+
+	Root.AddCommand(Whisper)
+	Whisper.AddCommand(WhisperSet)
+	Whisper.AddCommand(WhisperGet)
+	WhisperSet.Flags().Bool("enabled", false, "enable or disable whisper (speech-to-text)")
+	WhisperSet.Flags().Bool("no-enabled", false, "explicitly set enabled to false")
+	WhisperSet.Flags().String("language", "", "language for speech recognition (e.g. en, auto)")
+	WhisperSet.Flags().String("model", "", "path to whisper model file")
 
 	Root.AddCommand(Monitor)
 	Monitor.Flags().Bool("include-packet-payload", false, "include packet payloads in monitor events")
@@ -387,6 +411,69 @@ func privacyBlurGetCommand(cmd *cobra.Command, args []string) {
 	assertNoError(ctx, err)
 
 	resp, err := avdClient.GetPrivacyBlur(ctx, &avdmanagementgrpc.GetPrivacyBlurRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+	})
+	assertNoError(ctx, err)
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	err = enc.Encode(resp)
+	assertNoError(ctx, err)
+}
+
+func whisperSetCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+
+	req := &avdmanagementgrpc.SetWhisperRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+	}
+
+	if cmd.Flags().Changed("enabled") || cmd.Flags().Changed("no-enabled") {
+		v, err := cmd.Flags().GetBool("enabled")
+		assertNoError(ctx, err)
+		if cmd.Flags().Changed("no-enabled") {
+			v = false
+		}
+		req.Enabled = &v
+	}
+	if cmd.Flags().Changed("language") {
+		v, err := cmd.Flags().GetString("language")
+		assertNoError(ctx, err)
+		req.Language = &v
+	}
+	if cmd.Flags().Changed("model") {
+		v, err := cmd.Flags().GetString("model")
+		assertNoError(ctx, err)
+		req.Model = &v
+	}
+
+	_, err = avdClient.SetWhisper(ctx, req)
+	assertNoError(ctx, err)
+	fmt.Println("OK")
+}
+
+func whisperGetCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+
+	resp, err := avdClient.GetWhisper(ctx, &avdmanagementgrpc.GetWhisperRequest{
 		RoutePath:       args[0],
 		ForwardingIndex: int32(fwdIndex),
 	})

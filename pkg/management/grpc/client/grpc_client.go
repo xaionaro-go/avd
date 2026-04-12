@@ -102,6 +102,20 @@ func (c *GRPCClient) GetDeblemish(
 	return c.client.GetDeblemish(ctx, req)
 }
 
+func (c *GRPCClient) SetWhisper(
+	ctx context.Context,
+	req *avdmanagementgrpc.SetWhisperRequest,
+) (*avdmanagementgrpc.SetWhisperResponse, error) {
+	return c.client.SetWhisper(ctx, req)
+}
+
+func (c *GRPCClient) GetWhisper(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetWhisperRequest,
+) (*avdmanagementgrpc.GetWhisperResponse, error) {
+	return c.client.GetWhisper(ctx, req)
+}
+
 func (c *GRPCClient) ListFilterControls(
 	ctx context.Context,
 ) (*avdmanagementgrpc.ListFilterControlsResponse, error) {

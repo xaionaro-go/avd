@@ -153,6 +153,7 @@ func ApplyConfig(
 				defer func() { errChan <- sendErr }()
 				blurFactory, blurControl := newPrivacyBlurFactory(fwd.PrivacyBlur)
 				deblemishFactory, deblemishControl := newDeblemishFactory(fwd.Deblemish)
+				whisperFactory, whisperControl := newWhisperFactory(fwd.Whisper)
 
 				// When privacy blur has face detection, deblemish is
 				// redundant on blurred faces. Wrap the deblemish factory
@@ -163,12 +164,13 @@ func ApplyConfig(
 					deblemishFactory = wrapWithSkipGuard(deblemishFactory, &blurControl.Enabled)
 				}
 
-				filterKernelFactory := composeFilterKernelFactories(blurFactory, deblemishFactory)
+				filterKernelFactory := composeFilterKernelFactories(blurFactory, deblemishFactory, whisperFactory)
 				if filterKernelFactory != nil && fwd.Transcoding == nil {
 					logger.Warnf(ctx, "forwarding #%d: filter kernels require transcoding to be enabled; filters will be ignored", idx)
 					filterKernelFactory = nil
 					blurControl = nil
 					deblemishControl = nil
+					whisperControl = nil
 				}
 				if blurControl != nil {
 					srv.RegisterPrivacyBlurControl(ctx, avd.PrivacyBlurControlKey{
@@ -181,6 +183,12 @@ func ApplyConfig(
 						RoutePath:       router.RoutePath(path),
 						ForwardingIndex: idx,
 					}, deblemishControl)
+				}
+				if whisperControl != nil {
+					srv.RegisterWhisperControl(ctx, avd.WhisperControlKey{
+						RoutePath:       router.RoutePath(path),
+						ForwardingIndex: idx,
+					}, whisperControl)
 				}
 
 				switch {

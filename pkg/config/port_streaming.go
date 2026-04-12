@@ -37,6 +37,12 @@ type DeblemishConfig struct {
 	FaceOnly bool    `yaml:"face_only"`
 }
 
+type WhisperConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Model    string `yaml:"model"`
+	Language string `yaml:"language"`
+}
+
 // DefaultIdleTimeoutSec is the fallback idle timeout applied to an
 // on-demand forwarding when IdleTimeoutSec is zero. It gives the
 // transcoder a 30-second grace period to handle brief gaps between
@@ -49,6 +55,7 @@ type ForwardConfig struct {
 	WaitUntil      WaitUntilConfig                   `yaml:"wait_until"`
 	PrivacyBlur    *PrivacyBlurConfig                `yaml:"privacy_blur,omitempty"`
 	Deblemish      *DeblemishConfig                  `yaml:"deblemish,omitempty"`
+	Whisper        *WhisperConfig                    `yaml:"whisper,omitempty"`
 	OnDemand       bool                              `yaml:"on_demand,omitempty"`
 	IdleTimeoutSec uint                              `yaml:"idle_timeout_sec,omitempty"`
 }

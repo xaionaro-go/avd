@@ -20,6 +20,7 @@ type Server struct {
 	ListeningPorts       []ListeningPort
 	PrivacyBlurRegistry  privacyBlurRegistry
 	DeblemishRegistry    deblemishRegistry
+	WhisperRegistry      whisperRegistry
 }
 
 func NewServer(
@@ -32,6 +33,9 @@ func NewServer(
 		},
 		DeblemishRegistry: deblemishRegistry{
 			Controls: make(map[DeblemishControlKey]*DeblemishControl),
+		},
+		WhisperRegistry: whisperRegistry{
+			Controls: make(map[WhisperControlKey]*WhisperControl),
 		},
 	}
 	s.Router.OnRouteCreated = s.OnRouteCreated
