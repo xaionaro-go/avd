@@ -40,7 +40,6 @@ require (
 	github.com/xaionaro-go/rpn v0.0.0-20250818130635-1419b5218722 // indirect
 	github.com/xaionaro-go/tcp v0.0.0-20260103194940-f10157ebd88d // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/oauth2 v0.36.0 // indirect
 	tailscale.com v1.86.5 // indirect
 )
 
@@ -89,10 +88,10 @@ require (
 	gocv.io/x/gocv v0.41.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
-	golang.org/x/image v0.37.0 // indirect
+	golang.org/x/image v0.39.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	gonum.org/v1/plot v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260311181403-84a4fc48630c // indirect
 	gopkg.in/yaml.v3 v3.0.1

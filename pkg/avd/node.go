@@ -5,7 +5,6 @@ package avd
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/xaionaro-go/avpipeline/kernel"
@@ -79,7 +78,7 @@ func newProxiedOutputNode(
 				) bool {
 					logger.Tracef(ctx, "%d out of %d streams were seen", len(k.StreamsDTSs), minStreams)
 					return len(k.StreamsDTSs) >= int(minStreams)
-				}), 10000, time.Second, true),
+				}), ReorderMaxBufferSize, ReorderMaxDTSDifference, ReorderDiscardUnordered),
 			outputKernel,
 		),
 		processor.DefaultOptionsOutput()...,
