@@ -4,8 +4,6 @@ go 1.25.5
 
 replace github.com/asticode/go-astiav v0.36.0 => ../astiav
 
-replace github.com/xaionaro-go/avpipeline v0.0.0-20260215180403-57903ccb8003 => ../avpipeline
-
 require (
 	github.com/asticode/go-astiav v0.36.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -16,7 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/xaionaro-go/avcommon v0.0.0-20250823173020-6a2bb1e1f59d
-	github.com/xaionaro-go/avpipeline v0.0.0-20260215180403-57903ccb8003
+	github.com/xaionaro-go/avpipeline v0.0.0-20260412185244-e08fdc26b462
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20251102143534-3aeb2a25e57d
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
