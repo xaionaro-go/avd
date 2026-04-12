@@ -882,6 +882,166 @@ func (x *ListFilterControlsResponse) GetControls() []*FilterControlInfo {
 	return nil
 }
 
+type ActivateRouteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoutePath     string                 `protobuf:"bytes,1,opt,name=route_path,json=routePath,proto3" json:"route_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivateRouteRequest) Reset() {
+	*x = ActivateRouteRequest{}
+	mi := &file_avd_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivateRouteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivateRouteRequest) ProtoMessage() {}
+
+func (x *ActivateRouteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivateRouteRequest.ProtoReflect.Descriptor instead.
+func (*ActivateRouteRequest) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ActivateRouteRequest) GetRoutePath() string {
+	if x != nil {
+		return x.RoutePath
+	}
+	return ""
+}
+
+type ActivateRouteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivateRouteResponse) Reset() {
+	*x = ActivateRouteResponse{}
+	mi := &file_avd_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivateRouteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivateRouteResponse) ProtoMessage() {}
+
+func (x *ActivateRouteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivateRouteResponse.ProtoReflect.Descriptor instead.
+func (*ActivateRouteResponse) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{18}
+}
+
+type DeactivateRouteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoutePath     string                 `protobuf:"bytes,1,opt,name=route_path,json=routePath,proto3" json:"route_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeactivateRouteRequest) Reset() {
+	*x = DeactivateRouteRequest{}
+	mi := &file_avd_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeactivateRouteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeactivateRouteRequest) ProtoMessage() {}
+
+func (x *DeactivateRouteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeactivateRouteRequest.ProtoReflect.Descriptor instead.
+func (*DeactivateRouteRequest) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *DeactivateRouteRequest) GetRoutePath() string {
+	if x != nil {
+		return x.RoutePath
+	}
+	return ""
+}
+
+type DeactivateRouteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeactivateRouteResponse) Reset() {
+	*x = DeactivateRouteResponse{}
+	mi := &file_avd_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeactivateRouteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeactivateRouteResponse) ProtoMessage() {}
+
+func (x *DeactivateRouteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_avd_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeactivateRouteResponse.ProtoReflect.Descriptor instead.
+func (*DeactivateRouteResponse) Descriptor() ([]byte, []int) {
+	return file_avd_proto_rawDescGZIP(), []int{20}
+}
+
 var File_avd_proto protoreflect.FileDescriptor
 
 const file_avd_proto_rawDesc = "" +
@@ -953,7 +1113,15 @@ const file_avd_proto_rawDesc = "" +
 	"\rhas_deblemish\x18\x04 \x01(\bR\fhasDeblemish\"\x1b\n" +
 	"\x19ListFilterControlsRequest\"L\n" +
 	"\x1aListFilterControlsResponse\x12.\n" +
-	"\bcontrols\x18\x01 \x03(\v2\x12.FilterControlInfoR\bcontrols2\xd8\x04\n" +
+	"\bcontrols\x18\x01 \x03(\v2\x12.FilterControlInfoR\bcontrols\"5\n" +
+	"\x14ActivateRouteRequest\x12\x1d\n" +
+	"\n" +
+	"route_path\x18\x01 \x01(\tR\troutePath\"\x17\n" +
+	"\x15ActivateRouteResponse\"7\n" +
+	"\x16DeactivateRouteRequest\x12\x1d\n" +
+	"\n" +
+	"route_path\x18\x01 \x01(\tR\troutePath\"\x19\n" +
+	"\x17DeactivateRouteResponse2\xde\x05\n" +
 	"\n" +
 	"AvdService\x12A\n" +
 	"\x0eListPublishers\x12\x16.ListPublishersRequest\x1a\x17.ListPublishersResponse\x125\n" +
@@ -965,7 +1133,9 @@ const file_avd_proto_rawDesc = "" +
 	"\x0eGetPrivacyBlur\x12\x16.GetPrivacyBlurRequest\x1a\x17.GetPrivacyBlurResponse\x12;\n" +
 	"\fSetDeblemish\x12\x14.SetDeblemishRequest\x1a\x15.SetDeblemishResponse\x12;\n" +
 	"\fGetDeblemish\x12\x14.GetDeblemishRequest\x1a\x15.GetDeblemishResponse\x12M\n" +
-	"\x12ListFilterControls\x12\x1a.ListFilterControlsRequest\x1a\x1b.ListFilterControlsResponseBHZFgithub.com/xaionaro-go/avd/pkg/management/grpc/proto;avdmanagementgrpcb\x06proto3"
+	"\x12ListFilterControls\x12\x1a.ListFilterControlsRequest\x1a\x1b.ListFilterControlsResponse\x12>\n" +
+	"\rActivateRoute\x12\x15.ActivateRouteRequest\x1a\x16.ActivateRouteResponse\x12D\n" +
+	"\x0fDeactivateRoute\x12\x17.DeactivateRouteRequest\x1a\x18.DeactivateRouteResponseBHZFgithub.com/xaionaro-go/avd/pkg/management/grpc/proto;avdmanagementgrpcb\x06proto3"
 
 var (
 	file_avd_proto_rawDescOnce sync.Once
@@ -979,7 +1149,7 @@ func file_avd_proto_rawDescGZIP() []byte {
 	return file_avd_proto_rawDescData
 }
 
-var file_avd_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_avd_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_avd_proto_goTypes = []any{
 	(*ListPublishersRequest)(nil),      // 0: ListPublishersRequest
 	(*ListPublishersResponse)(nil),     // 1: ListPublishersResponse
@@ -998,35 +1168,43 @@ var file_avd_proto_goTypes = []any{
 	(*FilterControlInfo)(nil),          // 14: FilterControlInfo
 	(*ListFilterControlsRequest)(nil),  // 15: ListFilterControlsRequest
 	(*ListFilterControlsResponse)(nil), // 16: ListFilterControlsResponse
-	(*avpipeline.Node)(nil),            // 17: avpipeline.Node
-	(*avpipeline.MonitorRequest)(nil),  // 18: avpipeline.MonitorRequest
-	(*avpipeline.MonitorEvent)(nil),    // 19: avpipeline.MonitorEvent
+	(*ActivateRouteRequest)(nil),       // 17: ActivateRouteRequest
+	(*ActivateRouteResponse)(nil),      // 18: ActivateRouteResponse
+	(*DeactivateRouteRequest)(nil),     // 19: DeactivateRouteRequest
+	(*DeactivateRouteResponse)(nil),    // 20: DeactivateRouteResponse
+	(*avpipeline.Node)(nil),            // 21: avpipeline.Node
+	(*avpipeline.MonitorRequest)(nil),  // 22: avpipeline.MonitorRequest
+	(*avpipeline.MonitorEvent)(nil),    // 23: avpipeline.MonitorEvent
 }
 var file_avd_proto_depIdxs = []int32{
-	17, // 0: ListPublishersResponse.nodes:type_name -> avpipeline.Node
-	17, // 1: ListRoutesResponse.nodes:type_name -> avpipeline.Node
-	17, // 2: ListConsumersResponse.nodes:type_name -> avpipeline.Node
+	21, // 0: ListPublishersResponse.nodes:type_name -> avpipeline.Node
+	21, // 1: ListRoutesResponse.nodes:type_name -> avpipeline.Node
+	21, // 2: ListConsumersResponse.nodes:type_name -> avpipeline.Node
 	14, // 3: ListFilterControlsResponse.controls:type_name -> FilterControlInfo
 	0,  // 4: AvdService.ListPublishers:input_type -> ListPublishersRequest
 	2,  // 5: AvdService.ListRoutes:input_type -> ListRoutesRequest
 	4,  // 6: AvdService.ListConsumers:input_type -> ListConsumersRequest
-	18, // 7: AvdService.Monitor:input_type -> avpipeline.MonitorRequest
+	22, // 7: AvdService.Monitor:input_type -> avpipeline.MonitorRequest
 	6,  // 8: AvdService.SetPrivacyBlur:input_type -> SetPrivacyBlurRequest
 	8,  // 9: AvdService.GetPrivacyBlur:input_type -> GetPrivacyBlurRequest
 	10, // 10: AvdService.SetDeblemish:input_type -> SetDeblemishRequest
 	12, // 11: AvdService.GetDeblemish:input_type -> GetDeblemishRequest
 	15, // 12: AvdService.ListFilterControls:input_type -> ListFilterControlsRequest
-	1,  // 13: AvdService.ListPublishers:output_type -> ListPublishersResponse
-	3,  // 14: AvdService.ListRoutes:output_type -> ListRoutesResponse
-	5,  // 15: AvdService.ListConsumers:output_type -> ListConsumersResponse
-	19, // 16: AvdService.Monitor:output_type -> avpipeline.MonitorEvent
-	7,  // 17: AvdService.SetPrivacyBlur:output_type -> SetPrivacyBlurResponse
-	9,  // 18: AvdService.GetPrivacyBlur:output_type -> GetPrivacyBlurResponse
-	11, // 19: AvdService.SetDeblemish:output_type -> SetDeblemishResponse
-	13, // 20: AvdService.GetDeblemish:output_type -> GetDeblemishResponse
-	16, // 21: AvdService.ListFilterControls:output_type -> ListFilterControlsResponse
-	13, // [13:22] is the sub-list for method output_type
-	4,  // [4:13] is the sub-list for method input_type
+	17, // 13: AvdService.ActivateRoute:input_type -> ActivateRouteRequest
+	19, // 14: AvdService.DeactivateRoute:input_type -> DeactivateRouteRequest
+	1,  // 15: AvdService.ListPublishers:output_type -> ListPublishersResponse
+	3,  // 16: AvdService.ListRoutes:output_type -> ListRoutesResponse
+	5,  // 17: AvdService.ListConsumers:output_type -> ListConsumersResponse
+	23, // 18: AvdService.Monitor:output_type -> avpipeline.MonitorEvent
+	7,  // 19: AvdService.SetPrivacyBlur:output_type -> SetPrivacyBlurResponse
+	9,  // 20: AvdService.GetPrivacyBlur:output_type -> GetPrivacyBlurResponse
+	11, // 21: AvdService.SetDeblemish:output_type -> SetDeblemishResponse
+	13, // 22: AvdService.GetDeblemish:output_type -> GetDeblemishResponse
+	16, // 23: AvdService.ListFilterControls:output_type -> ListFilterControlsResponse
+	18, // 24: AvdService.ActivateRoute:output_type -> ActivateRouteResponse
+	20, // 25: AvdService.DeactivateRoute:output_type -> DeactivateRouteResponse
+	15, // [15:26] is the sub-list for method output_type
+	4,  // [4:15] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -1045,7 +1223,7 @@ func file_avd_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_avd_proto_rawDesc), len(file_avd_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -79,7 +79,7 @@ func newProxiedOutputNode(
 				) bool {
 					logger.Tracef(ctx, "%d out of %d streams were seen", len(k.StreamsDTSs), minStreams)
 					return len(k.StreamsDTSs) >= int(minStreams)
-				}), 10000, 250*time.Millisecond, true),
+				}), 10000, time.Second, true),
 			outputKernel,
 		),
 		processor.DefaultOptionsOutput()...,

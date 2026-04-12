@@ -12,6 +12,7 @@ import (
 	"github.com/asticode/go-astiav"
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/go-ng/xatomic"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avpipeline/kernel"
 	kerneltypesnolibav "github.com/xaionaro-go/avpipeline/kernel/typesnolibav"
 	"github.com/xaionaro-go/avpipeline/node"
@@ -54,6 +55,28 @@ func (c *ConnectionProxiedHandlerPublisher) InitAVHandler(
 	listenConfig ListenConfig,
 ) error {
 	customOpts := listenConfig.DictionaryItems(proto, PortModePublishers)
+	// Ensure probesize and analyzeduration are set for the internal
+	// input. Without these, FindStreamInfo uses the default 5s/5MB
+	// analysis window, which blocks forever on slow producers (e.g.
+	// phone h264_mediacodec at 30fps through an adb reverse tunnel).
+	// FLV streams carry codec params in the header, so a short
+	// analysis is sufficient.
+	hasProbesize := false
+	hasAnalyzeduration := false
+	for _, opt := range customOpts {
+		switch opt.Key {
+		case "probesize":
+			hasProbesize = true
+		case "analyzeduration":
+			hasAnalyzeduration = true
+		}
+	}
+	if !hasProbesize {
+		customOpts = append(customOpts, types.DictionaryItem{Key: "probesize", Value: "32768"})
+	}
+	if !hasAnalyzeduration {
+		customOpts = append(customOpts, types.DictionaryItem{Key: "analyzeduration", Value: "500000"})
+	}
 	input, err := kernel.NewInputFromURL(
 		ctx,
 		url.String(),

@@ -13,6 +13,8 @@ service AvdService {
     rpc SetDeblemish(SetDeblemishRequest) returns (SetDeblemishResponse);
     rpc GetDeblemish(GetDeblemishRequest) returns (GetDeblemishResponse);
     rpc ListFilterControls(ListFilterControlsRequest) returns (ListFilterControlsResponse);
+    rpc ActivateRoute(ActivateRouteRequest) returns (ActivateRouteResponse);
+    rpc DeactivateRoute(DeactivateRouteRequest) returns (DeactivateRouteResponse);
 }
 
 message ListPublishersRequest {}
@@ -86,3 +88,15 @@ message ListFilterControlsRequest {}
 message ListFilterControlsResponse {
     repeated FilterControlInfo controls = 1;
 }
+
+message ActivateRouteRequest {
+    string route_path = 1;
+}
+
+message ActivateRouteResponse {}
+
+message DeactivateRouteRequest {
+    string route_path = 1;
+}
+
+message DeactivateRouteResponse {}

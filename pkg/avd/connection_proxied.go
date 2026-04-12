@@ -105,6 +105,48 @@ func newConnectionProxied(
 			logger.Debugf(ctx, "newConnectionProxied: forwarder ended")
 			c.Close(ctx)
 		}()
+
+		// Start the AVConn→Conn reader once at the connection level so it
+		// runs continuously across negotiate and forward phases. This
+		// eliminates the gap where RTMP server responses (e.g. onStatus
+		// for publish) were lost between negotiate's reader being
+		// interrupted and forward's reader starting.
+		avConnErrCh := make(chan error, 1)
+		observability.Go(ctx, func(ctx context.Context) {
+			logger.Tracef(ctx, "newConnectionProxied: avConn→conn reader started")
+			defer logger.Tracef(ctx, "newConnectionProxied: avConn→conn reader ended")
+			var buf [SizeBuffer]byte
+			for {
+				avConn := c.GetAVConn()
+				proxyConn := c.GetProxyConn()
+				if avConn == nil || proxyConn == nil {
+					avConnErrCh <- fmt.Errorf("connection closed")
+					return
+				}
+
+				logger.Tracef(ctx, "waiting for AVConn input...")
+				r, err := avConn.Read(buf[:])
+				logger.Tracef(ctx, "/waiting for AVConn input: %d %v", r, err)
+				if err != nil {
+					avConnErrCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
+					return
+				}
+
+				msg := buf[:r]
+				logger.Tracef(ctx, "waiting for Conn output...")
+				w, writeErr := proxyConn.Write(msg)
+				logger.Tracef(ctx, "/waiting for Conn output: %d %v", w, writeErr)
+				if writeErr != nil {
+					avConnErrCh <- fmt.Errorf("unable to write to the client: %w", writeErr)
+					return
+				}
+				if w != len(msg) {
+					avConnErrCh <- fmt.Errorf("expected to write %d bytes, but wrote %d", len(msg), w)
+					return
+				}
+			}
+		})
+
 		if ConnectionEnableRoutePathUpdaterHack {
 			logger.Tracef(ctx, "newConnectionProxied: p.Protocol == %d (%s)", p.Protocol, p.Protocol.String())
 			err := c.negotiate(ctx)
@@ -113,7 +155,7 @@ func newConnectionProxied(
 				return
 			}
 		}
-		err := c.forward(ctx)
+		err := c.forward(ctx, avConnErrCh)
 		if err != nil {
 			switch {
 			case errors.Is(err, io.EOF):
@@ -567,11 +609,10 @@ func (c *ConnectionProxied) negotiate(
 		return fmt.Errorf("conn is nil")
 	}
 
+	// Only reset conn's deadline; the AVConn reader lives at the
+	// connection level and is not managed by negotiate.
 	defer func() {
 		logger.Tracef(origCtx, "negotiate: resetting the read deadline...")
-		if err := avConn.SetDeadline(time.Time{}); err != nil {
-			logger.Errorf(origCtx, "unable to revert the deadline for AVConn: %v", err)
-		}
 		if err := conn.SetDeadline(time.Time{}); err != nil {
 			logger.Errorf(origCtx, "unable to revert the deadline for Conn: %v", err)
 		}
@@ -583,7 +624,7 @@ func (c *ConnectionProxied) negotiate(
 	ctx, cancelFn := context.WithCancel(origCtx)
 	defer cancelFn()
 
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 1)
 
 	forward := func(
 		dst net.Conn,
@@ -604,33 +645,9 @@ func (c *ConnectionProxied) negotiate(
 		return nil
 	}
 
-	wg.Add(1)
-	observability.Go(ctx, func(ctx context.Context) {
-		defer wg.Done()
-		var buf [SizeBuffer]byte
-		for {
-			logger.Tracef(ctx, "waiting for c.AVConn input...")
-			r, err := avConn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for c.AVConn input: %v %v", r, err)
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					logger.Debugf(ctx, "it was a deadline, ignoring")
-					return
-				}
-				errCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
-				return
-			}
-
-			msg := buf[:r]
-			logger.Tracef(ctx, "waiting for c.Conn output...")
-			err = forward(conn, msg)
-			logger.Tracef(ctx, "/waiting for c.Conn output")
-			if err != nil {
-				errCh <- err
-				return
-			}
-		}
-	})
+	// The AVConn→Conn direction is handled by the connection-level
+	// reader goroutine (started in newConnectionProxied). Only the
+	// Conn→AVConn reader runs here so we can snoop the route path.
 
 	wg.Add(1)
 	observability.Go(ctx, func(ctx context.Context) {
@@ -700,11 +717,8 @@ func (c *ConnectionProxied) negotiate(
 
 	interrupt := func() {
 		cancelFn()
-		// to interrupt reading from the sockets:
-		logger.Debugf(ctx, "setting a deadline in the past for c.AVConn")
-		if err := avConn.SetReadDeadline(time.Unix(1, 0)); err != nil {
-			logger.Errorf(ctx, "unable to set the read deadline for AVConn: %v", err)
-		}
+		// Interrupt the Conn→AVConn reader only; the AVConn→Conn reader
+		// lives at the connection level and must keep running.
 		logger.Debugf(ctx, "setting a deadline in the past for c.Conn")
 		if err := conn.SetReadDeadline(time.Unix(1, 0)); err != nil {
 			logger.Errorf(ctx, "unable to set the read deadline for Conn: %v", err)
@@ -925,6 +939,7 @@ func (c *ConnectionProxied) GetURLPath() string {
 
 func (c *ConnectionProxied) forward(
 	ctx context.Context,
+	avConnErrCh <-chan error,
 ) (_err error) {
 	logger.Debugf(ctx, "forward")
 	defer func() { logger.Debugf(ctx, "/forward: %v", _err) }()
@@ -937,10 +952,9 @@ func (c *ConnectionProxied) forward(
 		return fmt.Errorf("conn is nil")
 	}
 
+	// Only reset conn's deadline; the AVConn reader lives at the
+	// connection level and is not managed by forward.
 	defer func() {
-		if err := avConn.SetDeadline(time.Time{}); err != nil {
-			logger.Errorf(ctx, "unable to revert the deadline for AVConn: %v", err)
-		}
 		if err := conn.SetDeadline(time.Time{}); err != nil {
 			logger.Errorf(ctx, "unable to revert the deadline for Conn: %v", err)
 		}
@@ -954,49 +968,9 @@ func (c *ConnectionProxied) forward(
 
 	errCh := make(chan error, 2)
 
-	forward := func(
-		dst net.Conn,
-		msg []byte,
-	) error {
-		w, err := dst.Write(msg)
-		if err != nil {
-			return fmt.Errorf("unable to write to the client: %w", err)
-		}
-
-		if w != len(msg) {
-			return fmt.Errorf("expected to write to the client %d bytes, but wrote %d", len(msg), w)
-		}
-
-		return nil
-	}
-
-	wg.Add(1)
-	observability.Go(ctx, func(ctx context.Context) {
-		defer wg.Done()
-		var buf [SizeBuffer]byte
-		for {
-			logger.Tracef(ctx, "waiting for AVConn input...")
-			r, err := avConn.Read(buf[:])
-			logger.Tracef(ctx, "/waiting for AVConn input: %d %v", r, err)
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					logger.Debugf(ctx, "it was a deadline, ignoring")
-					return
-				}
-				errCh <- fmt.Errorf("unable to read from the (libav-)server: %w", err)
-				return
-			}
-
-			msg := buf[:r]
-			logger.Tracef(ctx, "waiting for c.Conn output...")
-			err = forward(conn, msg)
-			logger.Tracef(ctx, "/waiting for c.Conn output: %d %v", r, err)
-			if err != nil {
-				errCh <- err
-				return
-			}
-		}
-	})
+	// The AVConn→Conn direction is handled by the connection-level
+	// reader goroutine (started in newConnectionProxied). Only the
+	// Conn→AVConn reader runs here.
 
 	wg.Add(1)
 	observability.Go(ctx, func(ctx context.Context) {
@@ -1017,22 +991,36 @@ func (c *ConnectionProxied) forward(
 
 			msg := buf[:r]
 			logger.Tracef(ctx, "waiting for c.AVConn output...")
-			err = forward(avConn, msg)
-			logger.Tracef(ctx, "/waiting for c.AVConn output: %d %v", r, err)
-			if err != nil {
-				errCh <- err
+			w, writeErr := avConn.Write(msg)
+			logger.Tracef(ctx, "/waiting for c.AVConn output: %d %v", w, writeErr)
+			if writeErr != nil {
+				errCh <- fmt.Errorf("unable to write to the (libav-)server: %w", writeErr)
 				return
+			}
+			if w != len(msg) {
+				errCh <- fmt.Errorf("expected to write %d bytes to AVConn, but wrote %d", len(msg), w)
+				return
+			}
+		}
+	})
+
+	// Relay errors from the connection-level AVConn→Conn reader into
+	// the local errCh so the select below handles both directions.
+	observability.Go(ctx, func(ctx context.Context) {
+		select {
+		case <-ctx.Done():
+		case err, ok := <-avConnErrCh:
+			if ok {
+				errCh <- err
 			}
 		}
 	})
 
 	interrupt := func() {
 		cancelFn()
-		// to interrupt reading from the sockets:
-		logger.Debugf(ctx, "setting a deadline in the past for c.AVConn")
-		if err := avConn.SetReadDeadline(time.Unix(1, 0)); err != nil {
-			logger.Errorf(ctx, "unable to set the read deadline for AVConn: %v", err)
-		}
+		// Interrupt the Conn→AVConn reader only; the AVConn→Conn reader
+		// lives at the connection level and must keep running until the
+		// connection is closed.
 		logger.Debugf(ctx, "setting a deadline in the past for c.Conn")
 		if err := conn.SetReadDeadline(time.Unix(1, 0)); err != nil {
 			logger.Errorf(ctx, "unable to set the read deadline for Conn: %v", err)

@@ -29,6 +29,8 @@ const (
 	AvdService_SetDeblemish_FullMethodName       = "/AvdService/SetDeblemish"
 	AvdService_GetDeblemish_FullMethodName       = "/AvdService/GetDeblemish"
 	AvdService_ListFilterControls_FullMethodName = "/AvdService/ListFilterControls"
+	AvdService_ActivateRoute_FullMethodName      = "/AvdService/ActivateRoute"
+	AvdService_DeactivateRoute_FullMethodName    = "/AvdService/DeactivateRoute"
 )
 
 // AvdServiceClient is the client API for AvdService service.
@@ -44,6 +46,8 @@ type AvdServiceClient interface {
 	SetDeblemish(ctx context.Context, in *SetDeblemishRequest, opts ...grpc.CallOption) (*SetDeblemishResponse, error)
 	GetDeblemish(ctx context.Context, in *GetDeblemishRequest, opts ...grpc.CallOption) (*GetDeblemishResponse, error)
 	ListFilterControls(ctx context.Context, in *ListFilterControlsRequest, opts ...grpc.CallOption) (*ListFilterControlsResponse, error)
+	ActivateRoute(ctx context.Context, in *ActivateRouteRequest, opts ...grpc.CallOption) (*ActivateRouteResponse, error)
+	DeactivateRoute(ctx context.Context, in *DeactivateRouteRequest, opts ...grpc.CallOption) (*DeactivateRouteResponse, error)
 }
 
 type avdServiceClient struct {
@@ -153,6 +157,26 @@ func (c *avdServiceClient) ListFilterControls(ctx context.Context, in *ListFilte
 	return out, nil
 }
 
+func (c *avdServiceClient) ActivateRoute(ctx context.Context, in *ActivateRouteRequest, opts ...grpc.CallOption) (*ActivateRouteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActivateRouteResponse)
+	err := c.cc.Invoke(ctx, AvdService_ActivateRoute_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *avdServiceClient) DeactivateRoute(ctx context.Context, in *DeactivateRouteRequest, opts ...grpc.CallOption) (*DeactivateRouteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeactivateRouteResponse)
+	err := c.cc.Invoke(ctx, AvdService_DeactivateRoute_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AvdServiceServer is the server API for AvdService service.
 // All implementations must embed UnimplementedAvdServiceServer
 // for forward compatibility.
@@ -166,6 +190,8 @@ type AvdServiceServer interface {
 	SetDeblemish(context.Context, *SetDeblemishRequest) (*SetDeblemishResponse, error)
 	GetDeblemish(context.Context, *GetDeblemishRequest) (*GetDeblemishResponse, error)
 	ListFilterControls(context.Context, *ListFilterControlsRequest) (*ListFilterControlsResponse, error)
+	ActivateRoute(context.Context, *ActivateRouteRequest) (*ActivateRouteResponse, error)
+	DeactivateRoute(context.Context, *DeactivateRouteRequest) (*DeactivateRouteResponse, error)
 	mustEmbedUnimplementedAvdServiceServer()
 }
 
@@ -202,6 +228,12 @@ func (UnimplementedAvdServiceServer) GetDeblemish(context.Context, *GetDeblemish
 }
 func (UnimplementedAvdServiceServer) ListFilterControls(context.Context, *ListFilterControlsRequest) (*ListFilterControlsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListFilterControls not implemented")
+}
+func (UnimplementedAvdServiceServer) ActivateRoute(context.Context, *ActivateRouteRequest) (*ActivateRouteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ActivateRoute not implemented")
+}
+func (UnimplementedAvdServiceServer) DeactivateRoute(context.Context, *DeactivateRouteRequest) (*DeactivateRouteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeactivateRoute not implemented")
 }
 func (UnimplementedAvdServiceServer) mustEmbedUnimplementedAvdServiceServer() {}
 func (UnimplementedAvdServiceServer) testEmbeddedByValue()                    {}
@@ -379,6 +411,42 @@ func _AvdService_ListFilterControls_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AvdService_ActivateRoute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ActivateRouteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AvdServiceServer).ActivateRoute(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AvdService_ActivateRoute_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AvdServiceServer).ActivateRoute(ctx, req.(*ActivateRouteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AvdService_DeactivateRoute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeactivateRouteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AvdServiceServer).DeactivateRoute(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AvdService_DeactivateRoute_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AvdServiceServer).DeactivateRoute(ctx, req.(*DeactivateRouteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AvdService_ServiceDesc is the grpc.ServiceDesc for AvdService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -417,6 +485,14 @@ var AvdService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListFilterControls",
 			Handler:    _AvdService_ListFilterControls_Handler,
+		},
+		{
+			MethodName: "ActivateRoute",
+			Handler:    _AvdService_ActivateRoute_Handler,
+		},
+		{
+			MethodName: "DeactivateRoute",
+			Handler:    _AvdService_DeactivateRoute_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
