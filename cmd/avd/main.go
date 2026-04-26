@@ -38,14 +38,23 @@ func main() {
 		false,
 		"",
 	)
+	versionFlag := pflag.Bool(
+		"version",
+		false,
+		"print version and exit",
+	)
 	pflag.Parse()
+	ctx := withLogger(context.Background(), loggerLevel)
 
 	if *generateConfig {
 		config.Default().WriteTo(os.Stdout)
 		os.Exit(0)
 	}
 
-	ctx := withLogger(context.Background(), loggerLevel)
+	if *versionFlag {
+		printBuildInfo(ctx, os.Stdout)
+		os.Exit(0)
+	}
 
 	if *netPprofAddr != "" {
 		observability.Go(ctx, func(ctx context.Context) {
