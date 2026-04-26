@@ -2,7 +2,7 @@ module github.com/xaionaro-go/avd
 
 go 1.25.5
 
-replace github.com/asticode/go-astiav v0.36.0 => ../astiav
+replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20260320123320-4206a96c82a9
 
 require (
 	github.com/asticode/go-astiav v0.36.0
