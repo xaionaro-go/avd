@@ -105,7 +105,13 @@ func (c *ConnectionProxiedHandlerConsumer) StartForwarding(
 	defer func() { logger.Debugf(ctx, "/StartForwarding: %v", _err) }()
 
 	routePath := *c.Parent.RoutePath
-	route, err := c.Parent.Port.GetServer().GetRoute(ctx, routePath, router.GetRouteModeWaitForPublisher)
+	srv := c.Parent.Port.GetServer()
+	if srv != nil && srv.EndpointResolver != nil {
+		if _, err := srv.EndpointResolver.EnsureWired(ctx, routePath); err != nil {
+			logger.Warnf(ctx, "endpoint resolver EnsureWired('%s') failed; proceeding to GetRoute regardless: %v", routePath, err)
+		}
+	}
+	route, err := srv.GetRoute(ctx, routePath, router.GetRouteModeWaitForPublisher)
 	if err != nil {
 		return err
 	}

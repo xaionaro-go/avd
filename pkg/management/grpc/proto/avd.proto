@@ -17,6 +17,16 @@ service AvdService {
     rpc ListFilterControls(ListFilterControlsRequest) returns (ListFilterControlsResponse);
     rpc ActivateRoute(ActivateRouteRequest) returns (ActivateRouteResponse);
     rpc DeactivateRoute(DeactivateRouteRequest) returns (DeactivateRouteResponse);
+    rpc GetPTSShift(GetPTSShiftRequest) returns (GetPTSShiftResponse);
+    rpc SetPTSShift(SetPTSShiftRequest) returns (SetPTSShiftResponse);
+    rpc GetAVSyncDelta(GetAVSyncDeltaRequest) returns (GetAVSyncDeltaResponse);
+    rpc AutoTuneAVSync(AutoTuneAVSyncRequest) returns (AutoTuneAVSyncResponse);
+}
+
+enum AVSyncMediaType {
+    AV_SYNC_MEDIA_TYPE_UNSPECIFIED = 0;
+    AV_SYNC_MEDIA_TYPE_AUDIO = 1;
+    AV_SYNC_MEDIA_TYPE_VIDEO = 2;
 }
 
 message ListPublishersRequest {}
@@ -106,6 +116,7 @@ message FilterControlInfo {
     bool has_privacy_blur = 3;
     bool has_deblemish = 4;
     bool has_whisper = 5;
+    bool has_av_sync = 6;
 }
 
 message ListFilterControlsRequest {}
@@ -124,3 +135,41 @@ message DeactivateRouteRequest {
 }
 
 message DeactivateRouteResponse {}
+
+message GetPTSShiftRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+    AVSyncMediaType media_type = 3;
+}
+
+message GetPTSShiftResponse {
+    int64 shift_ns = 1;
+}
+
+message SetPTSShiftRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+    AVSyncMediaType media_type = 3;
+    int64 shift_ns = 4;
+}
+
+message SetPTSShiftResponse {}
+
+message GetAVSyncDeltaRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+}
+
+message GetAVSyncDeltaResponse {
+    int64 delta_ns = 1;
+    bool observed = 2;
+}
+
+message AutoTuneAVSyncRequest {
+    string route_path = 1;
+    int32 forwarding_index = 2;
+}
+
+message AutoTuneAVSyncResponse {
+    int64 applied_delta_ns = 1;
+}

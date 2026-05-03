@@ -16,15 +16,15 @@ import (
 
 func newPrivacyBlurFactory(
 	cfg *config.PrivacyBlurConfig,
-) (router.FilterKernelFactory, *avd.PrivacyBlurControl) {
+) (router.FilterKernelFactory, *avd.PrivacyBlurFilter) {
 	if cfg == nil {
 		return nil, nil
 	}
 
-	control := &avd.PrivacyBlurControl{}
-	control.Enabled.Store(cfg.Enabled)
-	control.SetBlurRadius(cfg.BlurRadius)
-	control.PixelateBlockSize.Store(int64(cfg.PixelateBlockSize))
+	filter := &avd.PrivacyBlurFilter{}
+	filter.Enabled.Store(cfg.Enabled)
+	filter.SetBlurRadius(cfg.BlurRadius)
+	filter.PixelateBlockSize.Store(int64(cfg.PixelateBlockSize))
 
 	var classifiers []kernel.ClassifierConfig
 	if cfg.Faces {
@@ -79,12 +79,12 @@ func newPrivacyBlurFactory(
 		if err != nil {
 			return nil, err
 		}
-		// Wire the shared control atomics into the kernel.
-		pb.Enabled = &control.Enabled
-		pb.BlurRadius.Store(control.GetBlurRadius())
-		pb.PixelateBlockSize.Store(control.PixelateBlockSize.Load())
+		// Wire the shared filter atomics into the kernel.
+		pb.Enabled = &filter.Enabled
+		pb.BlurRadius.Store(filter.GetBlurRadius())
+		pb.PixelateBlockSize.Store(filter.PixelateBlockSize.Load())
 		return pb, nil
 	}
 
-	return factory, control
+	return factory, filter
 }

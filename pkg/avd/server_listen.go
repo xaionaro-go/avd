@@ -25,6 +25,14 @@ func (s *Server) Listen(
 
 	switch protocol {
 	case ProtocolMPEGTSUDP:
+		// NOTE: do NOT add ProtocolSRT to the direct-dispatch path. ListeningPortDirect*
+		// opens a single libav AVFormatContext per port — for SRT this means libav's
+		// muxer/demuxer accepts one caller and binds, so the port serves at most one
+		// client. Multi-client SRT fan-out (one libav instance per remote 5-tuple,
+		// streamid demux into separate routes) requires the proxied path even though
+		// the SRT handshake on the loopback hop is currently broken (see
+		// connection_proxied_srt.go). Switching to direct trades a broken pull for
+		// a single-client cap, which is worse for production.
 		port, err := s.ListenDirect(ctx, portAddr, protocol, mode, opts...)
 		if err != nil {
 			return nil, err

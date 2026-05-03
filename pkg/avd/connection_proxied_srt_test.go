@@ -34,28 +34,11 @@ func TestTryExtractRouteStringSRT(t *testing.T) {
 	})
 
 	t.Run("with streamid", func(t *testing.T) {
-		msg := make([]byte, 80)
-		msg[0] = 0x80
-		binary.BigEndian.PutUint16(msg[22:24], 0x0001) // Extensions bit
-		binary.BigEndian.PutUint32(msg[36:40], 1)      // CONCLUSION
-
-		// Extension Type 5 (SID), Length 2 words (8 bytes)
-		pos := 64
-		binary.BigEndian.PutUint16(msg[pos:pos+2], 5)
-		binary.BigEndian.PutUint16(msg[pos+2:pos+4], 2)
-		copy(msg[pos+4:], "/test-route\x00\x00\x00\x00\x00") // This is longer than 2 words, but let's adjust
-
-		// Re-calculate to match exactly
+		// Per SRT IETF draft 3.2.1.3, StreamID payload is stored as
+		// 32-bit little-endian words: bytes within each 4-byte block
+		// are reversed on the wire compared to the UTF-8 string.
 		streamID := "/test-route"
-		paddedLen := (len(streamID) + 3) &^ 3
-		extLenWords := uint16(paddedLen / 4)
-		msg = make([]byte, 64+4+paddedLen)
-		msg[0] = 0x80
-		binary.BigEndian.PutUint16(msg[22:24], 0x0001)
-		binary.BigEndian.PutUint32(msg[36:40], 1)
-		binary.BigEndian.PutUint16(msg[64:66], 5)
-		binary.BigEndian.PutUint16(msg[66:68], extLenWords)
-		copy(msg[68:], streamID)
+		msg := buildSRTHandshakeWithStreamID(streamID)
 
 		res, err := c.tryExtractRouteStringSRT(ctx, msg)
 		require.NoError(t, err)
@@ -65,19 +48,53 @@ func TestTryExtractRouteStringSRT(t *testing.T) {
 
 	t.Run("with streamid no slash", func(t *testing.T) {
 		streamID := "test-route"
-		paddedLen := (len(streamID) + 3) &^ 3
-		extLenWords := uint16(paddedLen / 4)
-		msg := make([]byte, 64+4+paddedLen)
-		msg[0] = 0x80
-		binary.BigEndian.PutUint16(msg[22:24], 0x0001)
-		binary.BigEndian.PutUint32(msg[36:40], 1)
-		binary.BigEndian.PutUint16(msg[64:66], 5)
-		binary.BigEndian.PutUint16(msg[66:68], extLenWords)
-		copy(msg[68:], streamID)
+		msg := buildSRTHandshakeWithStreamID(streamID)
 
 		res, err := c.tryExtractRouteStringSRT(ctx, msg)
 		require.NoError(t, err)
 		require.NotNil(t, res)
 		require.Equal(t, RoutePath("test-route"), *res)
 	})
+
+	t.Run("with streamid path with slash", func(t *testing.T) {
+		// Regression: a routePath like "test/passthrough" used to
+		// decode to garbled bytes (e.g. "tsetsap/rhtshguo") because
+		// the StreamID payload was treated as raw bytes instead of
+		// 32-bit little-endian words.
+		streamID := "/test/passthrough"
+		msg := buildSRTHandshakeWithStreamID(streamID)
+
+		res, err := c.tryExtractRouteStringSRT(ctx, msg)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		require.Equal(t, RoutePath("test/passthrough"), *res)
+	})
+}
+
+// buildSRTHandshakeWithStreamID builds a minimal SRT CONCLUSION handshake
+// packet carrying the given UTF-8 streamID encoded per IETF draft section
+// 3.2.1.3 (32-bit little-endian words, zero-padded to a 4-byte boundary).
+func buildSRTHandshakeWithStreamID(streamID string) []byte {
+	paddedLen := (len(streamID) + 3) &^ 3
+	extLenWords := uint16(paddedLen / 4)
+
+	msg := make([]byte, 64+4+paddedLen)
+	msg[0] = 0x80
+	binary.BigEndian.PutUint16(msg[22:24], 0x0001) // Extensions bit
+	binary.BigEndian.PutUint32(msg[36:40], 1)      // CONCLUSION
+	binary.BigEndian.PutUint16(msg[64:66], 5)      // SID
+	binary.BigEndian.PutUint16(msg[66:68], extLenWords)
+
+	// Encode payload as little-endian 32-bit words (byte-reversed
+	// within each 4-byte block) to match the on-the-wire format
+	// produced by libsrt and ffmpeg. The byte-swap is its own
+	// inverse, so we reuse streamIDPayloadDecode for encoding too.
+	raw := make([]byte, paddedLen)
+	copy(raw, streamID)
+	payload, err := streamIDPayloadDecode(raw)
+	if err != nil {
+		panic(err)
+	}
+	copy(msg[68:], payload)
+	return msg
 }

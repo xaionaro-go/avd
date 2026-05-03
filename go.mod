@@ -2,7 +2,7 @@ module github.com/xaionaro-go/avd
 
 go 1.25.5
 
-replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20260320123320-4206a96c82a9
+replace github.com/asticode/go-astiav v0.36.0 => github.com/xaionaro-go/astiav v0.0.0-20260503162539-6db5c72bea38
 
 require (
 	github.com/asticode/go-astiav v0.36.0
@@ -13,15 +13,15 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
-	github.com/xaionaro-go/avcommon v0.0.0-20250823173020-6a2bb1e1f59d
-	github.com/xaionaro-go/avpipeline v0.0.0-20260426193146-dd8aafb39bd8
+	github.com/xaionaro-go/avcommon v0.0.0-20260503163217-78a6782d6f4c
+	github.com/xaionaro-go/avpipeline v0.0.0-20260503224913-bdfb0c2a2545
 	github.com/xaionaro-go/buildvars v0.0.0-20250111161425-ed39f98139d0
 	github.com/xaionaro-go/datacounter v1.0.4
 	github.com/xaionaro-go/observability v0.0.0-20251102143534-3aeb2a25e57d
 	github.com/xaionaro-go/secret v0.0.0-20250111141743-ced12e1082c2
 	github.com/xaionaro-go/xcontext v0.0.0-20250111150717-e70e1f5b299c
-	github.com/xaionaro-go/xpath v0.0.0-20250111145115-55f5728f643f
-	github.com/xaionaro-go/xsync v0.0.0-20260103200624-2cd14b984747
+	github.com/xaionaro-go/xpath v0.0.0-20260426170210-a0fce9eae3ad
+	github.com/xaionaro-go/xsync v0.0.0-20260503162929-0f612f743add
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
@@ -35,6 +35,7 @@ require (
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/xaionaro-go/ndk v0.0.0-20250420195304-361bb98583bf // indirect
 	github.com/xaionaro-go/polyjson v0.0.0-20250825191950-a2ce35ee07f0 // indirect
 	github.com/xaionaro-go/rpn v0.0.0-20250818130635-1419b5218722 // indirect
 	github.com/xaionaro-go/tcp v0.0.0-20260103194940-f10157ebd88d // indirect
@@ -69,13 +70,12 @@ require (
 	github.com/phuslu/goid v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
-	github.com/xaionaro-go/androidetc v0.0.0-20250824193302-b7ecebb3b825 // indirect
-	github.com/xaionaro-go/audio v0.0.0-20260202195702-429dcb87c05c // indirect
+	github.com/xaionaro-go/androidetc v0.0.0-20260503162637-c2ef7aa78420 // indirect
+	github.com/xaionaro-go/audio v0.0.0-20260503163119-7cfdc6593606 // indirect
 	github.com/xaionaro-go/avmediacodec v0.0.0-20250505012527-c819676502d8 // indirect
 	github.com/xaionaro-go/gorex v0.0.0-20241010205749-bcd59d639c4d // indirect
 	github.com/xaionaro-go/libsrt v0.0.0-20251231191024-483a9dd27df8 // indirect
 	github.com/xaionaro-go/logrustash v0.0.0-20240804141650-d48034780a5f // indirect
-	github.com/xaionaro-go/ndk v0.0.0-20260309023337-691843bece17 // indirect
 	github.com/xaionaro-go/object v0.0.0-20241026212449-753ce10ec94c // indirect
 	github.com/xaionaro-go/proxy v0.0.0-20250525144747-579f5a891c15 // indirect
 	github.com/xaionaro-go/spinlock v0.0.0-20200518175509-30e6d1ce68a1 // indirect

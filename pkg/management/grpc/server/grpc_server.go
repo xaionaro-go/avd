@@ -5,10 +5,14 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync/atomic"
+	"time"
 
+	"github.com/asticode/go-astiav"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,6 +21,7 @@ import (
 	"github.com/xaionaro-go/avd/pkg/avd"
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	"github.com/xaionaro-go/avd/pkg/management/grpc/proto/avdmanagementgrpc"
+	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/node"
 	avpipelinegrpc "github.com/xaionaro-go/avpipeline/protobuf/avpipeline"
 	goconvavp "github.com/xaionaro-go/avpipeline/protobuf/goconv/avpipeline"
@@ -36,15 +41,20 @@ type GRPCServer struct {
 type Backend interface {
 	GetListeningPorts(ctx context.Context) []avd.ListeningPort
 	GetRouter() *router.Router[types.RouteCustomData]
-	SetPrivacyBlurState(ctx context.Context, key avd.PrivacyBlurControlKey, enabled *bool, blurRadius *float64, pixelateBlockSize *int64) error
-	GetPrivacyBlurState(ctx context.Context, key avd.PrivacyBlurControlKey) (enabled bool, blurRadius float64, pixelateBlockSize int64, err error)
-	GetRegisteredPrivacyBlurKeys(ctx context.Context) []avd.PrivacyBlurControlKey
-	SetDeblemishState(ctx context.Context, key avd.DeblemishControlKey, enabled *bool, sigmaS *float64, sigmaR *float64, diameter *int64) error
-	GetDeblemishState(ctx context.Context, key avd.DeblemishControlKey) (enabled bool, sigmaS float64, sigmaR float64, diameter int64, err error)
-	GetRegisteredDeblemishKeys(ctx context.Context) []avd.DeblemishControlKey
-	SetWhisperState(ctx context.Context, key avd.WhisperControlKey, enabled *bool, language *string, model *string) error
-	GetWhisperState(ctx context.Context, key avd.WhisperControlKey) (enabled bool, language string, model string, err error)
-	GetRegisteredWhisperKeys(ctx context.Context) []avd.WhisperControlKey
+	SetPrivacyBlurState(ctx context.Context, key avd.PrivacyBlurFilterKey, enabled *bool, blurRadius *float64, pixelateBlockSize *int64) error
+	GetPrivacyBlurState(ctx context.Context, key avd.PrivacyBlurFilterKey) (enabled bool, blurRadius float64, pixelateBlockSize int64, err error)
+	GetRegisteredPrivacyBlurKeys(ctx context.Context) []avd.PrivacyBlurFilterKey
+	SetDeblemishState(ctx context.Context, key avd.DeblemishFilterKey, enabled *bool, sigmaS *float64, sigmaR *float64, diameter *int64) error
+	GetDeblemishState(ctx context.Context, key avd.DeblemishFilterKey) (enabled bool, sigmaS float64, sigmaR float64, diameter int64, err error)
+	GetRegisteredDeblemishKeys(ctx context.Context) []avd.DeblemishFilterKey
+	SetWhisperState(ctx context.Context, key avd.WhisperFilterKey, enabled *bool, language *string, model *string) error
+	GetWhisperState(ctx context.Context, key avd.WhisperFilterKey) (enabled bool, language string, model string, err error)
+	GetRegisteredWhisperKeys(ctx context.Context) []avd.WhisperFilterKey
+	SetPTSShift(ctx context.Context, key avd.AVSyncFilterKey, mediaType astiav.MediaType, shift time.Duration) error
+	GetPTSShift(ctx context.Context, key avd.AVSyncFilterKey, mediaType astiav.MediaType) (time.Duration, error)
+	GetAVSyncDelta(ctx context.Context, key avd.AVSyncFilterKey) (time.Duration, bool, error)
+	AutoTuneAVSync(ctx context.Context, key avd.AVSyncFilterKey) (time.Duration, error)
+	GetRegisteredAVSyncKeys(ctx context.Context) []avd.AVSyncFilterKey
 }
 
 func New(
@@ -190,7 +200,7 @@ func (srv *GRPCServer) SetPrivacyBlur(
 	req *avdmanagementgrpc.SetPrivacyBlurRequest,
 ) (*avdmanagementgrpc.SetPrivacyBlurResponse, error) {
 	ctx = srv.ctx(ctx)
-	key := avd.PrivacyBlurControlKey{
+	key := avd.PrivacyBlurFilterKey{
 		RoutePath:       router.RoutePath(req.RoutePath),
 		ForwardingIndex: int(req.ForwardingIndex),
 	}
@@ -220,7 +230,7 @@ func (srv *GRPCServer) GetPrivacyBlur(
 	req *avdmanagementgrpc.GetPrivacyBlurRequest,
 ) (*avdmanagementgrpc.GetPrivacyBlurResponse, error) {
 	ctx = srv.ctx(ctx)
-	key := avd.PrivacyBlurControlKey{
+	key := avd.PrivacyBlurFilterKey{
 		RoutePath:       router.RoutePath(req.RoutePath),
 		ForwardingIndex: int(req.ForwardingIndex),
 	}
@@ -240,7 +250,7 @@ func (srv *GRPCServer) SetDeblemish(
 	req *avdmanagementgrpc.SetDeblemishRequest,
 ) (*avdmanagementgrpc.SetDeblemishResponse, error) {
 	ctx = srv.ctx(ctx)
-	key := avd.DeblemishControlKey{
+	key := avd.DeblemishFilterKey{
 		RoutePath:       router.RoutePath(req.RoutePath),
 		ForwardingIndex: int(req.ForwardingIndex),
 	}
@@ -275,7 +285,7 @@ func (srv *GRPCServer) GetDeblemish(
 	req *avdmanagementgrpc.GetDeblemishRequest,
 ) (*avdmanagementgrpc.GetDeblemishResponse, error) {
 	ctx = srv.ctx(ctx)
-	key := avd.DeblemishControlKey{
+	key := avd.DeblemishFilterKey{
 		RoutePath:       router.RoutePath(req.RoutePath),
 		ForwardingIndex: int(req.ForwardingIndex),
 	}
@@ -308,6 +318,7 @@ func (srv *GRPCServer) ListFilterControls(
 		HasPrivacyBlur bool
 		HasDeblemish   bool
 		HasWhisper     bool
+		HasAVSync      bool
 	}
 	controls := map[filterControlKey]*controlFlags{}
 
@@ -350,6 +361,19 @@ func (srv *GRPCServer) ListFilterControls(
 		flags.HasWhisper = true
 	}
 
+	for _, k := range srv.Backend.GetRegisteredAVSyncKeys(ctx) {
+		fk := filterControlKey{
+			RoutePath:       string(k.RoutePath),
+			ForwardingIndex: k.ForwardingIndex,
+		}
+		flags, ok := controls[fk]
+		if !ok {
+			flags = &controlFlags{}
+			controls[fk] = flags
+		}
+		flags.HasAVSync = true
+	}
+
 	result := make([]*avdmanagementgrpc.FilterControlInfo, 0, len(controls))
 	for fk, flags := range controls {
 		result = append(result, &avdmanagementgrpc.FilterControlInfo{
@@ -358,6 +382,7 @@ func (srv *GRPCServer) ListFilterControls(
 			HasPrivacyBlur:  flags.HasPrivacyBlur,
 			HasDeblemish:    flags.HasDeblemish,
 			HasWhisper:      flags.HasWhisper,
+			HasAvSync:       flags.HasAVSync,
 		})
 	}
 
@@ -371,7 +396,7 @@ func (srv *GRPCServer) SetWhisper(
 	req *avdmanagementgrpc.SetWhisperRequest,
 ) (*avdmanagementgrpc.SetWhisperResponse, error) {
 	ctx = srv.ctx(ctx)
-	key := avd.WhisperControlKey{
+	key := avd.WhisperFilterKey{
 		RoutePath:       router.RoutePath(req.RoutePath),
 		ForwardingIndex: int(req.ForwardingIndex),
 	}
@@ -401,7 +426,7 @@ func (srv *GRPCServer) GetWhisper(
 	req *avdmanagementgrpc.GetWhisperRequest,
 ) (*avdmanagementgrpc.GetWhisperResponse, error) {
 	ctx = srv.ctx(ctx)
-	key := avd.WhisperControlKey{
+	key := avd.WhisperFilterKey{
 		RoutePath:       router.RoutePath(req.RoutePath),
 		ForwardingIndex: int(req.ForwardingIndex),
 	}
@@ -413,5 +438,126 @@ func (srv *GRPCServer) GetWhisper(
 		Enabled:  enabled,
 		Language: language,
 		Model:    model,
+	}, nil
+}
+
+// protoToMediaType converts the wire-level AVSyncMediaType enum into
+// the astiav.MediaType the kernel expects. UNSPECIFIED (zero value) and
+// any other unknown enum value yield InvalidArgument so the operator
+// gets a clear "you forgot to set media_type" error rather than a
+// silent default.
+func protoToMediaType(
+	mt avdmanagementgrpc.AVSyncMediaType,
+) (astiav.MediaType, error) {
+	switch mt {
+	case avdmanagementgrpc.AVSyncMediaType_AV_SYNC_MEDIA_TYPE_AUDIO:
+		return astiav.MediaTypeAudio, nil
+	case avdmanagementgrpc.AVSyncMediaType_AV_SYNC_MEDIA_TYPE_VIDEO:
+		return astiav.MediaTypeVideo, nil
+	}
+	return astiav.MediaTypeUnknown, status.Errorf(codes.InvalidArgument, "media_type unspecified or invalid: %v", mt)
+}
+
+// mapAVSyncErr converts AVSync backend errors to gRPC status codes.
+// Kernel sentinels (not-yet-observed / video-leads-audio) are
+// FailedPrecondition; the unsupported-media-type kernel error
+// (currently a plain fmt.Errorf, not a sentinel) is InvalidArgument as
+// a defense-in-depth — the gRPC entry points all run req.MediaType
+// through protoToMediaType first, which already rejects unsupported
+// proto enums with InvalidArgument, so the kernel-side
+// "unsupported media type" branch is unreachable in practice; the
+// substring check guarantees that if a future kernel change starts
+// emitting the same wording before protoToMediaType has filtered it
+// out, the gRPC status code stays consistent. Anything else
+// (registry miss) is NotFound.
+func mapAVSyncErr(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, kernel.ErrAVSyncNotObserved),
+		errors.Is(err, kernel.ErrAVSyncVideoLeadsAudio):
+		return status.Errorf(codes.FailedPrecondition, "%v", err)
+	case strings.Contains(err.Error(), "unsupported media type"):
+		return status.Errorf(codes.InvalidArgument, "%v", err)
+	default:
+		return status.Errorf(codes.NotFound, "%v", err)
+	}
+}
+
+func (srv *GRPCServer) GetPTSShift(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetPTSShiftRequest,
+) (*avdmanagementgrpc.GetPTSShiftResponse, error) {
+	ctx = srv.ctx(ctx)
+	mediaType, err := protoToMediaType(req.MediaType)
+	if err != nil {
+		return nil, err
+	}
+	key := avd.AVSyncFilterKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	shift, err := srv.Backend.GetPTSShift(ctx, key, mediaType)
+	if err != nil {
+		return nil, mapAVSyncErr(err)
+	}
+	return &avdmanagementgrpc.GetPTSShiftResponse{
+		ShiftNs: int64(shift),
+	}, nil
+}
+
+func (srv *GRPCServer) SetPTSShift(
+	ctx context.Context,
+	req *avdmanagementgrpc.SetPTSShiftRequest,
+) (*avdmanagementgrpc.SetPTSShiftResponse, error) {
+	ctx = srv.ctx(ctx)
+	mediaType, err := protoToMediaType(req.MediaType)
+	if err != nil {
+		return nil, err
+	}
+	key := avd.AVSyncFilterKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	if err := srv.Backend.SetPTSShift(ctx, key, mediaType, time.Duration(req.ShiftNs)); err != nil {
+		return nil, mapAVSyncErr(err)
+	}
+	return &avdmanagementgrpc.SetPTSShiftResponse{}, nil
+}
+
+func (srv *GRPCServer) GetAVSyncDelta(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetAVSyncDeltaRequest,
+) (*avdmanagementgrpc.GetAVSyncDeltaResponse, error) {
+	ctx = srv.ctx(ctx)
+	key := avd.AVSyncFilterKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	delta, observed, err := srv.Backend.GetAVSyncDelta(ctx, key)
+	if err != nil {
+		return nil, mapAVSyncErr(err)
+	}
+	return &avdmanagementgrpc.GetAVSyncDeltaResponse{
+		DeltaNs:  int64(delta),
+		Observed: observed,
+	}, nil
+}
+
+func (srv *GRPCServer) AutoTuneAVSync(
+	ctx context.Context,
+	req *avdmanagementgrpc.AutoTuneAVSyncRequest,
+) (*avdmanagementgrpc.AutoTuneAVSyncResponse, error) {
+	ctx = srv.ctx(ctx)
+	key := avd.AVSyncFilterKey{
+		RoutePath:       router.RoutePath(req.RoutePath),
+		ForwardingIndex: int(req.ForwardingIndex),
+	}
+	delta, err := srv.Backend.AutoTuneAVSync(ctx, key)
+	if err != nil {
+		return nil, mapAVSyncErr(err)
+	}
+	return &avdmanagementgrpc.AutoTuneAVSyncResponse{
+		AppliedDeltaNs: int64(delta),
 	}, nil
 }

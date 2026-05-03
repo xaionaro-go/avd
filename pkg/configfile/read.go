@@ -44,7 +44,7 @@ func Read[CFG Config](
 		return false, fmt.Errorf("unable to read file '%s': %w", cfgPath, err)
 	}
 
-	tmpl, err := template.New("").Funcs(templateFuncs).Parse(string(b))
+	tmpl, err := template.New("").Funcs(TemplateFuncs).Parse(string(b))
 	if err != nil {
 		return false, fmt.Errorf("unable to parse config file '%s' as template: %w", cfgPath, err)
 	}

@@ -1,4 +1,4 @@
-// deblemish.go creates the deblemish kernel factory and control for a forwarding.
+// deblemish.go creates the deblemish kernel factory and filter for a forwarding.
 package configapplier
 
 import (
@@ -13,33 +13,33 @@ import (
 
 func newDeblemishFactory(
 	cfg *config.DeblemishConfig,
-) (router.FilterKernelFactory, *avd.DeblemishControl) {
+) (router.FilterKernelFactory, *avd.DeblemishFilter) {
 	if cfg == nil {
 		return nil, nil
 	}
 
-	control := &avd.DeblemishControl{}
-	control.Enabled.Store(cfg.Enabled)
-	control.SetSigmaS(context.Background(), cfg.SigmaS)
-	control.SetSigmaR(context.Background(), cfg.SigmaR)
-	control.SetDiameter(context.Background(), int64(cfg.Diameter))
+	filter := &avd.DeblemishFilter{}
+	filter.Enabled.Store(cfg.Enabled)
+	filter.SetSigmaS(context.Background(), cfg.SigmaS)
+	filter.SetSigmaR(context.Background(), cfg.SigmaR)
+	filter.SetDiameter(context.Background(), int64(cfg.Diameter))
 
 	factory := func(ctx context.Context) (kernel.Abstract, error) {
 		d, err := deblemish.New(deblemish.Config{
-			SigmaS:   control.GetSigmaS(),
-			SigmaR:   control.GetSigmaR(),
-			Diameter: int(control.Diameter.Load()),
+			SigmaS:   filter.GetSigmaS(),
+			SigmaR:   filter.GetSigmaR(),
+			Diameter: int(filter.Diameter.Load()),
 			FaceOnly: cfg.FaceOnly,
 		})
 		if err != nil {
 			return nil, err
 		}
 		// Share Enabled by pointer so gRPC Set propagates immediately.
-		d.Enabled = &control.Enabled
+		d.Enabled = &filter.Enabled
 		// Register kernel so SigmaS/SigmaR/Diameter changes propagate.
-		control.SetKernel(ctx, d)
+		filter.SetKernel(ctx, d)
 		return d, nil
 	}
 
-	return factory, control
+	return factory, filter
 }

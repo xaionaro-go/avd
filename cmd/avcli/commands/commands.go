@@ -11,6 +11,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
 	"github.com/spf13/cobra"
@@ -137,6 +138,36 @@ var (
 		Run:  whisperGetCommand,
 	}
 
+	// AVSync subcommands take <route-path> <forwarding-index> as
+	// positional args to match the privacy-blur / deblemish / whisper
+	// shape — see commands.go's PrivacyBlurSet/Get and friends. The
+	// previous --forwarding-index flag drifted from that shape and
+	// produced inconsistent UX; aspect-I L-5 promoted it to the
+	// canonical positional pair.
+	GetPTSShift = &cobra.Command{
+		Use:  "get-pts-shift <route-path> <forwarding-index> [--media audio|video]",
+		Args: cobra.ExactArgs(2),
+		Run:  getPTSShiftCommand,
+	}
+
+	SetPTSShift = &cobra.Command{
+		Use:  "set-pts-shift <route-path> <forwarding-index> <duration> --media <type>",
+		Args: cobra.ExactArgs(3),
+		Run:  setPTSShiftCommand,
+	}
+
+	GetAVSyncDelta = &cobra.Command{
+		Use:  "get-av-sync-delta <route-path> <forwarding-index>",
+		Args: cobra.ExactArgs(2),
+		Run:  getAVSyncDeltaCommand,
+	}
+
+	AutoTuneAVSync = &cobra.Command{
+		Use:  "auto-tune-av-sync <route-path> <forwarding-index>",
+		Args: cobra.ExactArgs(2),
+		Run:  autoTuneAVSyncCommand,
+	}
+
 	LoggerLevel = logger.LevelWarning
 )
 
@@ -174,6 +205,16 @@ func init() {
 	WhisperSet.Flags().Bool("no-enabled", false, "explicitly set enabled to false")
 	WhisperSet.Flags().String("language", "", "language for speech recognition (e.g. en, auto)")
 	WhisperSet.Flags().String("model", "", "path to whisper model file")
+
+	Root.AddCommand(GetPTSShift)
+	GetPTSShift.Flags().String("media", "", "media type (audio|video); defaults to audio if omitted")
+
+	Root.AddCommand(SetPTSShift)
+	SetPTSShift.Flags().String("media", "", "media type (audio|video); required")
+
+	Root.AddCommand(GetAVSyncDelta)
+
+	Root.AddCommand(AutoTuneAVSync)
 
 	Root.AddCommand(Monitor)
 	Monitor.Flags().Bool("include-packet-payload", false, "include packet payloads in monitor events")
@@ -483,4 +524,109 @@ func whisperGetCommand(cmd *cobra.Command, args []string) {
 	enc.SetIndent("", "  ")
 	err = enc.Encode(resp)
 	assertNoError(ctx, err)
+}
+
+func parseMediaType(s string, allowEmpty bool) (avdmanagementgrpc.AVSyncMediaType, error) {
+	switch s {
+	case "audio":
+		return avdmanagementgrpc.AVSyncMediaType_AV_SYNC_MEDIA_TYPE_AUDIO, nil
+	case "video":
+		return avdmanagementgrpc.AVSyncMediaType_AV_SYNC_MEDIA_TYPE_VIDEO, nil
+	case "":
+		if allowEmpty {
+			return avdmanagementgrpc.AVSyncMediaType_AV_SYNC_MEDIA_TYPE_AUDIO, nil
+		}
+		return 0, fmt.Errorf("--media is required (audio|video)")
+	default:
+		return 0, fmt.Errorf("invalid --media %q (expected audio|video)", s)
+	}
+}
+
+func getPTSShiftCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+	mediaStr, err := cmd.Flags().GetString("media")
+	assertNoError(ctx, err)
+	mt, err := parseMediaType(mediaStr, true)
+	assertNoError(ctx, err)
+
+	resp, err := avdClient.GetPTSShift(ctx, &avdmanagementgrpc.GetPTSShiftRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+		MediaType:       mt,
+	})
+	assertNoError(ctx, err)
+	fmt.Println(time.Duration(resp.GetShiftNs()).String())
+}
+
+func setPTSShiftCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+	mediaStr, err := cmd.Flags().GetString("media")
+	assertNoError(ctx, err)
+	mt, err := parseMediaType(mediaStr, false)
+	assertNoError(ctx, err)
+	dur, err := time.ParseDuration(args[2])
+	assertNoError(ctx, err)
+
+	_, err = avdClient.SetPTSShift(ctx, &avdmanagementgrpc.SetPTSShiftRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+		MediaType:       mt,
+		ShiftNs:         dur.Nanoseconds(),
+	})
+	assertNoError(ctx, err)
+	fmt.Println("OK")
+}
+
+func getAVSyncDeltaCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+
+	resp, err := avdClient.GetAVSyncDelta(ctx, &avdmanagementgrpc.GetAVSyncDeltaRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+	})
+	assertNoError(ctx, err)
+	fmt.Printf("delta=%s observed=%t\n", time.Duration(resp.GetDeltaNs()), resp.GetObserved())
+}
+
+func autoTuneAVSyncCommand(cmd *cobra.Command, args []string) {
+	ctx := cmd.Context()
+
+	remoteAddr, err := cmd.Flags().GetString("remote-addr")
+	assertNoError(ctx, err)
+	avdClient, err := client.New(ctx, remoteAddr)
+	assertNoError(ctx, err)
+
+	fwdIndex, err := strconv.ParseInt(args[1], 10, 32)
+	assertNoError(ctx, err)
+
+	resp, err := avdClient.AutoTuneAVSync(ctx, &avdmanagementgrpc.AutoTuneAVSyncRequest{
+		RoutePath:       args[0],
+		ForwardingIndex: int32(fwdIndex),
+	})
+	assertNoError(ctx, err)
+	fmt.Printf("applied delta=%s\n", time.Duration(resp.GetAppliedDeltaNs()))
 }

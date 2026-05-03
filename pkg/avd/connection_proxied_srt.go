@@ -1,8 +1,19 @@
+// connection_proxied_srt.go participates in the proxied flow that lets a SINGLE
+// listening UDP port fan out SRT publishers and consumers across many remote
+// 5-tuples. Per-tuple, avd creates a ConnectionProxied that demuxes UDP
+// datagrams to a per-client libav AVFormatContext. The proxied design exists
+// SPECIFICALLY because libav's SRT (libsrt) binds one caller per AVFormatContext
+// and cannot demultiplex by streamid on its own. Do not route SRT through the
+// direct-dispatch path even if the consumer handshake here looks broken — fix
+// the bidirectional pump (libav listener replies must reach the external SRT
+// caller) instead.
+
 package avd
 
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"strings"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
@@ -108,11 +119,45 @@ func (c *ConnectionProxied) extractStreamID(ctx context.Context, msg []byte) str
 
 		if extType == srtExtensionTypeStreamID {
 			payload := msg[pos : pos+extLen]
-			return strings.TrimRight(string(payload), "\x00")
+			// Per the SRT IETF draft section 3.2.1.3, the StreamID
+			// extension contents are stored as 32-bit little-endian
+			// words. The header reader above uses big-endian for
+			// extType/extLenWords (which the protocol also requires
+			// in the surrounding header), but the StreamID payload
+			// itself is byte-reversed within each 4-byte word and
+			// must be unswapped before being interpreted as UTF-8.
+			decoded, err := streamIDPayloadDecode(payload)
+			if err != nil {
+				logger.Errorf(ctx, "SRT StreamID payload decode failed: %v", err)
+				return ""
+			}
+			return strings.TrimRight(string(decoded), "\x00")
 		}
 		pos += extLen
 	}
 	return ""
+}
+
+// streamIDPayloadDecode reverses bytes within each 4-byte word of an SRT
+// StreamID extension payload, undoing the little-endian-word storage format
+// mandated by the SRT IETF draft (section 3.2.1.3) so the result can be
+// interpreted as a UTF-8 string. The transform is its own inverse, so this
+// function is also used to encode a UTF-8 string into the wire format.
+// The input length must be a multiple of 4 because StreamID extension
+// lengths are expressed in 32-bit words; a non-multiple is reported as an
+// error rather than silently truncated.
+func streamIDPayloadDecode(payload []byte) ([]byte, error) {
+	if len(payload)%4 != 0 {
+		return nil, fmt.Errorf("SRT StreamID payload length %d is not a multiple of 4", len(payload))
+	}
+	out := make([]byte, len(payload))
+	for i := 0; i < len(payload); i += 4 {
+		out[i+0] = payload[i+3]
+		out[i+1] = payload[i+2]
+		out[i+2] = payload[i+1]
+		out[i+3] = payload[i+0]
+	}
+	return out, nil
 }
 
 func (c *ConnectionProxied) correctMessageSRT(

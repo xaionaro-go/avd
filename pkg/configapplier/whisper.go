@@ -1,4 +1,4 @@
-// whisper.go creates the whisper kernel factory and control for a forwarding.
+// whisper.go creates the whisper kernel factory and filter for a forwarding.
 //
 // Unlike deblemish/privacyblur which operate on decoded video frames without
 // needing stream metadata, the whisper kernel requires codec parameters
@@ -30,24 +30,24 @@ import (
 
 func newWhisperFactory(
 	cfg *config.WhisperConfig,
-) (router.FilterKernelFactory, *avd.WhisperControl) {
+) (router.FilterKernelFactory, *avd.WhisperFilter) {
 	if cfg == nil {
 		return nil, nil
 	}
 
-	control := &avd.WhisperControl{}
-	control.Enabled.Store(cfg.Enabled)
-	control.SetLanguage(cfg.Language)
-	control.SetModel(cfg.Model)
+	filter := &avd.WhisperFilter{}
+	filter.Enabled.Store(cfg.Enabled)
+	filter.SetLanguage(cfg.Language)
+	filter.SetModel(cfg.Model)
 
 	factory := func(ctx context.Context) (kernel.Abstract, error) {
 		return &lazyWhisperKernel{
 			ClosureSignaler: closuresignaler.New(),
-			control:         control,
+			filter:          filter,
 		}, nil
 	}
 
-	return factory, control
+	return factory, filter
 }
 
 // lazyWhisperKernel defers creation of the real Whisper kernel until the first
@@ -56,7 +56,7 @@ func newWhisperFactory(
 // pass through.
 type lazyWhisperKernel struct {
 	*closuresignaler.ClosureSignaler
-	control  *avd.WhisperControl
+	filter   *avd.WhisperFilter
 	initOnce sync.Once
 	inner    *whisper.Whisper
 	initErr  error
@@ -67,7 +67,7 @@ func (k *lazyWhisperKernel) GetObjectID() globaltypes.ObjectID {
 }
 
 func (k *lazyWhisperKernel) String() string {
-	return fmt.Sprintf("LazyWhisper(lang=%s)", k.control.GetLanguage())
+	return fmt.Sprintf("LazyWhisper(lang=%s)", k.filter.GetLanguage())
 }
 
 func (k *lazyWhisperKernel) SendInput(
@@ -75,7 +75,7 @@ func (k *lazyWhisperKernel) SendInput(
 	input packetorframe.InputUnion,
 	outputCh chan<- packetorframe.OutputUnion,
 ) error {
-	if !k.control.Enabled.Load() {
+	if !k.filter.Enabled.Load() {
 		outputCh <- input.CloneAsReferencedOutput()
 		return nil
 	}
@@ -116,12 +116,12 @@ func (k *lazyWhisperKernel) createKernel(
 	ctx context.Context,
 	frame audioFrameInfo,
 ) (*whisper.Whisper, error) {
-	model := k.control.GetModel()
+	model := k.filter.GetModel()
 	if model == "" {
 		return nil, fmt.Errorf("whisper model path is empty")
 	}
 
-	lang := k.control.GetLanguage()
+	lang := k.filter.GetLanguage()
 	if lang == "" {
 		lang = "auto"
 	}

@@ -122,6 +122,34 @@ func (c *GRPCClient) ListFilterControls(
 	return c.client.ListFilterControls(ctx, &avdmanagementgrpc.ListFilterControlsRequest{})
 }
 
+func (c *GRPCClient) GetPTSShift(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetPTSShiftRequest,
+) (*avdmanagementgrpc.GetPTSShiftResponse, error) {
+	return c.client.GetPTSShift(ctx, req)
+}
+
+func (c *GRPCClient) SetPTSShift(
+	ctx context.Context,
+	req *avdmanagementgrpc.SetPTSShiftRequest,
+) (*avdmanagementgrpc.SetPTSShiftResponse, error) {
+	return c.client.SetPTSShift(ctx, req)
+}
+
+func (c *GRPCClient) GetAVSyncDelta(
+	ctx context.Context,
+	req *avdmanagementgrpc.GetAVSyncDeltaRequest,
+) (*avdmanagementgrpc.GetAVSyncDeltaResponse, error) {
+	return c.client.GetAVSyncDelta(ctx, req)
+}
+
+func (c *GRPCClient) AutoTuneAVSync(
+	ctx context.Context,
+	req *avdmanagementgrpc.AutoTuneAVSyncRequest,
+) (*avdmanagementgrpc.AutoTuneAVSyncResponse, error) {
+	return c.client.AutoTuneAVSync(ctx, req)
+}
+
 func (c *GRPCClient) Monitor(
 	ctx context.Context,
 	nodeID uint64,

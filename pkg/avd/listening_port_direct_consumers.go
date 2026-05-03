@@ -1,4 +1,10 @@
 // listening_port_direct_consumers.go implements a direct listening port for consumers.
+//
+// ListeningPortDirectConsumers serves a single libav-bound output per port.
+// SRT consumers must NOT use this path: libav's SRT muxer (mode=listener)
+// accepts only one caller per AVFormatContext, so this port would serve at
+// most one SRT puller. Multi-client SRT fan-out is the responsibility of
+// the proxied path (see listening_port_proxied.go + connection_proxied_srt.go).
 
 package avd
 
@@ -116,6 +122,11 @@ func (p *ListeningPortDirectConsumers) startListening(
 	url := fmt.Sprintf("%s://%s", proto, hostPort)
 	customOptions := p.Config.DictionaryItems(p.Protocol, PortModeConsumers)
 
+	if p.Server != nil && p.Server.EndpointResolver != nil {
+		if _, err := p.Server.EndpointResolver.EnsureWired(ctx, routePath); err != nil {
+			logger.Warnf(ctx, "endpoint resolver EnsureWired('%s') failed; proceeding to GetRoute regardless: %v", routePath, err)
+		}
+	}
 	route, err := p.Server.GetRoute(ctx, routePath, router.GetRouteModeCreateTemporaryIfNotFound)
 	if err != nil {
 		return fmt.Errorf("unable to get route '%s': %w", routePath, err)

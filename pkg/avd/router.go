@@ -29,4 +29,17 @@ func (s *Server) OnRouteRemoved(
 ) {
 	logger.Debugf(ctx, "OnRouteRemoved: %s", route)
 	defer func() { logger.Debugf(ctx, "/OnRouteRemoved: %s", route) }()
+	path := route.Path
+	if err := s.UnregisterWhisperFiltersByRoutePath(ctx, path); err != nil {
+		logger.Errorf(ctx, "UnregisterWhisperFiltersByRoutePath('%s'): %v", path, err)
+	}
+	if err := s.UnregisterPrivacyBlurFiltersByRoutePath(ctx, path); err != nil {
+		logger.Errorf(ctx, "UnregisterPrivacyBlurFiltersByRoutePath('%s'): %v", path, err)
+	}
+	if err := s.UnregisterDeblemishFiltersByRoutePath(ctx, path); err != nil {
+		logger.Errorf(ctx, "UnregisterDeblemishFiltersByRoutePath('%s'): %v", path, err)
+	}
+	if err := s.UnregisterAVSyncFiltersByRoutePath(ctx, path); err != nil {
+		logger.Errorf(ctx, "UnregisterAVSyncFiltersByRoutePath('%s'): %v", path, err)
+	}
 }

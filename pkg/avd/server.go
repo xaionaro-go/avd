@@ -9,6 +9,8 @@ import (
 	"fmt"
 
 	"github.com/facebookincubator/go-belt/tool/logger"
+	"github.com/xaionaro-go/avd/pkg/avd/types"
+	"github.com/xaionaro-go/avpipeline/kernel"
 	"github.com/xaionaro-go/avpipeline/router"
 	"github.com/xaionaro-go/xsync"
 )
@@ -18,25 +20,37 @@ type Server struct {
 
 	ListeningPortsLocker xsync.RWMutex
 	ListeningPorts       []ListeningPort
-	PrivacyBlurRegistry  privacyBlurRegistry
-	DeblemishRegistry    deblemishRegistry
-	WhisperRegistry      whisperRegistry
+	PrivacyBlurFilters   filterRegistry[PrivacyBlurFilterKey, *PrivacyBlurFilter]
+	DeblemishFilters     filterRegistry[DeblemishFilterKey, *DeblemishFilter]
+	WhisperFilters       filterRegistry[WhisperFilterKey, *WhisperFilter]
+	AVSyncFilters        filterRegistry[AVSyncFilterKey, *kernel.AVSync]
+
+	// EndpointResolver materializes regex-pattern endpoints lazily
+	// on first arrival. It is set by configapplier.ApplyConfig when
+	// the configuration carries any regexp-prefixed `endpoints:`
+	// keys, and is consulted by the streaming consumer/publisher
+	// entry points so consumer-first connects don't block on a
+	// route that has no eagerly-wired forwardings yet.
+	EndpointResolver EndpointResolver
+}
+
+// EndpointResolver is the minimal contract avd needs from the
+// configapplier-side resolver: ensure a route is materialized for a
+// given path. Defined here as an interface to avoid an avd ->
+// configapplier import (which would be a cycle).
+type EndpointResolver interface {
+	EnsureWired(ctx context.Context, path types.RoutePath) (matched bool, err error)
 }
 
 func NewServer(
 	ctx context.Context,
 ) *Server {
 	s := &Server{
-		Router: router.New[RouteCustomData](ctx),
-		PrivacyBlurRegistry: privacyBlurRegistry{
-			Controls: make(map[PrivacyBlurControlKey]*PrivacyBlurControl),
-		},
-		DeblemishRegistry: deblemishRegistry{
-			Controls: make(map[DeblemishControlKey]*DeblemishControl),
-		},
-		WhisperRegistry: whisperRegistry{
-			Controls: make(map[WhisperControlKey]*WhisperControl),
-		},
+		Router:             router.New[RouteCustomData](ctx),
+		PrivacyBlurFilters: newFilterRegistry[PrivacyBlurFilterKey, *PrivacyBlurFilter]("privacy_blur"),
+		DeblemishFilters:   newFilterRegistry[DeblemishFilterKey, *DeblemishFilter]("deblemish"),
+		WhisperFilters:     newFilterRegistry[WhisperFilterKey, *WhisperFilter]("whisper"),
+		AVSyncFilters:      newFilterRegistry[AVSyncFilterKey, *kernel.AVSync]("av_sync"),
 	}
 	s.Router.OnRouteCreated = s.OnRouteCreated
 	s.Router.OnRouteRemoved = s.OnRouteRemoved
