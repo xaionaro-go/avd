@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/xaionaro-go/avd/pkg/avd/types"
 	transcodertypes "github.com/xaionaro-go/avpipeline/preset/transcoderwithpassthrough/types"
 )
@@ -73,6 +74,18 @@ func (c ForwardConfig) EffectiveIdleTimeoutSec() uint {
 type Command struct {
 	Command []string      `yaml:"command"`
 	Restart RestartPolicy `yaml:"restart"`
+}
+
+func (cmd *Command) UnmarshalYAML(b []byte) error {
+	type rawCommand Command
+	raw := rawCommand{
+		Restart: RestartPolicyNever,
+	}
+	if err := yaml.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*cmd = Command(raw)
+	return nil
 }
 
 type EndpointConfig struct {

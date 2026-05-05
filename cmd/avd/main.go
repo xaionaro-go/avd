@@ -33,6 +33,11 @@ func main() {
 		"",
 		"address to listen to for net/pprof requests",
 	)
+	maxVRAMMiB := pflag.Uint64(
+		"max-vram-mib",
+		0,
+		"terminate avd when this process exceeds the NVIDIA VRAM cap in MiB; 0 disables the guard",
+	)
 	generateConfig := pflag.Bool(
 		"generate-config",
 		false,
@@ -55,6 +60,10 @@ func main() {
 		printBuildInfo(ctx, os.Stdout)
 		os.Exit(0)
 	}
+
+	startVRAMGuard(ctx, *maxVRAMMiB, defaultVRAMGuardPollInterval, func() {
+		os.Exit(vramGuardExitCode)
+	})
 
 	if *netPprofAddr != "" {
 		observability.Go(ctx, func(ctx context.Context) {

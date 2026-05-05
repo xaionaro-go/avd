@@ -13,8 +13,8 @@ import (
 type RestartPolicy int
 
 const (
-	RestartPolicyAlways = RestartPolicy(iota)
-	RestartPolicyNever
+	RestartPolicyNever = RestartPolicy(iota)
+	RestartPolicyAlways
 	EndOfRestartPolicy
 )
 
