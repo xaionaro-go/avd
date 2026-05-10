@@ -32,24 +32,27 @@ const (
 )
 
 const (
-	initAVHandlerDialRetryTimeout = 10 * time.Second
-	initAVHandlerPortRetryCount   = 4
+	initAVHandlerDialRetryTimeout       = 10 * time.Second
+	initAVHandlerPortRetryCount         = 4
+	initialClientMessagePrefetchTimeout = 250 * time.Millisecond
+	clientMessageLogPrefixBytes         = 64
 )
 
 type ConnectionProxied struct {
 	Handler *ConnectionProxiedHandler
 	Locker  xsync.Mutex
 
-	Port             *ListeningPortProxied
-	ProxyConn        xatomic.Value[net.Conn]
-	CancelFunc       context.CancelFunc
-	AVInputURL       *url.URL
-	AVInputKey       secret.String
-	AVConn           xatomic.Value[net.Conn]
-	InitError        error
-	InitFinished     chan struct{}
-	InitFinishedOnce sync.Once
-	RoutePath        *RoutePath
+	Port                     *ListeningPortProxied
+	ProxyConn                xatomic.Value[net.Conn]
+	CancelFunc               context.CancelFunc
+	AVInputURL               *url.URL
+	AVInputKey               secret.String
+	AVConn                   xatomic.Value[net.Conn]
+	InitError                error
+	InitFinished             chan struct{}
+	InitFinishedOnce         sync.Once
+	RoutePath                *RoutePath
+	PrefetchedClientMessages [][]byte
 
 	ProtocolProperties map[string]any
 }
@@ -85,6 +88,12 @@ func newConnectionProxied(
 			c.Close(ctx)
 		}
 	}()
+
+	if c.shouldPrefetchInitialClientMessage() {
+		if err := c.prefetchInitialClientMessage(ctx, initialClientMessagePrefetchTimeout); err != nil {
+			return nil, fmt.Errorf("unable to prefetch initial client message from %s: %w", conn.RemoteAddr(), err)
+		}
+	}
 
 	err := c.initAVHandler(ctx)
 	if err != nil {
@@ -133,6 +142,7 @@ func newConnectionProxied(
 				}
 
 				msg := buf[:r]
+				logger.Tracef(ctx, "forwarding %d bytes from internal AV handler to client", len(msg))
 				logger.Tracef(ctx, "waiting for Conn output...")
 				w, writeErr := proxyConn.Write(msg)
 				logger.Tracef(ctx, "/waiting for Conn output: %d %v", w, writeErr)
@@ -309,6 +319,58 @@ func (c *ConnectionProxied) GetAVConn() net.Conn {
 
 func (c *ConnectionProxied) SetAVConn(conn net.Conn) {
 	c.AVConn.Store(conn)
+}
+
+func (c *ConnectionProxied) shouldPrefetchInitialClientMessage() bool {
+	port := c.GetPort()
+	if port == nil {
+		return false
+	}
+	return port.Protocol == ProtocolRTMP && port.Mode == PortModePublishers
+}
+
+func (c *ConnectionProxied) prefetchInitialClientMessage(
+	ctx context.Context,
+	timeout time.Duration,
+) error {
+	conn := c.GetProxyConn()
+	if conn == nil {
+		return fmt.Errorf("conn is nil")
+	}
+	if timeout <= 0 {
+		return nil
+	}
+
+	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+		return fmt.Errorf("unable to set initial client read deadline: %w", err)
+	}
+	defer func() {
+		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+			logger.Errorf(ctx, "unable to reset initial client read deadline: %v", err)
+		}
+	}()
+
+	var buf [SizeBuffer]byte
+	r, err := conn.Read(buf[:])
+	switch {
+	case err == nil:
+		if r == 0 {
+			return nil
+		}
+		msg := append([]byte(nil), buf[:r]...)
+		c.PrefetchedClientMessages = append(c.PrefetchedClientMessages, msg)
+		logger.Debugf(ctx, "prefetched %d initial bytes from client before AV handler initialization", r)
+		return nil
+	case errors.Is(err, io.EOF):
+		return fmt.Errorf("client closed before initial message: %w", err)
+	default:
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			logger.Debugf(ctx, "no initial client bytes available before AV handler initialization")
+			return nil
+		}
+		return fmt.Errorf("unable to read initial client message: %w", err)
+	}
 }
 
 func (c *ConnectionProxied) getSocketNetworkName() string {
@@ -649,9 +711,72 @@ func (c *ConnectionProxied) negotiate(
 	// reader goroutine (started in newConnectionProxied). Only the
 	// Conn→AVConn reader runs here so we can snoop the route path.
 
+	processClientMessage := func(
+		ctx context.Context,
+		msg []byte,
+	) (bool, error) {
+		logger.Tracef(ctx, "received %d bytes from client", len(msg))
+		logger.Tracef(ctx, "received bytes from client prefix: % X", msg[:min(len(msg), clientMessageLogPrefixBytes)])
+		routePath, err := c.tryExtractRouteString(ctx, msg)
+		if err != nil {
+			return false, fmt.Errorf("unable to snoop the route path: %w", err)
+		}
+
+		msg, err = c.correctMessage(ctx, msg)
+		if err != nil {
+			return false, fmt.Errorf("unable to correct the message: %w", err)
+		}
+
+		forwardToAV := func(msg []byte) error {
+			logger.Tracef(ctx, "waiting for c.AVConn output...")
+			err := forward(avConn, msg)
+			logger.Tracef(ctx, "/waiting for c.AVConn output: %v", err)
+			if err == nil {
+				logger.Tracef(ctx, "forwarded %d client bytes to internal AV handler", len(msg))
+			}
+			return err
+		}
+
+		if routePath == nil {
+			if err := forwardToAV(msg); err != nil {
+				return false, err
+			}
+			return false, nil
+		}
+
+		c.RoutePath = routePath
+		logger.Debugf(ctx, "routePath == '%s'", *c.RoutePath)
+		if !c.isAsyncOpen(ctx) {
+			c.onInitFinished(ctx)
+		}
+
+		observability.Go(ctx, func(ctx context.Context) {
+			c.serve(origCtx)
+		})
+
+		if err := forwardToAV(msg); err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}
+
 	wg.Add(1)
 	observability.Go(ctx, func(ctx context.Context) {
 		defer wg.Done()
+		for _, msg := range c.PrefetchedClientMessages {
+			done, err := processClientMessage(ctx, msg)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if done {
+				errCh <- nil
+				return
+			}
+		}
+		c.PrefetchedClientMessages = nil
+
 		var buf [SizeBuffer]byte
 		for {
 			logger.Tracef(ctx, "waiting for c.Conn input...")
@@ -667,47 +792,13 @@ func (c *ConnectionProxied) negotiate(
 			}
 
 			msg := buf[:r]
-			logger.Debugf(ctx, "received %d bytes from client: %q", r, string(msg))
-			routePath, err := c.tryExtractRouteString(ctx, msg)
+			done, err := processClientMessage(ctx, msg)
 			if err != nil {
-				errCh <- fmt.Errorf("unable to snoop the route path: %w", err)
-				return
-			}
-
-			msg, err = c.correctMessage(ctx, msg)
-			if err != nil {
-				errCh <- fmt.Errorf("unable to correct the message: %w", err)
-				return
-			}
-
-			// Forwarding logic
-			forwardToAV := func(msg []byte) error {
-				logger.Tracef(ctx, "waiting for c.AVConn output...")
-				err := forward(avConn, msg)
-				logger.Tracef(ctx, "/waiting for c.AVConn output: %v", err)
-				return err
-			}
-
-			if routePath == nil {
-				if err := forwardToAV(msg); err != nil {
-					errCh <- err
-					return
-				}
-				continue
-			}
-
-			c.RoutePath = routePath
-			logger.Debugf(ctx, "routePath == '%s'", *c.RoutePath)
-			if !c.isAsyncOpen(ctx) {
-				c.onInitFinished(ctx)
-			}
-
-			observability.Go(ctx, func(ctx context.Context) {
-				c.serve(origCtx)
-			})
-
-			if err := forwardToAV(msg); err != nil {
 				errCh <- err
+				return
+			}
+			if !done {
+				continue
 			}
 
 			errCh <- nil
@@ -990,6 +1081,7 @@ func (c *ConnectionProxied) forward(
 			}
 
 			msg := buf[:r]
+			logger.Tracef(ctx, "forwarding %d client bytes to internal AV handler", len(msg))
 			logger.Tracef(ctx, "waiting for c.AVConn output...")
 			w, writeErr := avConn.Write(msg)
 			logger.Tracef(ctx, "/waiting for c.AVConn output: %d %v", w, writeErr)
@@ -1001,6 +1093,7 @@ func (c *ConnectionProxied) forward(
 				errCh <- fmt.Errorf("expected to write %d bytes to AVConn, but wrote %d", len(msg), w)
 				return
 			}
+			logger.Tracef(ctx, "forwarded %d client bytes to internal AV handler", len(msg))
 		}
 	})
 

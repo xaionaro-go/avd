@@ -19,7 +19,7 @@
 //
 // Removing the limitation requires either (a) a chunk reassembler that
 // strips continuation bytes before scanning, or (b) replacing this
-// snooper with a real AMF demuxer. Both are deferred — chunk reassembly
+// snooper with a real AMF demuxer. Both are deferred - chunk reassembly
 // is non-trivial state because chunkSize itself is renegotiable mid-
 // stream via the SetChunkSize control message, and the snooper would
 // have to track per-csid message-state across reads. The current
@@ -40,10 +40,10 @@ import (
 
 // Keys used inside ConnectionProxied.ProtocolProperties to carry
 // snooper state across negotiate-loop reads. RTMP requires this
-// because ffmpeg splits rtmp://host/<segments...>/<name> at the
+// because ffmpeg may split rtmp://host/<segments...>/<name> at the
 // LAST '/': it emits app=<segments...> in the connect AMF and only
 // emits the stream name later in the publish/play AMF, so the route
-// path cannot be decided from a single read.
+// path cannot always be decided from a single read.
 const (
 	rtmpPropPendingApp = "rtmp.pending_app"
 )
@@ -76,8 +76,10 @@ func (c *ConnectionProxied) onInitFinishedRTMP(
 // path segment). Returns:
 //
 //   - (non-nil, nil) once both halves are known and the merged route
-//     path is available; the negotiate loop will then bind libav to
-//     this path and dispatch serve.
+//     path is available. This can happen from a publisher connect AMF
+//     when the app already carries the full slash-delimited route, or
+//     later from a publish/play AMF after app + stream are merged.
+//     The negotiate loop will then bind libav to this path and dispatch serve.
 //   - (nil, nil) when the message contains a connect (app stashed for
 //     a later read), or contains nothing relevant — the caller forwards
 //     and keeps reading.
@@ -98,6 +100,13 @@ func (c *ConnectionProxied) tryExtractRouteStringRTMP(
 		}
 		c.ProtocolProperties[rtmpPropPendingApp] = app
 		logger.Debugf(ctx, "stashed pending RTMP app from connect: %q", app)
+		if c.Mode() == PortModePublishers {
+			if routePath, ok := rtmpRoutePathFromPublisherConnectApp(app); ok {
+				logger.Debugf(ctx, "RTMP publisher route path resolved from connect app: app=%q -> %q", app, routePath)
+				rp := RoutePath(routePath)
+				return &rp, nil
+			}
+		}
 	}
 
 	streamName, ok := rtmpParseStreamName(ctx, msg)
@@ -118,9 +127,9 @@ func (c *ConnectionProxied) tryExtractRouteStringRTMP(
 // app=<segments...>, streamName=<name>; the canonical route is the
 // concatenation. Two compatibility cases require care:
 //
-//  1. DJI-style publishers place the entire path in 'app' and use a
-//     trailing slash on the URL — ffmpeg then emits an empty stream
-//     name. We must NOT append the empty string.
+//  1. Some publishers place the entire path in 'app' and use a trailing
+//     slash on the URL. ffmpeg then emits an empty stream name, which
+//     must not be appended.
 //  2. Some clients re-emit the last segment of app as the stream name
 //     (defensive duplication). Detect by trailing match and skip the
 //     append in that case.
@@ -138,6 +147,18 @@ func rtmpMergeAppAndStream(app, streamName string) string {
 		return app
 	}
 	return app + "/" + streamName
+}
+
+func rtmpRoutePathFromPublisherConnectApp(app string) (string, bool) {
+	routePath := strings.Trim(app, "/")
+	switch {
+	case routePath == "":
+		return "", false
+	case !strings.Contains(routePath, "/"):
+		return "", false
+	default:
+		return routePath, true
+	}
 }
 
 func (c *ConnectionProxied) correctMessageRTMP(

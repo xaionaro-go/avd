@@ -72,7 +72,7 @@ func rtmpChunk(streamID uint32, payload []byte) []byte {
 	const chunkSize = 128
 	csid := byte(3)
 	header := []byte{
-		0x00 | csid, // fmt=0, csid=3
+		0x00 | csid,      // fmt=0, csid=3
 		0x00, 0x00, 0x00, // timestamp
 		byte(len(payload) >> 16), byte(len(payload) >> 8), byte(len(payload)),
 		0x14, // type: AMF0 command
@@ -136,7 +136,10 @@ func playChunk(streamName string) []byte {
 // newRTMPSnooperConn returns a ConnectionProxied wired with just enough
 // state to exercise the RTMP route-path snooper. The conn is a no-op
 // pipe so tryExtractRouteString does not touch the network.
-func newRTMPSnooperConn(t *testing.T) *ConnectionProxied {
+func newRTMPSnooperConn(
+	t *testing.T,
+	mode PortMode,
+) *ConnectionProxied {
 	t.Helper()
 	myEnd, mockConn := net.Pipe()
 	t.Cleanup(func() { _ = myEnd.Close() })
@@ -149,7 +152,7 @@ func newRTMPSnooperConn(t *testing.T) *ConnectionProxied {
 		Server: &Server{
 			Router: router.New[RouteCustomData](ctx()),
 		},
-		Mode:        PortModePublishers,
+		Mode:        mode,
 		Protocol:    ProtocolRTMP,
 		Connections: map[net.Addr]*ConnectionProxied{},
 	})
@@ -165,7 +168,7 @@ func newRTMPSnooperConn(t *testing.T) *ConnectionProxied {
 func TestRTMPRouteParseConnectPlusPublish(t *testing.T) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
-	c := newRTMPSnooperConn(t)
+	c := newRTMPSnooperConn(t, PortModePublishers)
 
 	// Step 1: connect chunk arrives. Snooper must remember the app
 	// but not yet finalize the route path.
@@ -180,45 +183,38 @@ func TestRTMPRouteParseConnectPlusPublish(t *testing.T) {
 	require.Equal(t, RoutePath("pixel/dji-osmo-pocket-3-merged"), *rp)
 }
 
-// TestRTMPRouteParseConnectFullAppDJI covers the DJI-style publisher
-// that places the entire route path in the connect 'app' field (and
-// sends a sentinel stream name in publish, e.g. trailing slash on the
-// URL produces an empty stream name). The snooper must NOT append the
-// sentinel — it should keep the app value as the route path.
-func TestRTMPRouteParseConnectFullAppDJI(t *testing.T) {
+// TestRTMPRouteParsePublisherConnectFullApp covers RTMP publishers
+// that place the entire route path in the connect 'app' field. The
+// publisher route must be available before publish so the proxy can
+// attach the backend that completes the RTMP open handshake.
+func TestRTMPRouteParsePublisherConnectFullApp(t *testing.T) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
-	c := newRTMPSnooperConn(t)
+	c := newRTMPSnooperConn(t, PortModePublishers)
 
-	rp, err := c.tryExtractRouteString(ctx, connectChunk("pixel/dji-osmo-pocket-3-merged"))
-	require.NoError(t, err)
-	require.Nil(t, rp, "connect alone must not finalize route path")
-
-	// Empty stream name (URL had a trailing slash, ffmpeg places the
-	// full path in app).
-	rp, err = c.tryExtractRouteString(ctx, publishChunk(""))
+	rp, err := c.tryExtractRouteString(ctx, connectChunk("pixel/source-av1-1080"))
 	require.NoError(t, err)
 	require.NotNil(t, rp)
-	require.Equal(t, RoutePath("pixel/dji-osmo-pocket-3-merged"), *rp)
+	require.Equal(t, RoutePath("pixel/source-av1-1080"), *rp)
 }
 
 // TestRTMPRouteParseConnectPlusPlay covers the consumer side: a
-// consumer pulling rtmp://host/pixel/dji-osmo-pocket-3-merged emits
-// connect(app=pixel) then play(streamName=dji-osmo-pocket-3-merged).
+// consumer pulling rtmp://host/pixel/source-merged emits
+// connect(app=pixel) then play(streamName=source-merged).
 // Same merge logic as publish.
 func TestRTMPRouteParseConnectPlusPlay(t *testing.T) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
-	c := newRTMPSnooperConn(t)
+	c := newRTMPSnooperConn(t, PortModeConsumers)
 
 	rp, err := c.tryExtractRouteString(ctx, connectChunk("pixel"))
 	require.NoError(t, err)
 	require.Nil(t, rp)
 
-	rp, err = c.tryExtractRouteString(ctx, playChunk("dji-osmo-pocket-3-merged"))
+	rp, err = c.tryExtractRouteString(ctx, playChunk("source-merged"))
 	require.NoError(t, err)
 	require.NotNil(t, rp)
-	require.Equal(t, RoutePath("pixel/dji-osmo-pocket-3-merged"), *rp)
+	require.Equal(t, RoutePath("pixel/source-merged"), *rp)
 }
 
 // TestRTMPRouteParseStreamNameRedundant covers the case where a
@@ -226,16 +222,6 @@ func TestRTMPRouteParseConnectPlusPlay(t *testing.T) {
 // to the tail of) app. We must not double-append. E.g. some clients
 // emit publish(streamName=app) for compatibility.
 func TestRTMPRouteParseStreamNameRedundant(t *testing.T) {
-	ctx := ctx()
-	defer belt.Flush(ctx)
-	c := newRTMPSnooperConn(t)
-
-	rp, err := c.tryExtractRouteString(ctx, connectChunk("pixel/dji-osmo-pocket-3-merged"))
-	require.NoError(t, err)
-	require.Nil(t, rp)
-
-	rp, err = c.tryExtractRouteString(ctx, publishChunk("dji-osmo-pocket-3-merged"))
-	require.NoError(t, err)
-	require.NotNil(t, rp)
-	require.Equal(t, RoutePath("pixel/dji-osmo-pocket-3-merged"), *rp)
+	require.Equal(t, "pixel/source-av1-1080", rtmpMergeAppAndStream("pixel/source-av1-1080", "source-av1-1080"))
+	require.Equal(t, "pixel/source-av1-1080", rtmpMergeAppAndStream("pixel/source-av1-1080", "pixel/source-av1-1080"))
 }

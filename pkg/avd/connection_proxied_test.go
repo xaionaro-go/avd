@@ -3,12 +3,16 @@
 package avd
 
 import (
+	"context"
+	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/facebookincubator/go-belt"
 	"github.com/stretchr/testify/require"
 	"github.com/xaionaro-go/avpipeline/router"
+	"github.com/xaionaro-go/observability"
 )
 
 func TestConnectionProxied(t *testing.T) {
@@ -133,4 +137,185 @@ func TestConnectionProxiedGetURLPathUnknownProtocol(t *testing.T) {
 
 	require.NotPanics(t, func() { _ = c.GetURLPath() })
 	require.Equal(t, "", c.GetURLPath())
+}
+
+func TestConnectionProxiedPrefetchInitialPublisherBytes(t *testing.T) {
+	ctx := ctx()
+	defer belt.Flush(ctx)
+
+	clientConn, proxyConn := net.Pipe()
+	defer clientConn.Close()
+	defer proxyConn.Close()
+
+	msg := connectChunk("pixel/source-av1-1080")
+	c := &ConnectionProxied{}
+	c.SetProxyConn(proxyConn)
+
+	observability.Go(ctx, func(ctx context.Context) {
+		_, err := clientConn.Write(msg)
+		require.NoError(t, err)
+	})
+
+	require.NoError(t, c.prefetchInitialClientMessage(ctx, time.Second))
+	require.Len(t, c.PrefetchedClientMessages, 1)
+	require.Equal(t, msg, c.PrefetchedClientMessages[0])
+}
+
+func TestConnectionProxiedNegotiateConsumesPrefetchedPublisherBytes(t *testing.T) {
+	ctx := ctx()
+	defer belt.Flush(ctx)
+
+	proxyClient, proxyConn := net.Pipe()
+	defer proxyClient.Close()
+	defer proxyConn.Close()
+
+	avConn, avServer := net.Pipe()
+	defer avConn.Close()
+	defer avServer.Close()
+
+	msg := connectChunk("pixel/source-av1-1080")
+	c := &ConnectionProxied{
+		ProtocolProperties:       make(map[string]any),
+		InitFinished:             make(chan struct{}),
+		PrefetchedClientMessages: [][]byte{msg},
+	}
+	c.SetProxyConn(proxyConn)
+	c.SetAVConn(avConn)
+	c.SetPort(&ListeningPortProxied{
+		Server: &Server{
+			Router: router.New[RouteCustomData](ctx),
+		},
+		Mode:        PortModePublishers,
+		Protocol:    ProtocolRTMP,
+		Connections: map[net.Addr]*ConnectionProxied{},
+	})
+
+	done := make(chan error, 1)
+	observability.Go(ctx, func(ctx context.Context) {
+		done <- c.negotiate(ctx)
+	})
+
+	require.NoError(t, avServer.SetReadDeadline(time.Now().Add(time.Second)))
+	buf := make([]byte, len(msg))
+	_, err := io.ReadFull(avServer, buf)
+	require.NoError(t, err)
+	require.Equal(t, msg, buf)
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("negotiate did not finish after consuming prefetched route bytes")
+	}
+	require.NotNil(t, c.RoutePath)
+	require.Equal(t, RoutePath("pixel/source-av1-1080"), *c.RoutePath)
+}
+
+func TestConnectionProxiedNegotiateConsumesDelayedPublisherBytesAfterPrefetchTimeout(t *testing.T) {
+	ctx := ctx()
+	defer belt.Flush(ctx)
+
+	proxyClient, proxyConn := net.Pipe()
+	defer proxyClient.Close()
+	defer proxyConn.Close()
+
+	avConn, avServer := net.Pipe()
+	defer avConn.Close()
+	defer avServer.Close()
+
+	c := &ConnectionProxied{
+		ProtocolProperties: make(map[string]any),
+		InitFinished:       make(chan struct{}),
+	}
+	c.SetProxyConn(proxyConn)
+	c.SetAVConn(avConn)
+	c.SetPort(&ListeningPortProxied{
+		Server: &Server{
+			Router: router.New[RouteCustomData](ctx),
+		},
+		Mode:        PortModePublishers,
+		Protocol:    ProtocolRTMP,
+		Connections: map[net.Addr]*ConnectionProxied{},
+	})
+
+	require.NoError(t, c.prefetchInitialClientMessage(ctx, 10*time.Millisecond))
+	require.Empty(t, c.PrefetchedClientMessages)
+
+	msg := connectChunk("pixel/source-aac-48000")
+	writeDone := make(chan error, 1)
+	observability.Go(ctx, func(context.Context) {
+		_, err := proxyClient.Write(msg)
+		writeDone <- err
+	})
+
+	negotiateDone := make(chan error, 1)
+	observability.Go(ctx, func(ctx context.Context) {
+		negotiateDone <- c.negotiate(ctx)
+	})
+
+	require.NoError(t, avServer.SetReadDeadline(time.Now().Add(time.Second)))
+	buf := make([]byte, len(msg))
+	_, err := io.ReadFull(avServer, buf)
+	require.NoError(t, err)
+	require.Equal(t, msg, buf)
+
+	select {
+	case err := <-writeDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("delayed publisher write did not complete")
+	}
+
+	select {
+	case err := <-negotiateDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("negotiate did not finish after delayed publisher route bytes")
+	}
+	require.NotNil(t, c.RoutePath)
+	require.Equal(t, RoutePath("pixel/source-aac-48000"), *c.RoutePath)
+}
+
+func TestConnectionProxiedPublisherAllowsDelayedRTMPHandshake(t *testing.T) {
+	ctx := ctx()
+	defer belt.Flush(ctx)
+
+	ctx, cancelFn := context.WithCancel(ctx)
+	defer cancelFn()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = listener.Close()
+	})
+
+	srv := NewServer(ctx)
+	t.Cleanup(func() {
+		require.NoError(t, srv.Close(ctx))
+	})
+
+	port, err := srv.ListenProxied(ctx, listener, ProtocolRTMP, PortModePublishers)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, port.Close(ctx))
+	})
+
+	conn, err := net.Dial("tcp", listener.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	time.Sleep(2500 * time.Millisecond)
+
+	clientHandshake := make([]byte, 1537)
+	clientHandshake[0] = 0x03
+	require.NoError(t, conn.SetDeadline(time.Now().Add(2*time.Second)))
+	_, err = conn.Write(clientHandshake)
+	require.NoError(t, err)
+
+	serverHandshake := make([]byte, 3073)
+	_, err = io.ReadFull(conn, serverHandshake)
+	require.NoError(t, err)
+	require.Equal(t, byte(0x03), serverHandshake[0])
 }

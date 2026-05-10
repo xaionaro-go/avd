@@ -42,7 +42,7 @@ import (
 func TestRTMPSnooperChunkSpanningConnect_DocumentedFailureMode(t *testing.T) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
-	c := newRTMPSnooperConn(t)
+	c := newRTMPSnooperConn(t, PortModePublishers)
 
 	// Long app value: 200 'a' bytes pushes the AMF "app" *value* past
 	// the 128-byte default chunk size so rtmpChunk splits it with a
@@ -80,7 +80,7 @@ func TestRTMPSnooperChunkSpanningConnect_DocumentedFailureMode(t *testing.T) {
 func TestRTMPSnooperSingleChunkConnect_Succeeds(t *testing.T) {
 	ctx := ctx()
 	defer belt.Flush(ctx)
-	c := newRTMPSnooperConn(t)
+	c := newRTMPSnooperConn(t, PortModePublishers)
 
 	rp, err := c.tryExtractRouteString(ctx, connectChunk("pixel"))
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestRTMPParseConnectApp_SkipsNonStringProperties(t *testing.T) {
 	})...)
 	chunked := rtmpChunk(0, payload)
 
-	c := newRTMPSnooperConn(t)
+	c := newRTMPSnooperConn(t, PortModePublishers)
 	rp, err := c.tryExtractRouteString(ctx, chunked)
 	require.NoError(t, err)
 	require.Nil(t, rp, "connect alone must not finalize the route path")
@@ -134,7 +134,7 @@ func FuzzRTMPSnooper_NoPanic(f *testing.F) {
 	f.Add([]byte{0x02, 0x00, 0x07, 'c', 'o', 'n', 'n', 'e', 'c', 't'})
 
 	f.Fuzz(func(t *testing.T, msg []byte) {
-		c := newRTMPSnooperConn(t)
+		c := newRTMPSnooperConn(t, PortModePublishers)
 		ctx := ctx()
 		// We accept any (rp, err) return; the only assertion is that
 		// the parser does not panic and returns within bounded work.
